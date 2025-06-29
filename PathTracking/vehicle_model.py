@@ -124,7 +124,7 @@ class DelayBuffer:
         """
         self.delay = max(0.0, delay)
         self.command_buffer = deque()  # Store tuples of (command, timestamp)
-        self.last_command = 0.0
+        self.last_command = None  # Changed: Initialize with None instead of 0.0
         
     def add_command(self, command, current_time):
         """
@@ -145,7 +145,7 @@ class DelayBuffer:
             current_time (float): Current simulation time [s]
             
         Returns:
-            float: Effective command after delay processing
+            float or None: Effective command after delay processing, or None if no command is available yet
         """
         if self.delay <= 0:
             return command
@@ -158,7 +158,7 @@ class DelayBuffer:
                self.command_buffer[0][1] <= current_time):
             self.last_command = self.command_buffer.popleft()[0]
             
-        return self.last_command
+        return self.last_command  # Can be None during initial delay period
         
     def set_delay(self, delay):
         """
@@ -169,12 +169,12 @@ class DelayBuffer:
         """
         self.delay = max(0.0, delay)
         self.command_buffer.clear()
-        self.last_command = 0.0
+        self.last_command = None  # Changed: Reset to None instead of 0.0
         
     def clear(self):
         """Clear buffer and reset last command"""
         self.command_buffer.clear()
-        self.last_command = 0.0
+        self.last_command = None  # Changed: Reset to None instead of 0.0
 
 
 class BicycleKinematicModel:
@@ -357,11 +357,16 @@ class VehicleModel:
         # Update time
         self.current_time += time_step
         
-        # Apply delays
+        # Apply delays - use 0.0 as default during delay period
         effective_steering_rate = self.steering_delay_buffer.get_effective_command(
             steering_rate_cmd, self.current_time)
+        if effective_steering_rate is None:
+            effective_steering_rate = 0.0  # No steering command during delay period
+            
         effective_acceleration = self.acceleration_delay_buffer.get_effective_command(
             acceleration_cmd, self.current_time)
+        if effective_acceleration is None:
+            effective_acceleration = 0.0  # No acceleration command during delay period
         
         # Update kinematics
         return self.kinematics.update(effective_steering_rate, effective_acceleration, time_step)
@@ -392,11 +397,16 @@ class VehicleModel:
         self.steering_delay_buffer.add_command(clipped_steering, self.current_time)
         self.acceleration_delay_buffer.add_command(clipped_velocity, self.current_time)
         
-        # Get delayed commands from buffers
+        # Get delayed commands from buffers - handle None values during delay period
         effective_steering = self.steering_delay_buffer.get_effective_command(
             clipped_steering, self.current_time)
+        if effective_steering is None:
+            effective_steering = current_state.steering_angle  # Maintain current steering during delay
+            
         effective_velocity = self.acceleration_delay_buffer.get_effective_command(
             clipped_velocity, self.current_time)
+        if effective_velocity is None:
+            effective_velocity = current_state.velocity  # Maintain current velocity during delay
         
         # Calculate rates based on delayed commands vs current state
         steering_error = effective_steering - current_state.steering_angle
