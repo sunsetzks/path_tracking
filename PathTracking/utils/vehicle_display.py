@@ -57,12 +57,12 @@ class VehicleDisplay:
                     yaw: float,
                     steering_angle: float = 0.0,
                     ax: Optional[plt.Axes] = None,
-                    body_color: str = 'blue',
+                    body_color: str = 'none',
                     wheel_color: str = 'black',
                     front_wheel_color: str = 'red',
                     show_direction_arrow: bool = True,
                     arrow_color: str = 'green',
-                    alpha: float = 0.8) -> None:
+                    alpha: float = 0.3) -> None:
         """
         Plot vehicle with four wheels and steering visualization
         
@@ -313,6 +313,8 @@ def plot_vehicle_simple(x: float, y: float, yaw: float,
                        vehicle_length: float = 4.5,
                        vehicle_width: float = 2.0,
                        ax: Optional[plt.Axes] = None,
+                       body_color: str = 'none',
+                       alpha: float = 0.3,
                        **kwargs) -> None:
     """
     Simple function to plot vehicle with default parameters
@@ -325,11 +327,13 @@ def plot_vehicle_simple(x: float, y: float, yaw: float,
         vehicle_length (float): Vehicle length [m]
         vehicle_width (float): Vehicle width [m]
         ax (Optional[plt.Axes]): Matplotlib axes to plot on. If None, uses current axes
+        body_color (str): Color for vehicle body
+        alpha (float): Transparency level (0-1)
         **kwargs: Additional arguments passed to VehicleDisplay.plot_vehicle()
     """
     display = VehicleDisplay(vehicle_length=vehicle_length, 
                            vehicle_width=vehicle_width)
-    display.plot_vehicle(x, y, yaw, steering_angle, ax=ax, **kwargs)
+    display.plot_vehicle(x, y, yaw, steering_angle, ax=ax, body_color=body_color, alpha=alpha, **kwargs)
 
 
 def demo_vehicle_display():
