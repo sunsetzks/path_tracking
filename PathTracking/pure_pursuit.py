@@ -10,8 +10,6 @@ This module implements the Pure Pursuit path tracking algorithm with the followi
 Author: Assistant
 """
 
-import matplotlib
-matplotlib.use('Qt5Agg')  # Use Qt5Agg backend instead of TkAgg
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches  # Add import for Circle
 import numpy as np
@@ -218,8 +216,7 @@ def create_test_trajectory():
     return trajectory
 
 
-def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_time=60.0, 
-                  show_animation=True, save_animation=False):
+def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_time=60.0):
     """
     Run simulation of pure pursuit controller.
     
@@ -229,166 +226,76 @@ def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_tim
         controller (PurePursuitController): Pure pursuit controller
         time_step (float): Simulation time step [s]
         max_time (float): Maximum simulation time [s]
-        show_animation (bool): Whether to show animation
-        save_animation (bool): Whether to save animation frames
-        
-    Returns:
-        tuple: (time_list, x_list, y_list, yaw_list, velocity_list, steering_list, target_x_list, target_y_list)
     """
-    # Initialize vehicle state
+    # Initialize vehicle state at trajectory start
     nearest_point = trajectory.find_nearest_point(0, 0)
-    initial_state = VehicleState(
+    vehicle_model.set_state(VehicleState(
         position_x=nearest_point.x,
         position_y=nearest_point.y,
         yaw_angle=nearest_point.yaw,
         velocity=0.0,
         steering_angle=0.0
-    )
-    vehicle_model.set_state(initial_state)
+    ))
+
+    # Setup plot
+    plt.figure(figsize=(10, 8))
     
-    # Initialize visualization
-    if show_animation:
-        plt.figure(figsize=(12, 9))
-        
-        # Plot trajectory once at the beginning
-        x_coords = [wp.x for wp in trajectory.waypoints]
-        y_coords = [wp.y for wp in trajectory.waypoints]
-        directions = [wp.direction for wp in trajectory.waypoints]
-        
-        # Create static plot elements
-        forward_path = None
-        backward_path = None
-        for i in range(1, len(x_coords)):
-            if directions[i] > 0:
-                if forward_path is None:
-                    forward_path = plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-', alpha=0.5, label='Forward Path')[0]
-                else:
-                    plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-', alpha=0.5)
-            else:
-                if backward_path is None:
-                    backward_path = plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-', alpha=0.5, label='Backward Path')[0]
-                else:
-                    plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-', alpha=0.5)
-        
-        # Initialize dynamic plot elements
-        vehicle_path_line, = plt.plot([], [], 'g--', linewidth=1.5, label='Vehicle Path')
-        target_point_line, = plt.plot([], [], 'rx', markersize=8, label='Target Point')
-        lookahead_circle = patches.Circle((0, 0), 1.0, color='b', fill=False, linestyle='--', alpha=0.4)
-        plt.gca().add_patch(lookahead_circle)
-        
-        # Create vehicle display
-        vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
-        
-        # Add static elements
-        plt.grid(True)
-        plt.title('Pure Pursuit Path Tracking Simulation')
-        plt.xlabel('X [m]')
-        plt.ylabel('Y [m]')
-        plt.axis('equal')
-        
-        # Create info text box
-        info_text = plt.text(
-            0.02, 0.95, '',
-            transform=plt.gca().transAxes,
-            fontsize=10,
-            verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
-        )
-        
-        # Create legend
-        plt.legend(loc='upper right')
-    else:
-        vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
+    # Initialize vehicle display and path history
+    vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
+    x_history = []
+    y_history = []
     
-    # Simulation loop
+    # Initialize simulation time
     time = 0.0
-    time_list = [0.0]
-    x_list = [initial_state.position_x]
-    y_list = [initial_state.position_y]
-    yaw_list = [initial_state.yaw_angle]
-    velocity_list = [0.0]
-    steering_list = [0.0]
-    target_x_list = []
-    target_y_list = []
-    
-    # Animation update interval (update every N steps)
-    animation_interval = 5  # Reduced update frequency
     
     try:
         while time < max_time:
-            # Get current state
+            # Clear previous plot
+            plt.cla()
+            
+            # Setup plot properties
+            plt.grid(True)
+            plt.axis('equal')
+            
+            # Plot trajectory
+            x_coords = [wp.x for wp in trajectory.waypoints]
+            y_coords = [wp.y for wp in trajectory.waypoints]
+            plt.plot(x_coords, y_coords, 'b--', label='Reference Path')
+            
+            # Update vehicle state and history
             vehicle_state = vehicle_model.get_state()
+            x_history.append(vehicle_state.position_x)
+            y_history.append(vehicle_state.position_y)
             
-            # Calculate control input
-            steering_angle, target_velocity = controller.compute_control_input(trajectory, vehicle_state)
+            # Calculate and apply control
+            steering, target_velocity = controller.compute_control_input(trajectory, vehicle_state)
+            vehicle_model.update_with_direct_control([steering, target_velocity], time_step)
             
-            # Find target point for visualization
-            target_point = controller.find_target_point(trajectory, vehicle_state)
-            if target_point is not None:
-                target_x, target_y, _ = target_point
-                target_x_list.append(target_x)
-                target_y_list.append(target_y)
+            # Plot vehicle path
+            plt.plot(x_history, y_history, 'g-', label='Vehicle Path')
             
-            # Apply control input using direct control mode
-            vehicle_model.update_with_direct_control([steering_angle, target_velocity], time_step)
+            # Plot vehicle
+            vehicle_display.plot_vehicle(
+                vehicle_state.position_x,
+                vehicle_state.position_y,
+                vehicle_state.yaw_angle,
+                vehicle_state.steering_angle
+            )
             
-            # Update time
+            # Add legend
+            plt.legend()
+            
+            # Auto-adjust view to follow vehicle
+            plt.xlim(vehicle_state.position_x - 20, vehicle_state.position_x + 20)
+            plt.ylim(vehicle_state.position_y - 20, vehicle_state.position_y + 20)
+
+            plt.pause(0.001)
             time += time_step
             
-            # Record state
-            current_state = vehicle_model.get_state()
-            time_list.append(time)
-            x_list.append(current_state.position_x)
-            y_list.append(current_state.position_y)
-            yaw_list.append(current_state.yaw_angle)
-            velocity_list.append(current_state.velocity)
-            steering_list.append(current_state.steering_angle)
-            
-            # Visualization
-            if show_animation and (len(time_list) % animation_interval == 0):
-                # Update vehicle path
-                vehicle_path_line.set_data(x_list, y_list)
-                
-                # Update target point
-                if target_x_list and target_y_list:
-                    target_point_line.set_data([target_x_list[-1]], [target_y_list[-1]])
-                
-                # Update vehicle
-                vehicle_display.plot_vehicle(
-                    current_state.position_x,
-                    current_state.position_y,
-                    current_state.yaw_angle,
-                    current_state.steering_angle,
-                    body_color='cyan' if current_state.velocity >= 0 else 'magenta'
-                )
-                
-                # Update lookahead circle
-                lookahead = controller.calculate_lookahead_distance(abs(current_state.velocity))
-                lookahead_circle.center = (current_state.position_x, current_state.position_y)
-                lookahead_circle.radius = lookahead
-                
-                # Update information text
-                info_text.set_text(
-                    f"Speed: {current_state.velocity:.2f} m/s\n"
-                    f"Steering: {np.rad2deg(current_state.steering_angle):.1f} deg\n"
-                    f"Lookahead: {lookahead:.2f} m\n"
-                    f"Time: {time:.1f} s"
-                )
-                
-                # Update plot limits to follow the vehicle
-                plt.xlim(current_state.position_x - 30, current_state.position_x + 30)
-                plt.ylim(current_state.position_y - 30, current_state.position_y + 30)
-                
-                plt.draw()
-                plt.pause(0.001)
-                
-                if save_animation:
-                    plt.savefig(f"pure_pursuit_frame_{int(time*10):03d}.png")
-                    
     except KeyboardInterrupt:
         print("\nSimulation interrupted by user")
     
-    return time_list, x_list, y_list, yaw_list, velocity_list, steering_list, target_x_list, target_y_list
+    plt.show()
 
 
 def main():
@@ -396,20 +303,13 @@ def main():
     Main function to run the pure pursuit simulation.
     """
     print("Pure Pursuit Path Tracking Simulation")
-    print("Press Ctrl+C to stop the simulation")
-    
-    # Enable interactive mode
-    plt.ion()
     
     # Create test trajectory
     trajectory = create_test_trajectory()
-    print(f"Created trajectory with {len(trajectory.waypoints)} waypoints")
     
-    # Create vehicle model
+    # Create vehicle model and controller
     wheelbase = 2.9
     vehicle_model = VehicleModel(wheelbase=wheelbase)
-    
-    # Create pure pursuit controller
     controller = PurePursuitController(
         wheelbase=wheelbase,
         min_lookahead=2.0,
@@ -417,27 +317,8 @@ def main():
         max_steering_angle=np.deg2rad(45.0)
     )
     
-    try:
-        # Run simulation
-        run_simulation(
-            trajectory=trajectory,
-            vehicle_model=vehicle_model,
-            controller=controller,
-            time_step=0.1,
-            max_time=60.0,  # Reduced simulation time
-            show_animation=True
-        )
-        
-        print("Simulation complete")
-        
-        # Disable interactive mode and show the final plot
-        plt.ioff()
-        plt.show(block=True)  # This will block until the window is closed
-        
-    except KeyboardInterrupt:
-        print("\nSimulation interrupted by user")
-        plt.ioff()
-        plt.close('all')
+    # Run simulation
+    run_simulation(trajectory, vehicle_model, controller)
 
 
 if __name__ == "__main__":

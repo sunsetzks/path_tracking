@@ -7,13 +7,16 @@ author: Atsushi Sakai (@Atsushi_twi)
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import os
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 from matplotlib.animation import FuncAnimation
 from typing import List, Tuple, Optional, Union, Any
 
 import sys
 import pathlib
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
-from utils.angle import angle_mod
+from PathTracking.utils.angle import angle_mod
 
 
 class VehicleConfig:
@@ -48,7 +51,7 @@ class VehicleState:
         self.x += self.v * math.cos(self.yaw) * config.dt
         self.y += self.v * math.sin(self.yaw) * config.dt
         self.yaw += self.v / config.wheelbase * math.tan(delta) * config.dt
-        self.yaw = angle_mod(self.yaw)
+        self.yaw = float(angle_mod(self.yaw))
         self.v += acceleration * config.dt
 
     def calc_distance(self, point_x: float, point_y: float) -> float:
@@ -148,7 +151,7 @@ class TargetCourse:
             dy = [state.y - icy for icy in self.cy]
             d = np.hypot(dx, dy)
             ind = np.argmin(d)
-            self.old_nearest_point_index = ind
+            self.old_nearest_point_index = int(ind)
         else:
             ind = self.old_nearest_point_index
             distance_this_index = state.calc_distance(self.cx[ind], self.cy[ind])
@@ -173,7 +176,7 @@ class TargetCourse:
                 break  # not exceed goal
             ind += 1
 
-        return ind, look_ahead
+        return int(ind), look_ahead
 
 
 class PurePursuitController:
@@ -224,8 +227,8 @@ class Visualization:
         self.pause_simulation: bool = False
         
         # Setup figure
-        self.fig: plt.Figure
-        self.ax: plt.Axes
+        self.fig: Figure
+        self.ax: Axes
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
         self.fig.canvas.mpl_connect('key_release_event', self.on_key)
         
@@ -400,7 +403,7 @@ class Simulation:
             states.append(time, state)
             
             # Visualization
-            if self.show_animation:
+            if self.show_animation and self.visualizer is not None:
                 self.visualizer.update_plot(state, target_ind, course, states, target_speed, self.controller, self.config)
                 plt.pause(0.001)
                 
@@ -415,7 +418,7 @@ class Simulation:
         goal_reached = last_index <= target_ind
         
         # Show result plots if animation was enabled
-        if self.show_animation and goal_reached:
+        if self.show_animation and goal_reached and self.visualizer is not None:
             self.visualizer.show_result_plots(course, states)
             
         return states, goal_reached
@@ -437,8 +440,12 @@ def main() -> None:
     
     # Create course
     is_reverse_mode = True
-    cx = -1 * np.arange(0, 50, 0.5) if is_reverse_mode else np.arange(0, 50, 0.5)
-    cy = [math.sin(ix / 5.0) * ix / 2.0 for ix in cx]
+    cx_array = -1 * np.arange(0, 50, 0.5) if is_reverse_mode else np.arange(0, 50, 0.5)
+    cy_array = [math.sin(ix / 5.0) * ix / 2.0 for ix in cx_array]
+    
+    # Convert numpy arrays to lists for type compatibility
+    cx = cx_array.tolist()
+    cy = [float(y) for y in cy_array]
     course = TargetCourse(cx, cy)
     
     # Set initial state and target speed
