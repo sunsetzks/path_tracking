@@ -10,10 +10,12 @@ This module implements the Pure Pursuit path tracking algorithm with the followi
 Author: Assistant
 """
 
-import numpy as np
-import math
+import matplotlib
+matplotlib.use('Qt5Agg')  # Use Qt5Agg backend instead of TkAgg
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches  # Add import for Circle
+import numpy as np
+import math
 import sys
 import os
 
@@ -84,66 +86,22 @@ class PurePursuitController:
         lookahead = self.calculate_lookahead_distance(current_velocity)
         
         # Find nearest point on trajectory
-        nearest_x, nearest_y, nearest_yaw, nearest_direction, nearest_s = trajectory.find_nearest_point(
-            current_x, current_y)
+        nearest_point = trajectory.find_nearest_point(current_x, current_y)
         
         # Get trajectory length
         trajectory_length = trajectory.get_trajectory_length()
         
+        # If we're near the end of the trajectory, use the last point
+        if nearest_point.s + lookahead >= trajectory_length:
+            point = trajectory.interpolate_at_distance(trajectory_length)
+            return point.x, point.y, point.direction
+        
         # Search for target point at lookahead distance
-        target_s = nearest_s
-        found_target = False
+        target_s = nearest_point.s + lookahead
         
-        # Search forward along the path for lookahead distance
-        search_resolution = 0.1  # Search step [m]
-        max_search_dist = min(lookahead * 3.0, trajectory_length)  # Limit search range
-        
-        for dist in np.arange(search_resolution, max_search_dist, search_resolution):
-            # Check point ahead on trajectory
-            target_s_candidate = nearest_s + dist
-            if target_s_candidate > trajectory_length:
-                target_s_candidate = target_s_candidate - trajectory_length  # Loop around
-                
-            # Get point at this distance
-            target_x, target_y, _, target_direction = trajectory.interpolate_at_distance(target_s_candidate)
-            
-            # Calculate distance from current position to this point
-            dx = target_x - current_x
-            dy = target_y - current_y
-            distance = math.sqrt(dx**2 + dy**2)
-            
-            # If distance is close to lookahead, we found our target
-            if abs(distance - lookahead) < search_resolution:
-                target_s = target_s_candidate
-                found_target = True
-                break
-                
-            # If we've gone past the lookahead distance, interpolate to get exact point
-            if distance > lookahead:
-                # Interpolate between this point and previous point
-                prev_s = target_s_candidate - search_resolution
-                if prev_s < 0:
-                    prev_s += trajectory_length
-                    
-                prev_x, prev_y, _, prev_direction = trajectory.interpolate_at_distance(prev_s)
-                
-                # Linear interpolation to find point at exactly lookahead distance
-                # This is a simplified approach - more accurate methods could be used
-                target_s = prev_s + search_resolution * (lookahead - math.sqrt((prev_x - current_x)**2 + 
-                                                                             (prev_y - current_y)**2)) / (distance - 
-                                                                             math.sqrt((prev_x - current_x)**2 + 
-                                                                                     (prev_y - current_y)**2))
-                
-                # Get interpolated point
-                target_x, target_y, _, target_direction = trajectory.interpolate_at_distance(target_s)
-                found_target = True
-                break
-        
-        if not found_target:
-            # If no target found, use the furthest point we checked
-            target_x, target_y, _, target_direction = trajectory.interpolate_at_distance(target_s)
-        
-        return target_x, target_y, target_direction
+        # Get interpolated point
+        point = trajectory.interpolate_at_distance(target_s)
+        return point.x, point.y, point.direction
     
     def compute_steering_angle(self, vehicle_state, target_x, target_y):
         """
@@ -278,11 +236,11 @@ def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_tim
         tuple: (time_list, x_list, y_list, yaw_list, velocity_list, steering_list, target_x_list, target_y_list)
     """
     # Initialize vehicle state
-    initial_x, initial_y, initial_yaw, initial_direction, _ = trajectory.find_nearest_point(0, 0)
+    nearest_point = trajectory.find_nearest_point(0, 0)
     initial_state = VehicleState(
-        position_x=initial_x,
-        position_y=initial_y,
-        yaw_angle=initial_yaw,
+        position_x=nearest_point.x,
+        position_y=nearest_point.y,
+        yaw_angle=nearest_point.yaw,
         velocity=0.0,
         steering_angle=0.0
     )
@@ -292,41 +250,69 @@ def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_tim
     if show_animation:
         plt.figure(figsize=(12, 9))
         
-        # Plot trajectory
+        # Plot trajectory once at the beginning
         x_coords = [wp.x for wp in trajectory.waypoints]
         y_coords = [wp.y for wp in trajectory.waypoints]
         directions = [wp.direction for wp in trajectory.waypoints]
         
-        # Plot forward trajectory in blue, backward in red
+        # Create static plot elements
+        forward_path = None
+        backward_path = None
         for i in range(1, len(x_coords)):
             if directions[i] > 0:
-                plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-')
+                if forward_path is None:
+                    forward_path = plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-', alpha=0.5, label='Forward Path')[0]
+                else:
+                    plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-', alpha=0.5)
             else:
-                plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-')
+                if backward_path is None:
+                    backward_path = plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-', alpha=0.5, label='Backward Path')[0]
+                else:
+                    plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-', alpha=0.5)
         
-        plt.plot(initial_x, initial_y, 'go', label='Start')
-        plt.axis('equal')
+        # Initialize dynamic plot elements
+        vehicle_path_line, = plt.plot([], [], 'g--', linewidth=1.5, label='Vehicle Path')
+        target_point_line, = plt.plot([], [], 'rx', markersize=8, label='Target Point')
+        lookahead_circle = patches.Circle((0, 0), 1.0, color='b', fill=False, linestyle='--', alpha=0.4)
+        plt.gca().add_patch(lookahead_circle)
+        
+        # Create vehicle display
+        vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
+        
+        # Add static elements
         plt.grid(True)
         plt.title('Pure Pursuit Path Tracking Simulation')
         plt.xlabel('X [m]')
         plt.ylabel('Y [m]')
-    
-    # Create vehicle display
-    vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
+        plt.axis('equal')
+        
+        # Create info text box
+        info_text = plt.text(
+            0.02, 0.95, '',
+            transform=plt.gca().transAxes,
+            fontsize=10,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
+        )
+        
+        # Create legend
+        plt.legend(loc='upper right')
+    else:
+        vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
     
     # Simulation loop
     time = 0.0
     time_list = [0.0]
-    x_list = [initial_x]
-    y_list = [initial_y]
-    yaw_list = [initial_yaw]
+    x_list = [initial_state.position_x]
+    y_list = [initial_state.position_y]
+    yaw_list = [initial_state.yaw_angle]
     velocity_list = [0.0]
     steering_list = [0.0]
     target_x_list = []
     target_y_list = []
     
     # Animation update interval (update every N steps)
-    animation_interval = 1
+    animation_interval = 5  # Reduced update frequency
     
     try:
         while time < max_time:
@@ -359,24 +345,15 @@ def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_tim
             steering_list.append(current_state.steering_angle)
             
             # Visualization
-            if show_animation and (len(time_list) % animation_interval == 0):  # Update every N steps for smoother animation
-                plt.cla()
+            if show_animation and (len(time_list) % animation_interval == 0):
+                # Update vehicle path
+                vehicle_path_line.set_data(x_list, y_list)
                 
-                # Plot trajectory
-                for i in range(1, len(x_coords)):
-                    if directions[i] > 0:
-                        plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'b-', alpha=0.5, label='Forward Path' if i==1 else "")
-                    else:
-                        plt.plot(x_coords[i-1:i+1], y_coords[i-1:i+1], 'r-', alpha=0.5, label='Backward Path' if i==len(x_coords)-20 else "")
-                
-                # Plot vehicle path
-                plt.plot(x_list, y_list, 'g--', linewidth=1.5, label='Vehicle Path')
-                
-                # Plot target points
+                # Update target point
                 if target_x_list and target_y_list:
-                    plt.plot(target_x_list[-1], target_y_list[-1], 'rx', markersize=8, label='Target Point')
+                    target_point_line.set_data([target_x_list[-1]], [target_y_list[-1]])
                 
-                # Plot vehicle
+                # Update vehicle
                 vehicle_display.plot_vehicle(
                     current_state.position_x,
                     current_state.position_y,
@@ -385,44 +362,24 @@ def run_simulation(trajectory, vehicle_model, controller, time_step=0.1, max_tim
                     body_color='cyan' if current_state.velocity >= 0 else 'magenta'
                 )
                 
-                # Plot lookahead distance circle
+                # Update lookahead circle
                 lookahead = controller.calculate_lookahead_distance(abs(current_state.velocity))
-                circle = patches.Circle(
-                    (current_state.position_x, current_state.position_y),
-                    lookahead,
-                    color='b',
-                    fill=False,
-                    linestyle='--',
-                    alpha=0.4
-                )
-                plt.gca().add_patch(circle)
+                lookahead_circle.center = (current_state.position_x, current_state.position_y)
+                lookahead_circle.radius = lookahead
                 
-                # Add information text
-                info_text = (
+                # Update information text
+                info_text.set_text(
                     f"Speed: {current_state.velocity:.2f} m/s\n"
                     f"Steering: {np.rad2deg(current_state.steering_angle):.1f} deg\n"
                     f"Lookahead: {lookahead:.2f} m\n"
                     f"Time: {time:.1f} s"
                 )
-                plt.text(
-                    0.02, 0.95, info_text,
-                    transform=plt.gca().transAxes,
-                    fontsize=10,
-                    verticalalignment='top',
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.6)
-                )
                 
-                plt.axis('equal')
-                plt.grid(True)
-                plt.title('Pure Pursuit Path Tracking Simulation')
-                plt.xlabel('X [m]')
-                plt.ylabel('Y [m]')
+                # Update plot limits to follow the vehicle
+                plt.xlim(current_state.position_x - 30, current_state.position_x + 30)
+                plt.ylim(current_state.position_y - 30, current_state.position_y + 30)
                 
-                # Create legend without duplicate entries
-                handles, labels = plt.gca().get_legend_handles_labels()
-                by_label = dict(zip(labels, handles))
-                plt.legend(by_label.values(), by_label.keys(), loc='upper right')
-                
+                plt.draw()
                 plt.pause(0.001)
                 
                 if save_animation:
@@ -441,6 +398,9 @@ def main():
     print("Pure Pursuit Path Tracking Simulation")
     print("Press Ctrl+C to stop the simulation")
     
+    # Enable interactive mode
+    plt.ion()
+    
     # Create test trajectory
     trajectory = create_test_trajectory()
     print(f"Created trajectory with {len(trajectory.waypoints)} waypoints")
@@ -457,19 +417,27 @@ def main():
         max_steering_angle=np.deg2rad(45.0)
     )
     
-    # Run simulation
-    run_simulation(
-        trajectory=trajectory,
-        vehicle_model=vehicle_model,
-        controller=controller,
-        time_step=0.1,
-        max_time=60.0,  # Reduced simulation time
-        show_animation=True
-    )
-    
-    print("Simulation complete")
-    plt.ioff()  # Turn off interactive mode
-    plt.show()  # Show the final plot
+    try:
+        # Run simulation
+        run_simulation(
+            trajectory=trajectory,
+            vehicle_model=vehicle_model,
+            controller=controller,
+            time_step=0.1,
+            max_time=60.0,  # Reduced simulation time
+            show_animation=True
+        )
+        
+        print("Simulation complete")
+        
+        # Disable interactive mode and show the final plot
+        plt.ioff()
+        plt.show(block=True)  # This will block until the window is closed
+        
+    except KeyboardInterrupt:
+        print("\nSimulation interrupted by user")
+        plt.ioff()
+        plt.close('all')
 
 
 if __name__ == "__main__":
