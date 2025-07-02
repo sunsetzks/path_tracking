@@ -5,7 +5,15 @@ This module implements the Pure Pursuit path tracking algorithm with the followi
 - Dynamic lookahead distance based on vehicle speed
 - Support for both forward and backward trajectory segments 
 - Nearest point search on trajectory
+- Physics-based velocity planning with acceleration/deceleration constraints
+- Real-time acceleration monitoring and display
 - Visualization using vehicle display
+
+The velocity controller now considers:
+- Maximum acceleration limits for smooth speed changes
+- Maximum deceleration limits for safe braking
+- Physics-based stopping distance calculations
+- Conservative braking factors for safety margins
 
 Author: Assistant
 """
@@ -45,10 +53,10 @@ class VelocityController:
         max_backward_velocity: float = 2.0,
         max_acceleration: float = 1.0,
         max_deceleration: float = 2.0,
-        goal_tolerance: float = 0.5,
+        goal_tolerance: float = 0.1,
         velocity_tolerance: float = 0.1,
         conservative_braking_factor: float = 1.2,
-        min_velocity: float = 0.5,
+        min_velocity: float = 0.1,
     ) -> None:
         """
         Initialize the velocity controller with physics-based acceleration/deceleration.
@@ -156,7 +164,7 @@ class VelocityController:
         return position_reached
 
     def compute_target_velocity(
-        self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float
+        self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float, dt: float = 0.1
     ) -> float:
         """
         Compute target velocity using physics-based acceleration/deceleration planning.
@@ -169,6 +177,7 @@ class VelocityController:
             vehicle_state (VehicleState): Current vehicle state
             trajectory (Trajectory): Path trajectory
             target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward)
+            dt (float): Time step for acceleration calculation [s]
 
         Returns:
             float: Target velocity [m/s] (positive for forward, negative for backward)
@@ -198,13 +207,52 @@ class VelocityController:
         # Get direction-specific max velocity
         max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
         
-        # Limit velocity to ensure we can stop at goal while maintaining minimum velocity
-        velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
+        # Calculate desired velocity based on distance constraints
+        desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
+        desired_velocity = desired_velocity_magnitude * target_direction
         
-        # Apply direction (forward/backward)
-        target_velocity = velocity_magnitude * target_direction
+        # Apply acceleration constraints
+        current_velocity = vehicle_state.velocity
+        velocity_difference = desired_velocity - current_velocity
+        
+        # Calculate maximum velocity change based on acceleration limits
+        if velocity_difference > 0:
+            # Accelerating
+            max_velocity_change = self.max_acceleration * dt
+        else:
+            # Decelerating
+            max_velocity_change = self.max_deceleration * dt
+        
+        # Limit velocity change to respect acceleration constraints
+        if abs(velocity_difference) > max_velocity_change:
+            if velocity_difference > 0:
+                target_velocity = current_velocity + max_velocity_change
+            else:
+                target_velocity = current_velocity - max_velocity_change
+        else:
+            target_velocity = desired_velocity
 
         return target_velocity
+    
+    def calculate_current_acceleration(
+        self, current_velocity: float, target_velocity: float, dt: float = 0.1
+    ) -> float:
+        """
+        Calculate the current acceleration based on velocity change.
+        
+        Args:
+            current_velocity (float): Current velocity [m/s]
+            target_velocity (float): Target velocity [m/s] 
+            dt (float): Time step [s]
+            
+        Returns:
+            float: Current acceleration [m/s²]
+        """
+        if dt <= 0:
+            return 0.0
+        
+        acceleration = (target_velocity - current_velocity) / dt
+        return acceleration
     
 class PurePursuitController:
     """
@@ -286,7 +334,7 @@ class PurePursuitController:
         """
         return self.trajectory is not None
 
-    def compute_control(self, vehicle_state: VehicleState) -> Tuple[float, float]:
+    def compute_control(self, vehicle_state: VehicleState, dt: float = 0.1) -> Tuple[float, float]:
         """
         Compute control input using the internal trajectory.
         
@@ -294,6 +342,7 @@ class PurePursuitController:
         
         Args:
             vehicle_state (VehicleState): Current vehicle state
+            dt (float): Time step for acceleration calculation [s]
 
         Returns:
             tuple: (steering_angle, target_velocity) - control inputs
@@ -302,7 +351,7 @@ class PurePursuitController:
         if self.trajectory is None:
             return 0.0, 0.0
         
-        return self.compute_control_input(vehicle_state)
+        return self.compute_control_input(vehicle_state, dt)
 
     def calculate_lookahead_distance(self, velocity: float) -> float:
         """
@@ -441,12 +490,13 @@ class PurePursuitController:
 
         return steering_angle
 
-    def compute_control_input(self, vehicle_state: VehicleState) -> Tuple[float, float]:
+    def compute_control_input(self, vehicle_state: VehicleState, dt: float = 0.1) -> Tuple[float, float]:
         """
         Compute control input (steering angle and velocity) for the vehicle.
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
+            dt (float): Time step for acceleration calculation [s]
 
         Returns:
             tuple: (steering_angle, target_velocity) - control inputs
@@ -470,9 +520,9 @@ class PurePursuitController:
         # Compute steering angle
         steering_angle = self.compute_steering_angle(vehicle_state, target_x, target_y)
 
-        # Compute target velocity using velocity controller
+        # Compute target velocity using velocity controller with time step
         target_velocity = self.velocity_controller.compute_target_velocity(
-            vehicle_state, self.trajectory, target_direction
+            vehicle_state, self.trajectory, target_direction, dt
         )
 
         return steering_angle, target_velocity
@@ -613,8 +663,8 @@ def run_simulation(
                 # Check if goal is reached
                 goal_reached = controller.is_goal_reached(vehicle_state)
 
-                # Calculate and apply control
-                steering, target_velocity = controller.compute_control(vehicle_state)
+                # Calculate and apply control with time step for acceleration planning
+                steering, target_velocity = controller.compute_control(vehicle_state, time_step)
                 vehicle_model.update_with_direct_control(
                     [steering, target_velocity], time_step
                 )
@@ -629,7 +679,12 @@ def run_simulation(
                 distance_to_goal = math.sqrt(dx_goal * dx_goal + dy_goal * dy_goal)
                 
                 stopping_distance = controller.velocity_controller.calculate_stopping_distance(vehicle_state.velocity)
-                max_vel_for_distance = controller.velocity_controller.calculate_max_velocity_for_distance(distance_to_goal)
+                max_vel_for_distance = controller.velocity_controller.calculate_max_velocity_for_distance(distance_to_goal, is_forward=True)
+                
+                # Calculate current acceleration
+                current_acceleration = controller.velocity_controller.calculate_current_acceleration(
+                    vehicle_state.velocity, target_velocity, time_step
+                )
 
                 # Plot vehicle
                 vehicle_display.plot_vehicle(
@@ -655,6 +710,8 @@ def run_simulation(
                 # Add status text with physics information
                 status_text = f"Time: {time:.1f}s\n"
                 status_text += f"Speed: {abs(vehicle_state.velocity):.2f} m/s\n"
+                status_text += f"Target Speed: {abs(target_velocity):.2f} m/s\n"
+                status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n"
                 status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
                 status_text += f"Stopping Distance: {stopping_distance:.2f} m\n"
                 status_text += f"Max Vel for Distance: {max_vel_for_distance:.2f} m/s\n"
@@ -698,11 +755,102 @@ def run_simulation(
         plt.close(fig)  # Ensure figure is closed properly
 
 
+def demo_acceleration_planning() -> None:
+    """
+    Demonstration of different acceleration planning settings.
+    """
+    print("\n=== Acceleration Planning Demo ===")
+    print("Testing different acceleration limits...")
+    
+    # Create simple straight line trajectory for clear acceleration demonstration
+    trajectory = Trajectory()
+    for i in range(100):  # 100m straight line
+        x = i * 1.0
+        y = 0.0
+        yaw = 0.0  # Straight line
+        trajectory.add_waypoint(x, y, yaw, direction=1)
+    
+    wheelbase = 2.9
+    
+    # Test different acceleration settings
+    test_configs = [
+        {"name": "High Acceleration", "max_acc": 3.0, "max_dec": 4.0},
+        {"name": "Moderate Acceleration", "max_acc": 1.5, "max_dec": 2.0},
+        {"name": "Low Acceleration", "max_acc": 0.5, "max_dec": 1.0},
+    ]
+    
+    for config in test_configs:
+        print(f"\nTesting {config['name']}:")
+        print(f"  Max Acceleration: {config['max_acc']} m/s²")
+        print(f"  Max Deceleration: {config['max_dec']} m/s²")
+        
+        # Create velocity controller with specific settings
+        velocity_controller = VelocityController(
+            max_forward_velocity=5.0,
+            max_acceleration=config['max_acc'],
+            max_deceleration=config['max_dec'],
+            goal_tolerance=1.0,
+            min_velocity=0.5,
+        )
+        
+        # Test acceleration calculation
+        dt = 0.1
+        current_vel = 0.0
+        target_vel = 5.0
+        
+        # Simulate acceleration from 0 to target velocity
+        time_steps = []
+        velocities = []
+        accelerations = []
+        
+        for step in range(100):  # 10 seconds max
+            time_val = step * dt
+            
+            # Calculate target velocity with acceleration limits
+            desired_vel = target_vel
+            velocity_diff = desired_vel - current_vel
+            
+            if velocity_diff > 0:
+                max_vel_change = config['max_acc'] * dt
+            else:
+                max_vel_change = config['max_dec'] * dt
+                
+            if abs(velocity_diff) > max_vel_change:
+                if velocity_diff > 0:
+                    new_vel = current_vel + max_vel_change
+                else:
+                    new_vel = current_vel - max_vel_change
+            else:
+                new_vel = desired_vel
+            
+            acceleration = (new_vel - current_vel) / dt
+            
+            time_steps.append(time_val)
+            velocities.append(current_vel)
+            accelerations.append(acceleration)
+            
+            current_vel = new_vel
+            
+            if abs(current_vel - target_vel) < 0.01:
+                break
+        
+        print(f"  Time to reach target velocity: {time_steps[-1]:.1f}s")
+        print(f"  Final velocity: {velocities[-1]:.2f} m/s")
+        print(f"  Max acceleration achieved: {max(accelerations):.2f} m/s²")
+
+
 def main() -> None:
     """
     Main function to run the pure pursuit simulation.
     """
-    print("Pure Pursuit Path Tracking Simulation")
+    print("Pure Pursuit Path Tracking Simulation with Acceleration Planning")
+    print("=" * 60)
+    
+    # Run acceleration demo first
+    demo_acceleration_planning()
+    
+    print("\n" + "=" * 60)
+    print("Starting Pure Pursuit Simulation...")
 
     # Create test trajectory
     trajectory = create_test_trajectory()
@@ -713,11 +861,14 @@ def main() -> None:
     
     # Create velocity controller with physics-based settings
     velocity_controller = VelocityController(
-        max_velocity=5.0,  # Maximum velocity: 5.0 m/s
+        max_forward_velocity=5.0,  # Maximum velocity: 5.0 m/s
+        max_backward_velocity=2.0,  # Maximum backward velocity: 2.0 m/s
+        max_acceleration=1.5,  # Maximum acceleration: 1.5 m/s² (added for acceleration planning)
         max_deceleration=2.0,  # Maximum deceleration: 2.0 m/s²
         goal_tolerance=1.0,  # Goal tolerance: 1.0 meter
         velocity_tolerance=0.2,  # Stop when velocity < 0.2 m/s
         conservative_braking_factor=1.2,  # 20% safety margin for deceleration
+        min_velocity=0.5,  # Minimum velocity: 0.5 m/s
     )
     
     # Create pure pursuit controller
