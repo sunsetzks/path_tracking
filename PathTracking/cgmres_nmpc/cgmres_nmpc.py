@@ -10,7 +10,7 @@ control, sliding mode control https://github.com/Shunichi09/PythonLinearNonlinea
 
 """
 
-from math import cos, sin, radians, atan2
+from math import atan2, cos, radians, sin
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -66,10 +66,12 @@ class NMPCSimulatorSystem:
     def calc_predict_and_adjoint_state(self, x, y, yaw, v, u_1s, u_2s, N, dt):
         # by using state equation
         x_s, y_s, yaw_s, v_s = self._calc_predict_states(
-            x, y, yaw, v, u_1s, u_2s, N, dt)
+            x, y, yaw, v, u_1s, u_2s, N, dt
+        )
         # by using adjoint equation
         lam_1s, lam_2s, lam_3s, lam_4s = self._calc_adjoint_states(
-            x_s, y_s, yaw_s, v_s, u_2s, N, dt)
+            x_s, y_s, yaw_s, v_s, u_2s, N, dt
+        )
 
         return x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s
 
@@ -81,7 +83,8 @@ class NMPCSimulatorSystem:
 
         for i in range(N):
             temp_x_1, temp_x_2, temp_x_3, temp_x_4 = self._predict_state_with_oylar(
-                x_s[i], y_s[i], yaw_s[i], v_s[i], u_1s[i], u_2s[i], dt)
+                x_s[i], y_s[i], yaw_s[i], v_s[i], u_1s[i], u_2s[i], dt
+            )
             x_s.append(temp_x_1)
             y_s.append(temp_x_2)
             yaw_s.append(temp_x_3)
@@ -97,9 +100,18 @@ class NMPCSimulatorSystem:
 
         # backward adjoint state calc
         for i in range(N - 1, 0, -1):
-            temp_lam_1, temp_lam_2, temp_lam_3, temp_lam_4 = self._adjoint_state_with_oylar(
-                yaw_s[i], v_s[i], lam_1s[0], lam_2s[0], lam_3s[0], lam_4s[0],
-                u_2s[i], dt)
+            temp_lam_1, temp_lam_2, temp_lam_3, temp_lam_4 = (
+                self._adjoint_state_with_oylar(
+                    yaw_s[i],
+                    v_s[i],
+                    lam_1s[0],
+                    lam_2s[0],
+                    lam_3s[0],
+                    lam_4s[0],
+                    u_2s[i],
+                    dt,
+                )
+            )
             lam_1s.insert(0, temp_lam_1)
             lam_2s.insert(0, temp_lam_2)
             lam_3s.insert(0, temp_lam_3)
@@ -110,8 +122,7 @@ class NMPCSimulatorSystem:
     @staticmethod
     def _predict_state_with_oylar(x, y, yaw, v, u_1, u_2, dt):
 
-        dx, dy, dyaw, dv = differential_model(
-            v, yaw, u_1, u_2)
+        dx, dy, dyaw, dv = differential_model(v, yaw, u_1, u_2)
 
         next_x_1 = x + dt * dx
         next_x_2 = y + dt * dy
@@ -126,7 +137,7 @@ class NMPCSimulatorSystem:
         # ∂H/∂x
         pre_lam_1 = lam_1 + dt * 0.0
         pre_lam_2 = lam_2 + dt * 0.0
-        tmp1 = - lam_1 * sin(yaw) * v + lam_2 * cos(yaw) * v
+        tmp1 = -lam_1 * sin(yaw) * v + lam_2 * cos(yaw) * v
         pre_lam_3 = lam_3 + dt * tmp1
         tmp2 = lam_1 * cos(yaw) + lam_2 * sin(yaw) + lam_3 * sin(u_2) / WB
         pre_lam_4 = lam_4 + dt * tmp2
@@ -185,7 +196,7 @@ class NMPCControllerCGMRES:
 
     def __init__(self):
         # parameters
-        self.zeta = 100.  # stability gain
+        self.zeta = 100.0  # stability gain
         self.ht = 0.01  # difference approximation tick
         self.tf = 3.0  # final time
         self.alpha = 0.5  # time gain
@@ -216,34 +227,64 @@ class NMPCControllerCGMRES:
     def calc_input(self, x, y, yaw, v, time):
 
         # calculating sampling time
-        dt = self.tf * (1. - np.exp(-self.alpha * time)) / float(self.N)
+        dt = self.tf * (1.0 - np.exp(-self.alpha * time)) / float(self.N)
 
         # x_dot
         x_1_dot, x_2_dot, x_3_dot, x_4_dot = differential_model(
-            v, yaw, self.u_1s[0], self.u_2s[0])
+            v, yaw, self.u_1s[0], self.u_2s[0]
+        )
 
         dx_1 = x_1_dot * self.ht
         dx_2 = x_2_dot * self.ht
         dx_3 = x_3_dot * self.ht
         dx_4 = x_4_dot * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
-            x + dx_1, y + dx_2, yaw + dx_3, v + dx_4, self.u_1s, self.u_2s,
-            self.N, dt)
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
+            self.simulator.calc_predict_and_adjoint_state(
+                x + dx_1,
+                y + dx_2,
+                yaw + dx_3,
+                v + dx_4,
+                self.u_1s,
+                self.u_2s,
+                self.N,
+                dt,
+            )
+        )
 
         # Fxt:F(U,x+hx˙,t+h)
-        Fxt = self._calc_f(v_s, lam_3s, lam_4s,
-                           self.u_1s, self.u_2s, self.dummy_u_1s,
-                           self.dummy_u_2s,
-                           self.raw_1s, self.raw_2s, self.N)
+        Fxt = self._calc_f(
+            v_s,
+            lam_3s,
+            lam_4s,
+            self.u_1s,
+            self.u_2s,
+            self.dummy_u_1s,
+            self.dummy_u_2s,
+            self.raw_1s,
+            self.raw_2s,
+            self.N,
+        )
 
         # F:F(U,x,t)
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
-            x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt)
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
+            self.simulator.calc_predict_and_adjoint_state(
+                x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
+            )
+        )
 
-        F = self._calc_f(v_s, lam_3s, lam_4s,
-                         self.u_1s, self.u_2s, self.dummy_u_1s, self.dummy_u_2s,
-                         self.raw_1s, self.raw_2s, self.N)
+        F = self._calc_f(
+            v_s,
+            lam_3s,
+            lam_4s,
+            self.u_1s,
+            self.u_2s,
+            self.dummy_u_1s,
+            self.dummy_u_2s,
+            self.raw_1s,
+            self.raw_2s,
+            self.N,
+        )
 
         right = -self.zeta * F - ((Fxt - F) / self.ht)
 
@@ -254,18 +295,34 @@ class NMPCControllerCGMRES:
         draw_1 = self.raw_1s * self.ht
         draw_2 = self.raw_2s * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
-            x + dx_1, y + dx_2, yaw + dx_3, v + dx_4, self.u_1s + du_1,
-            self.u_2s + du_2, self.N, dt)
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
+            self.simulator.calc_predict_and_adjoint_state(
+                x + dx_1,
+                y + dx_2,
+                yaw + dx_3,
+                v + dx_4,
+                self.u_1s + du_1,
+                self.u_2s + du_2,
+                self.N,
+                dt,
+            )
+        )
 
         # Fuxt:F(U+hdU(0),x+hx˙,t+h)
-        Fuxt = self._calc_f(v_s, lam_3s, lam_4s,
-                            self.u_1s + du_1, self.u_2s + du_2,
-                            self.dummy_u_1s + ddummy_u_1,
-                            self.dummy_u_2s + ddummy_u_2,
-                            self.raw_1s + draw_1, self.raw_2s + draw_2, self.N)
+        Fuxt = self._calc_f(
+            v_s,
+            lam_3s,
+            lam_4s,
+            self.u_1s + du_1,
+            self.u_2s + du_2,
+            self.dummy_u_1s + ddummy_u_1,
+            self.dummy_u_2s + ddummy_u_2,
+            self.raw_1s + draw_1,
+            self.raw_2s + draw_2,
+            self.N,
+        )
 
-        left = ((Fuxt - Fxt) / self.ht)
+        left = (Fuxt - Fxt) / self.ht
 
         # calculating cgmres
         r0 = right - left
@@ -286,25 +343,40 @@ class NMPCControllerCGMRES:
         ddummy_u_1_new, ddummy_u_2_new = None, None
 
         for i in range(self.max_iteration):
-            du_1 = vs[::self.input_num, i] * self.ht
-            du_2 = vs[1::self.input_num, i] * self.ht
-            ddummy_u_1 = vs[2::self.input_num, i] * self.ht
-            ddummy_u_2 = vs[3::self.input_num, i] * self.ht
-            draw_1 = vs[4::self.input_num, i] * self.ht
-            draw_2 = vs[5::self.input_num, i] * self.ht
+            du_1 = vs[:: self.input_num, i] * self.ht
+            du_2 = vs[1 :: self.input_num, i] * self.ht
+            ddummy_u_1 = vs[2 :: self.input_num, i] * self.ht
+            ddummy_u_2 = vs[3 :: self.input_num, i] * self.ht
+            draw_1 = vs[4 :: self.input_num, i] * self.ht
+            draw_2 = vs[5 :: self.input_num, i] * self.ht
 
-            x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
-                x + dx_1, y + dx_2, yaw + dx_3, v + dx_4, self.u_1s + du_1,
-                self.u_2s + du_2, self.N, dt)
+            x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
+                self.simulator.calc_predict_and_adjoint_state(
+                    x + dx_1,
+                    y + dx_2,
+                    yaw + dx_3,
+                    v + dx_4,
+                    self.u_1s + du_1,
+                    self.u_2s + du_2,
+                    self.N,
+                    dt,
+                )
+            )
 
-            Fuxt = self._calc_f(v_s, lam_3s, lam_4s,
-                                self.u_1s + du_1, self.u_2s + du_2,
-                                self.dummy_u_1s + ddummy_u_1,
-                                self.dummy_u_2s + ddummy_u_2,
-                                self.raw_1s + draw_1, self.raw_2s + draw_2,
-                                self.N)
+            Fuxt = self._calc_f(
+                v_s,
+                lam_3s,
+                lam_4s,
+                self.u_1s + du_1,
+                self.u_2s + du_2,
+                self.dummy_u_1s + ddummy_u_1,
+                self.dummy_u_2s + ddummy_u_2,
+                self.raw_1s + draw_1,
+                self.raw_2s + draw_2,
+                self.N,
+            )
 
-            Av = ((Fuxt - Fxt) / self.ht)
+            Av = (Fuxt - Fxt) / self.ht
 
             sum_Av = np.zeros(self.max_iteration)
 
@@ -319,22 +391,22 @@ class NMPCControllerCGMRES:
 
             vs[:, i + 1] = v_est / hs[i + 1, i]
 
-            inv_hs = np.linalg.pinv(hs[:i + 1, :i])
-            ys = np.dot(inv_hs, r0_norm * e[:i + 1])
+            inv_hs = np.linalg.pinv(hs[: i + 1, :i])
+            ys = np.dot(inv_hs, r0_norm * e[: i + 1])
 
-            judge_value = r0_norm * e[:i + 1] - np.dot(hs[:i + 1, :i], ys[:i])
+            judge_value = r0_norm * e[: i + 1] - np.dot(hs[: i + 1, :i], ys[:i])
 
             flag1 = np.linalg.norm(judge_value) < self.threshold
 
             flag2 = i == self.max_iteration - 1
             if flag1 or flag2:
-                update_val = np.dot(vs[:, :i - 1], ys_pre[:i - 1]).flatten()
-                du_1_new = du_1 + update_val[::self.input_num]
-                du_2_new = du_2 + update_val[1::self.input_num]
-                ddummy_u_1_new = ddummy_u_1 + update_val[2::self.input_num]
-                ddummy_u_2_new = ddummy_u_2 + update_val[3::self.input_num]
-                draw_1_new = draw_1 + update_val[4::self.input_num]
-                draw_2_new = draw_2 + update_val[5::self.input_num]
+                update_val = np.dot(vs[:, : i - 1], ys_pre[: i - 1]).flatten()
+                du_1_new = du_1 + update_val[:: self.input_num]
+                du_2_new = du_2 + update_val[1 :: self.input_num]
+                ddummy_u_1_new = ddummy_u_1 + update_val[2 :: self.input_num]
+                ddummy_u_2_new = ddummy_u_2 + update_val[3 :: self.input_num]
+                draw_1_new = draw_1 + update_val[4 :: self.input_num]
+                draw_2_new = draw_2 + update_val[5 :: self.input_num]
                 break
 
             ys_pre = ys
@@ -347,12 +419,24 @@ class NMPCControllerCGMRES:
         self.raw_1s += draw_1_new * self.ht
         self.raw_2s += draw_2_new * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
-            x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt)
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
+            self.simulator.calc_predict_and_adjoint_state(
+                x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
+            )
+        )
 
-        F = self._calc_f(v_s, lam_3s, lam_4s,
-                         self.u_1s, self.u_2s, self.dummy_u_1s, self.dummy_u_2s,
-                         self.raw_1s, self.raw_2s, self.N)
+        F = self._calc_f(
+            v_s,
+            lam_3s,
+            lam_4s,
+            self.u_1s,
+            self.u_2s,
+            self.dummy_u_1s,
+            self.dummy_u_2s,
+            self.raw_1s,
+            self.raw_2s,
+            self.N,
+        )
 
         print("norm(F) = {0}".format(np.linalg.norm(F)))
 
@@ -368,27 +452,30 @@ class NMPCControllerCGMRES:
         return self.u_1s, self.u_2s
 
     @staticmethod
-    def _calc_f(v_s, lam_3s, lam_4s, u_1s, u_2s, dummy_u_1s, dummy_u_2s,
-                raw_1s, raw_2s, N):
+    def _calc_f(
+        v_s, lam_3s, lam_4s, u_1s, u_2s, dummy_u_1s, dummy_u_2s, raw_1s, raw_2s, N
+    ):
 
         F = []
         for i in range(N):
             # ∂H/∂u(xi, ui, λi)
             F.append(u_1s[i] + lam_4s[i] + 2.0 * raw_1s[i] * u_1s[i])
-            F.append(u_2s[i] + lam_3s[i] * v_s[i] /
-                     WB * cos(u_2s[i]) ** 2 + 2.0 * raw_2s[i] * u_2s[i])
+            F.append(
+                u_2s[i]
+                + lam_3s[i] * v_s[i] / WB * cos(u_2s[i]) ** 2
+                + 2.0 * raw_2s[i] * u_2s[i]
+            )
             F.append(-PHI_V + 2.0 * raw_1s[i] * dummy_u_1s[i])
             F.append(-PHI_OMEGA + 2.0 * raw_2s[i] * dummy_u_2s[i])
 
             # C(xi, ui, λi)
-            F.append(u_1s[i] ** 2 + dummy_u_1s[i] ** 2 - U_A_MAX ** 2)
-            F.append(u_2s[i] ** 2 + dummy_u_2s[i] ** 2 - U_OMEGA_MAX ** 2)
+            F.append(u_1s[i] ** 2 + dummy_u_1s[i] ** 2 - U_A_MAX**2)
+            F.append(u_2s[i] ** 2 + dummy_u_2s[i] ** 2 - U_OMEGA_MAX**2)
 
         return np.array(F)
 
 
-def plot_figures(plant_system, controller, iteration_num,
-                 dt):  # pragma: no cover
+def plot_figures(plant_system, controller, iteration_num, dt):  # pragma: no cover
     # figure
     # time history
     fig_p = plt.figure()
@@ -398,7 +485,7 @@ def plot_figures(plant_system, controller, iteration_num,
     # trajectory
     fig_t = plt.figure()
     fig_trajectory = fig_t.add_subplot(111)
-    fig_trajectory.set_aspect('equal')
+    fig_trajectory.set_aspect("equal")
 
     x_1_fig = fig_p.add_subplot(411)
     x_2_fig = fig_p.add_subplot(412)
@@ -438,13 +525,11 @@ def plot_figures(plant_system, controller, iteration_num,
     u_2_fig.set_xlabel("time [s]")
     u_2_fig.set_ylabel("u_omega")
 
-    dummy_1_fig.plot(np.arange(iteration_num - 1) *
-                     dt, controller.history_dummy_u_1)
+    dummy_1_fig.plot(np.arange(iteration_num - 1) * dt, controller.history_dummy_u_1)
     dummy_1_fig.set_xlabel("time [s]")
     dummy_1_fig.set_ylabel("dummy u_1")
 
-    dummy_2_fig.plot(np.arange(iteration_num - 1) *
-                     dt, controller.history_dummy_u_2)
+    dummy_2_fig.plot(np.arange(iteration_num - 1) * dt, controller.history_dummy_u_2)
     dummy_2_fig.set_xlabel("time [s]")
     dummy_2_fig.set_ylabel("dummy u_2")
 
@@ -460,18 +545,18 @@ def plot_figures(plant_system, controller, iteration_num,
     f_fig.set_xlabel("time [s]")
     f_fig.set_ylabel("optimal error")
 
-    fig_trajectory.plot(plant_system.history_x,
-                        plant_system.history_y, "-r")
+    fig_trajectory.plot(plant_system.history_x, plant_system.history_y, "-r")
     fig_trajectory.set_xlabel("x [m]")
     fig_trajectory.set_ylabel("y [m]")
     fig_trajectory.axis("equal")
 
     # start state
-    plot_car(plant_system.history_x[0],
-             plant_system.history_y[0],
-             plant_system.history_yaw[0],
-             controller.history_u_2[0],
-             )
+    plot_car(
+        plant_system.history_x[0],
+        plant_system.history_y[0],
+        plant_system.history_yaw[0],
+        controller.history_u_2[0],
+    )
 
     # goal state
     plot_car(0.0, 0.0, 0.0, 0.0)
@@ -490,14 +575,30 @@ def plot_car(x, y, yaw, steer=0.0, truck_color="-k"):  # pragma: no cover
     TREAD = 0.07  # [m]
 
     outline = np.array(
-        [[-BACK_TO_WHEEL, (LENGTH - BACK_TO_WHEEL), (LENGTH - BACK_TO_WHEEL),
-          -BACK_TO_WHEEL, -BACK_TO_WHEEL],
-         [WIDTH / 2, WIDTH / 2, - WIDTH / 2, -WIDTH / 2, WIDTH / 2]])
+        [
+            [
+                -BACK_TO_WHEEL,
+                (LENGTH - BACK_TO_WHEEL),
+                (LENGTH - BACK_TO_WHEEL),
+                -BACK_TO_WHEEL,
+                -BACK_TO_WHEEL,
+            ],
+            [WIDTH / 2, WIDTH / 2, -WIDTH / 2, -WIDTH / 2, WIDTH / 2],
+        ]
+    )
 
     fr_wheel = np.array(
-        [[WHEEL_LEN, -WHEEL_LEN, -WHEEL_LEN, WHEEL_LEN, WHEEL_LEN],
-         [-WHEEL_WIDTH - TREAD, -WHEEL_WIDTH - TREAD, WHEEL_WIDTH -
-          TREAD, WHEEL_WIDTH - TREAD, -WHEEL_WIDTH - TREAD]])
+        [
+            [WHEEL_LEN, -WHEEL_LEN, -WHEEL_LEN, WHEEL_LEN, WHEEL_LEN],
+            [
+                -WHEEL_WIDTH - TREAD,
+                -WHEEL_WIDTH - TREAD,
+                WHEEL_WIDTH - TREAD,
+                WHEEL_WIDTH - TREAD,
+                -WHEEL_WIDTH - TREAD,
+            ],
+        ]
+    )
 
     rr_wheel = np.copy(fr_wheel)
 
@@ -506,10 +607,8 @@ def plot_car(x, y, yaw, steer=0.0, truck_color="-k"):  # pragma: no cover
     rl_wheel = np.copy(rr_wheel)
     rl_wheel[1, :] *= -1
 
-    Rot1 = np.array([[cos(yaw), sin(yaw)],
-                     [-sin(yaw), cos(yaw)]])
-    Rot2 = np.array([[cos(steer), sin(steer)],
-                     [-sin(steer), cos(steer)]])
+    Rot1 = np.array([[cos(yaw), sin(yaw)], [-sin(yaw), cos(yaw)]])
+    Rot2 = np.array([[cos(steer), sin(steer)], [-sin(steer), cos(steer)]])
 
     fr_wheel = (fr_wheel.T.dot(Rot2)).T
     fl_wheel = (fl_wheel.T.dot(Rot2)).T
@@ -534,16 +633,31 @@ def plot_car(x, y, yaw, steer=0.0, truck_color="-k"):  # pragma: no cover
     rl_wheel[0, :] += x
     rl_wheel[1, :] += y
 
-    plt.plot(np.array(outline[0, :]).flatten(),
-             np.array(outline[1, :]).flatten(), truck_color)
-    plt.plot(np.array(fr_wheel[0, :]).flatten(),
-             np.array(fr_wheel[1, :]).flatten(), truck_color)
-    plt.plot(np.array(rr_wheel[0, :]).flatten(),
-             np.array(rr_wheel[1, :]).flatten(), truck_color)
-    plt.plot(np.array(fl_wheel[0, :]).flatten(),
-             np.array(fl_wheel[1, :]).flatten(), truck_color)
-    plt.plot(np.array(rl_wheel[0, :]).flatten(),
-             np.array(rl_wheel[1, :]).flatten(), truck_color)
+    plt.plot(
+        np.array(outline[0, :]).flatten(),
+        np.array(outline[1, :]).flatten(),
+        truck_color,
+    )
+    plt.plot(
+        np.array(fr_wheel[0, :]).flatten(),
+        np.array(fr_wheel[1, :]).flatten(),
+        truck_color,
+    )
+    plt.plot(
+        np.array(rr_wheel[0, :]).flatten(),
+        np.array(rr_wheel[1, :]).flatten(),
+        truck_color,
+    )
+    plt.plot(
+        np.array(fl_wheel[0, :]).flatten(),
+        np.array(fl_wheel[1, :]).flatten(),
+        truck_color,
+    )
+    plt.plot(
+        np.array(rl_wheel[0, :]).flatten(),
+        np.array(rl_wheel[1, :]).flatten(),
+        truck_color,
+    )
     plt.plot(x, y, "*")
 
 
@@ -566,15 +680,21 @@ def animation(plant, controller, dt):
         plt.cla()
         # for stopping simulation with the esc key.
         plt.gcf().canvas.mpl_connect(
-            'key_release_event',
-            lambda event: [exit(0) if event.key == 'escape' else None])
+            "key_release_event",
+            lambda event: [exit(0) if event.key == "escape" else None],
+        )
         plt.plot(plant.history_x, plant.history_y, "-r", label="trajectory")
         plot_car(x, y, yaw, steer=steer)
         plt.axis("equal")
         plt.grid(True)
-        plt.title("Time[s]:" + str(round(time, 2)) +
-                  ", accel[m/s]:" + str(round(accel, 2)) +
-                  ", speed[km/h]:" + str(round(v * 3.6, 2)))
+        plt.title(
+            "Time[s]:"
+            + str(round(time, 2))
+            + ", accel[m/s]:"
+            + str(round(accel, 2))
+            + ", speed[km/h]:"
+            + str(round(v * 3.6, 2))
+        )
         plt.pause(0.0001)
 
     plt.close("all")
@@ -591,8 +711,7 @@ def main():
     init_v = -1.0
 
     # plant
-    plant_system = TwoWheeledSystem(
-        init_x, init_y, init_yaw, init_v)
+    plant_system = TwoWheeledSystem(init_x, init_y, init_yaw, init_v)
 
     # controller
     controller = NMPCControllerCGMRES()
@@ -602,8 +721,8 @@ def main():
         time = float(i) * dt
         # make input
         u_1s, u_2s = controller.calc_input(
-            plant_system.x, plant_system.y, plant_system.yaw, plant_system.v,
-            time)
+            plant_system.x, plant_system.y, plant_system.yaw, plant_system.v, time
+        )
         # update state
         plant_system.update_state(u_1s[0], u_2s[0])
 

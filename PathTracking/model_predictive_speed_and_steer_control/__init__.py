@@ -4,4 +4,4 @@ Model Predictive Control Module
 Implements Model Predictive Control for speed and steering.
 """
 
-__all__ = [] 
+__all__ = []

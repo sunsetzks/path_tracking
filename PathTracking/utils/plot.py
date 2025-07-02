@@ -1,13 +1,14 @@
 """
 Matplotlib based plotting utilities
 """
+
 import math
+
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import art3d
 from matplotlib.patches import FancyArrowPatch
+from mpl_toolkits.mplot3d import Axes3D, art3d
 from mpl_toolkits.mplot3d.proj3d import proj_transform
-from mpl_toolkits.mplot3d import Axes3D
 
 from .angle import rot_mat_2d
 
@@ -73,9 +74,17 @@ def plot_ellipse(x, y, a, b, angle, color="-r", ax=None, **kwargs):
         ax.plot(px, py, color, **kwargs)
 
 
-def plot_arrow(x, y, yaw, arrow_length=1.0,
-               origin_point_plot_style="xr",
-               head_width=0.1, fc="r", ec="k", **kwargs):
+def plot_arrow(
+    x,
+    y,
+    yaw,
+    arrow_length=1.0,
+    origin_point_plot_style="xr",
+    head_width=0.1,
+    fc="r",
+    ec="k",
+    **kwargs,
+):
     """
     Plot an arrow or arrows based on 2D state (x, y, yaw)
 
@@ -103,22 +112,26 @@ def plot_arrow(x, y, yaw, arrow_length=1.0,
         edge color
     """
     if not isinstance(x, float):
-        for (i_x, i_y, i_yaw) in zip(x, y, yaw):
-            plot_arrow(i_x, i_y, i_yaw, head_width=head_width,
-                       fc=fc, ec=ec, **kwargs)
+        for i_x, i_y, i_yaw in zip(x, y, yaw):
+            plot_arrow(i_x, i_y, i_yaw, head_width=head_width, fc=fc, ec=ec, **kwargs)
     else:
-        plt.arrow(x, y,
-                  arrow_length * math.cos(yaw),
-                  arrow_length * math.sin(yaw),
-                  head_width=head_width,
-                  fc=fc, ec=ec,
-                  **kwargs)
+        plt.arrow(
+            x,
+            y,
+            arrow_length * math.cos(yaw),
+            arrow_length * math.sin(yaw),
+            head_width=head_width,
+            fc=fc,
+            ec=ec,
+            **kwargs,
+        )
         if origin_point_plot_style is not None:
             plt.plot(x, y, origin_point_plot_style)
 
 
-def plot_curvature(x_list, y_list, heading_list, curvature,
-                   k=0.01, c="-c", label="Curvature"):
+def plot_curvature(
+    x_list, y_list, heading_list, curvature, k=0.01, c="-c", label="Curvature"
+):
     """
     Plot curvature on 2D path. This plot is a line from the original path,
     the lateral distance from the original path shows curvature magnitude.
@@ -143,10 +156,14 @@ def plot_curvature(x_list, y_list, heading_list, curvature,
     label : string
         label of the plot
     """
-    cx = [x + d * k * np.cos(yaw - np.pi / 2.0) for x, y, yaw, d in
-          zip(x_list, y_list, heading_list, curvature)]
-    cy = [y + d * k * np.sin(yaw - np.pi / 2.0) for x, y, yaw, d in
-          zip(x_list, y_list, heading_list, curvature)]
+    cx = [
+        x + d * k * np.cos(yaw - np.pi / 2.0)
+        for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)
+    ]
+    cy = [
+        y + d * k * np.sin(yaw - np.pi / 2.0)
+        for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)
+    ]
 
     plt.plot(cx, cy, c, label=label)
     for ix, iy, icx, icy in zip(x_list, y_list, cx, cy):
@@ -181,22 +198,27 @@ class Arrow3D(FancyArrowPatch):
 
 
 def _arrow3D(ax, x, y, z, dx, dy, dz, *args, **kwargs):
-    '''Add an 3d arrow to an `Axes3D` instance.'''
+    """Add an 3d arrow to an `Axes3D` instance."""
     arrow = Arrow3D(x, y, z, dx, dy, dz, *args, **kwargs)
     ax.add_artist(arrow)
 
 
 def plot_3d_vector_arrow(ax, p1, p2):
-    setattr(Axes3D, 'arrow3D', _arrow3D)
-    ax.arrow3D(p1[0], p1[1], p1[2],
-               p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2],
-               mutation_scale=20,
-               arrowstyle="-|>",
-               )
+    setattr(Axes3D, "arrow3D", _arrow3D)
+    ax.arrow3D(
+        p1[0],
+        p1[1],
+        p1[2],
+        p2[0] - p1[0],
+        p2[1] - p1[1],
+        p2[2] - p1[2],
+        mutation_scale=20,
+        arrowstyle="-|>",
+    )
 
 
 def plot_triangle(p1, p2, p3, ax):
-    ax.add_collection3d(art3d.Poly3DCollection([[p1, p2, p3]], color='b'))
+    ax.add_collection3d(art3d.Poly3DCollection([[p1, p2, p3]], color="b"))
 
 
 def set_equal_3d_axis(ax, x_lims, y_lims, z_lims):
@@ -213,9 +235,16 @@ def set_equal_3d_axis(ax, x_lims, y_lims, z_lims):
     y_lims = np.asarray(y_lims)
     z_lims = np.asarray(z_lims)
     # compute max required range
-    max_range = np.array([x_lims.max() - x_lims.min(),
-                          y_lims.max() - y_lims.min(),
-                          z_lims.max() - z_lims.min()]).max() / 2.0
+    max_range = (
+        np.array(
+            [
+                x_lims.max() - x_lims.min(),
+                y_lims.max() - y_lims.min(),
+                z_lims.max() - z_lims.min(),
+            ]
+        ).max()
+        / 2.0
+    )
     # compute mid-point along each axis
     mid_x = (x_lims.max() + x_lims.min()) * 0.5
     mid_y = (y_lims.max() + y_lims.min()) * 0.5
@@ -227,8 +256,7 @@ def set_equal_3d_axis(ax, x_lims, y_lims, z_lims):
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     plot_ellipse(0, 0, 1, 2, np.deg2rad(15))
-    plt.axis('equal')
+    plt.axis("equal")
     plt.show()
-

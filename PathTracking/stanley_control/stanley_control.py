@@ -9,15 +9,17 @@ Reference:
     - [Autonomous Automobile Path Tracking](https://www.ri.cmu.edu/pub_files/2009/2/Automatic_Steering_Methods_for_Autonomous_Automobile_Path_Tracking.pdf)
 
 """
-import numpy as np
-import matplotlib.pyplot as plt
-import sys
+
 import pathlib
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
+from CubicSpline import cubic_spline_planner
 from utils.angle import angle_mod
 from utils.vehicle_display import VehicleDisplay
-from CubicSpline import cubic_spline_planner
 
 k = 0.5  # control gain
 Kp = 1.0  # speed proportional gain
@@ -131,8 +133,7 @@ def calc_target_index(state, cx, cy):
     target_idx = np.argmin(d)
 
     # Project RMS error onto front axle vector
-    front_axle_vec = [-np.cos(state.yaw + np.pi / 2),
-                      -np.sin(state.yaw + np.pi / 2)]
+    front_axle_vec = [-np.cos(state.yaw + np.pi / 2), -np.sin(state.yaw + np.pi / 2)]
     error_front_axle = np.dot([dx[target_idx], dy[target_idx]], front_axle_vec)
 
     return target_idx, error_front_axle
@@ -144,8 +145,7 @@ def main():
     ax = [0.0, 100.0, 100.0, 50.0, 60.0]
     ay = [0.0, 0.0, -30.0, -20.0, 0.0]
 
-    cx, cy, cyaw, ck, s = cubic_spline_planner.calc_spline_course(
-        ax, ay, ds=0.1)
+    cx, cy, cyaw, ck, s = cubic_spline_planner.calc_spline_course(ax, ay, ds=0.1)
 
     target_speed = 30.0 / 3.6  # [m/s]
 
@@ -162,14 +162,14 @@ def main():
     v = [state.v]
     t = [0.0]
     target_idx, _ = calc_target_index(state, cx, cy)
-    
+
     # Vehicle display
     vehicle_display = VehicleDisplay(
         vehicle_length=4.5,
         vehicle_width=2.0,
         wheelbase=L,
         wheel_length=0.6,
-        wheel_width=0.25
+        wheel_width=0.25,
     )
 
     while max_simulation_time >= time and last_idx > target_idx:
@@ -188,15 +188,17 @@ def main():
         if show_animation:  # pragma: no cover
             plt.cla()
             # for stopping simulation with the esc key.
-            plt.gcf().canvas.mpl_connect('key_release_event',
-                    lambda event: [exit(0) if event.key == 'escape' else None])
+            plt.gcf().canvas.mpl_connect(
+                "key_release_event",
+                lambda event: [exit(0) if event.key == "escape" else None],
+            )
             plt.plot(cx, cy, ".r", label="course")
             plt.plot(x, y, "-b", label="trajectory")
             plt.plot(cx[target_idx], cy[target_idx], "xg", label="target")
-            
+
             # show vehicle
             vehicle_display.plot_vehicle(state.x, state.y, state.yaw, di)
-            
+
             plt.axis("equal")
             plt.grid(True)
             plt.title("Speed[km/h]:" + str(state.v * 3.6)[:4])
@@ -222,5 +224,5 @@ def main():
         plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

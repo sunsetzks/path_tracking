@@ -5,13 +5,14 @@ Path tracking simulation with rear wheel feedback steering control and PID speed
 author: Atsushi Sakai(@Atsushi_twi)
 
 """
-import matplotlib.pyplot as plt
+
 import math
-import numpy as np
-import sys
 import pathlib
-from scipy import interpolate
-from scipy import optimize
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import interpolate, optimize
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 from utils.angle import angle_mod
@@ -26,6 +27,7 @@ L = 2.9  # [m]
 
 show_animation = True
 
+
 class State:
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0, direction=1):
         self.x = x
@@ -35,15 +37,18 @@ class State:
         self.direction = direction
 
     def update(self, a, delta, dt):
-        self.x   = self.x + self.v * math.cos(self.yaw) * dt
-        self.y   = self.y + self.v * math.sin(self.yaw) * dt
+        self.x = self.x + self.v * math.cos(self.yaw) * dt
+        self.y = self.y + self.v * math.sin(self.yaw) * dt
         self.yaw = self.yaw + self.v / L * math.tan(delta) * dt
-        self.v   = self.v + a * dt
+        self.v = self.v + a * dt
+
 
 class CubicSplinePath:
     def __init__(self, x, y):
         x, y = map(np.asarray, (x, y))
-        s = np.append([0],(np.cumsum(np.diff(x)**2) + np.cumsum(np.diff(y)**2))**0.5)
+        s = np.append(
+            [0], (np.cumsum(np.diff(x) ** 2) + np.cumsum(np.diff(y) ** 2)) ** 0.5
+        )
 
         self.X = interpolate.CubicSpline(s, x)
         self.Y = interpolate.CubicSpline(s, y)
@@ -61,21 +66,28 @@ class CubicSplinePath:
         return np.arctan2(dy, dx)
 
     def calc_curvature(self, s):
-        dx, dy   = self.dX(s), self.dY(s)
-        ddx, ddy   = self.ddX(s), self.ddY(s)
-        return (ddy * dx - ddx * dy) / ((dx ** 2 + dy ** 2)**(3 / 2))
+        dx, dy = self.dX(s), self.dY(s)
+        ddx, ddy = self.ddX(s), self.ddY(s)
+        return (ddy * dx - ddx * dy) / ((dx**2 + dy**2) ** (3 / 2))
 
     def __find_nearest_point(self, s0, x, y):
         def calc_distance(_s, *args):
-            _x, _y= self.X(_s), self.Y(_s)
-            return (_x - args[0])**2 + (_y - args[1])**2
+            _x, _y = self.X(_s), self.Y(_s)
+            return (_x - args[0]) ** 2 + (_y - args[1]) ** 2
 
         def calc_distance_jacobian(_s, *args):
             _x, _y = self.X(_s), self.Y(_s)
             _dx, _dy = self.dX(_s), self.dY(_s)
-            return 2*_dx*(_x - args[0])+2*_dy*(_y-args[1])
+            return 2 * _dx * (_x - args[0]) + 2 * _dy * (_y - args[1])
 
-        minimum = optimize.fmin_cg(calc_distance, s0, calc_distance_jacobian, args=(x, y), full_output=True, disp=False)
+        minimum = optimize.fmin_cg(
+            calc_distance,
+            s0,
+            calc_distance_jacobian,
+            args=(x, y),
+            full_output=True,
+            disp=False,
+        )
         return minimum
 
     def calc_track_error(self, x, y, s0):
@@ -84,30 +96,36 @@ class CubicSplinePath:
         s = ret[0][0]
         e = ret[1]
 
-        k   = self.calc_curvature(s)
+        k = self.calc_curvature(s)
         yaw = self.calc_yaw(s)
 
         dxl = self.X(s) - x
         dyl = self.Y(s) - y
         angle = pi_2_pi(yaw - math.atan2(dyl, dxl))
         if angle < 0:
-            e*= -1
+            e *= -1
 
         return e, k, yaw, s
+
 
 def pid_control(target, current):
     a = Kp * (target - current)
     return a
 
+
 def pi_2_pi(angle):
     return angle_mod(angle)
+
 
 def rear_wheel_feedback_control(state, e, k, yaw_ref):
     v = state.v
     th_e = pi_2_pi(state.yaw - yaw_ref)
 
-    omega = v * k * math.cos(th_e) / (1.0 - k * e) - \
-        KTH * abs(v) * th_e - KE * v * math.sin(th_e) * e / th_e
+    omega = (
+        v * k * math.cos(th_e) / (1.0 - k * e)
+        - KTH * abs(v) * th_e
+        - KE * v * math.sin(th_e) * e / th_e
+    )
 
     if th_e == 0.0 or omega == 0.0:
         return 0.0
@@ -161,17 +179,22 @@ def simulate(path_ref, goal):
         if show_animation:
             plt.cla()
             # for stopping simulation with the esc key.
-            plt.gcf().canvas.mpl_connect('key_release_event',
-                    lambda event: [exit(0) if event.key == 'escape' else None])
+            plt.gcf().canvas.mpl_connect(
+                "key_release_event",
+                lambda event: [exit(0) if event.key == "escape" else None],
+            )
             plt.plot(path_ref.X(s), path_ref.Y(s), "-r", label="course")
             plt.plot(x, y, "ob", label="trajectory")
             plt.plot(path_ref.X(s0), path_ref.Y(s0), "xg", label="target")
             plt.axis("equal")
             plt.grid(True)
-            plt.title(f"speed[km/h]:{round(state.v * 3.6, 2):.2f}, target s-param:{s0:.2f}")
+            plt.title(
+                f"speed[km/h]:{round(state.v * 3.6, 2):.2f}, target s-param:{s0:.2f}"
+            )
             plt.pause(0.0001)
 
     return t, x, y, yaw, v, goal_flag
+
 
 def calc_target_speed(state, yaw_ref):
     target_speed = 10.0 / 3.6
@@ -187,6 +210,7 @@ def calc_target_speed(state, yaw_ref):
         return -target_speed
 
     return target_speed
+
 
 def main():
     print("rear wheel feedback tracking start!!")
@@ -230,5 +254,6 @@ def main():
 
         plt.show()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -6,4 +6,4 @@ Implements the classic pure pursuit algorithm for path tracking.
 
 from .pure_pursuit import PurePursuitController
 
-__all__ = ["PurePursuitController"] 
+__all__ = ["PurePursuitController"]

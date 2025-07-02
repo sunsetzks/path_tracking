@@ -11,14 +11,16 @@ P. I. Corke, "Robotics, Vision & Control", Springer 2017, ISBN 978-3-319-54413-7
 
 """
 
+import pathlib
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-import pathlib
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
-from utils.angle import angle_mod
 from random import random
+
+from utils.angle import angle_mod
 
 
 class PathFinderController:

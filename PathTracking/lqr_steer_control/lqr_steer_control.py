@@ -5,16 +5,18 @@ Path tracking simulation with LQR steering control and PID speed control.
 author Atsushi Sakai (@Atsushi_twi)
 
 """
-import scipy.linalg as la
-import matplotlib.pyplot as plt
+
 import math
-import numpy as np
-import sys
 import pathlib
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.linalg as la
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
-from utils.angle import angle_mod
 from CubicSpline import cubic_spline_planner
+from utils.angle import angle_mod
 
 Kp = 1.0  # speed proportional gain
 
@@ -44,8 +46,8 @@ def update(state, a, delta):
 
     if delta >= max_steer:
         delta = max_steer
-    if delta <= - max_steer:
-        delta = - max_steer
+    if delta <= -max_steer:
+        delta = -max_steer
 
     state.x = state.x + state.v * math.cos(state.yaw) * dt
     state.y = state.y + state.v * math.sin(state.yaw) * dt
@@ -75,8 +77,7 @@ def solve_DARE(A, B, Q, R):
     eps = 0.01
 
     for i in range(max_iter):
-        Xn = A.T @ X @ A - A.T @ X @ B @ \
-            la.inv(R + B.T @ X @ B) @ B.T @ X @ A + Q
+        Xn = A.T @ X @ A - A.T @ X @ B @ la.inv(R + B.T @ X @ B) @ B.T @ X @ A + Q
         if (abs(Xn - X)).max() < eps:
             break
         X = Xn
@@ -141,7 +142,7 @@ def calc_nearest_index(state, cx, cy, cyaw):
     dx = [state.x - icx for icx in cx]
     dy = [state.y - icy for icy in cy]
 
-    d = [idx ** 2 + idy ** 2 for (idx, idy) in zip(dx, dy)]
+    d = [idx**2 + idy**2 for (idx, idy) in zip(dx, dy)]
 
     mind = min(d)
 
@@ -176,8 +177,7 @@ def closed_loop_prediction(cx, cy, cyaw, ck, speed_profile, goal):
     e, e_th = 0.0, 0.0
 
     while T >= time:
-        dl, target_ind, e, e_th = lqr_steering_control(
-            state, cx, cy, cyaw, ck, e, e_th)
+        dl, target_ind, e, e_th = lqr_steering_control(state, cx, cy, cyaw, ck, e, e_th)
 
         ai = pid_control(speed_profile[target_ind], state.v)
         state = update(state, ai, dl)
@@ -204,15 +204,20 @@ def closed_loop_prediction(cx, cy, cyaw, ck, speed_profile, goal):
             plt.cla()
             # for stopping simulation with the esc key.
             plt.gcf().canvas.mpl_connect(
-                'key_release_event',
-                lambda event: [exit(0) if event.key == 'escape' else None])
+                "key_release_event",
+                lambda event: [exit(0) if event.key == "escape" else None],
+            )
             plt.plot(cx, cy, "-r", label="course")
             plt.plot(x, y, "ob", label="trajectory")
             plt.plot(cx[target_ind], cy[target_ind], "xg", label="target")
             plt.axis("equal")
             plt.grid(True)
-            plt.title("speed[km/h]:" + str(round(state.v * 3.6, 2))
-                      + ",target index:" + str(target_ind))
+            plt.title(
+                "speed[km/h]:"
+                + str(round(state.v * 3.6, 2))
+                + ",target index:"
+                + str(target_ind)
+            )
             plt.pause(0.0001)
 
     return t, x, y, yaw, v
@@ -232,7 +237,7 @@ def calc_speed_profile(cx, cy, cyaw, target_speed):
             direction *= -1
 
         if direction != 1.0:
-            speed_profile[i] = - target_speed
+            speed_profile[i] = -target_speed
         else:
             speed_profile[i] = target_speed
 
@@ -250,8 +255,7 @@ def main():
     ay = [0.0, -3.0, -5.0, 6.5, 3.0, 5.0, -2.0]
     goal = [ax[-1], ay[-1]]
 
-    cx, cy, cyaw, ck, s = cubic_spline_planner.calc_spline_course(
-        ax, ay, ds=0.1)
+    cx, cy, cyaw, ck, s = cubic_spline_planner.calc_spline_course(ax, ay, ds=0.1)
     target_speed = 10.0 / 3.6  # simulation parameter km/h -> m/s
 
     sp = calc_speed_profile(cx, cy, cyaw, target_speed)
@@ -287,5 +291,5 @@ def main():
         plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

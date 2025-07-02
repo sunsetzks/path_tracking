@@ -4,30 +4,33 @@ Path tracking simulation with pure pursuit steering and PID speed control.
 author: Atsushi Sakai (@Atsushi_twi)
         Guillaume Jacquenot (@Gjacquenot)
 """
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-import os
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-from matplotlib.animation import FuncAnimation
-from typing import List, Tuple, Optional, Union, Any
 
-import sys
+import math
+import os
 import pathlib
+import sys
+from typing import Any, List, Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.animation import FuncAnimation
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 from PathTracking.utils.angle import angle_mod
 
 
 class VehicleConfig:
     """Vehicle configuration parameters"""
+
     def __init__(self) -> None:
         # Control parameters
         self.k: float = 0.1  # look forward gain
         self.look_ahead_dist: float = 2.0  # [m] look-ahead distance
         self.speed_p_gain: float = 1.0  # speed proportional gain
         self.dt: float = 0.1  # [s] time tick
-        
+
         # Vehicle dimensions
         self.wheelbase: float = 2.9  # [m] wheel base of vehicle
         self.length: float = self.wheelbase + 1.0  # Vehicle length
@@ -39,7 +42,10 @@ class VehicleConfig:
 
 class VehicleState:
     """Vehicle state class"""
-    def __init__(self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0, v: float = 0.0) -> None:
+
+    def __init__(
+        self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0, v: float = 0.0
+    ) -> None:
         self.x: float = x  # x position (rear)
         self.y: float = y  # y position (rear)
         self.yaw: float = yaw  # heading angle
@@ -63,6 +69,7 @@ class VehicleState:
 
 class VehicleStateHistory:
     """Class to store vehicle state history"""
+
     def __init__(self) -> None:
         self.x: List[float] = []
         self.y: List[float] = []
@@ -83,66 +90,72 @@ class VehicleStateHistory:
 
 class TargetCourse:
     """Target course class"""
+
     def __init__(self, cx: List[float], cy: List[float]) -> None:
         self.cx: List[float] = cx
         self.cy: List[float] = cy
         self.old_nearest_point_index: Optional[int] = None
-        
+
     def resample_path(self, ds: float = 0.1) -> None:
         """
         Resample the path with equal distance points
-        
+
         Args:
             ds: Sampling interval (default: 0.1m)
         """
         # Convert to numpy arrays for computation
         cx_arr = np.array(self.cx)
         cy_arr = np.array(self.cy)
-        
+
         # Calculate the cumulative distance along the path
         dx = np.diff(cx_arr)
         dy = np.diff(cy_arr)
         segment_lengths = np.hypot(dx, dy)
         cum_dist = np.concatenate(([0], np.cumsum(segment_lengths)))
         path_length = cum_dist[-1]
-        
+
         # Create new sampled points
         sampled_x = []
         sampled_y = []
-        
+
         # Calculate number of points
         n_points = max(int(path_length / ds), len(self.cx))
-        
+
         # Generate equally spaced distances
         sample_distances = np.linspace(0, path_length, n_points)
-        
+
         # Interpolate points
         for dist in sample_distances:
             # Find the segment that contains this distance
             idx = np.searchsorted(cum_dist, dist) - 1
             idx = max(0, min(idx, len(self.cx) - 2))
-            
+
             # Calculate interpolation ratio
             segment_length = cum_dist[idx + 1] - cum_dist[idx]
             if segment_length > 0:
                 ratio = (dist - cum_dist[idx]) / segment_length
             else:
                 ratio = 0
-                
+
             # Interpolate x and y coordinates
             x = float(cx_arr[idx] + ratio * (cx_arr[idx + 1] - cx_arr[idx]))
             y = float(cy_arr[idx] + ratio * (cy_arr[idx + 1] - cy_arr[idx]))
-            
+
             sampled_x.append(x)
             sampled_y.append(y)
-        
+
         # Update path with resampled points
         self.cx = sampled_x
         self.cy = sampled_y
         # Reset nearest point index since path has changed
         self.old_nearest_point_index = None
 
-    def search_target_index(self, state: VehicleState, config: VehicleConfig, look_ahead: Optional[float] = None) -> Tuple[int, float]:
+    def search_target_index(
+        self,
+        state: VehicleState,
+        config: VehicleConfig,
+        look_ahead: Optional[float] = None,
+    ) -> Tuple[int, float]:
         """Search target index for pure pursuit control"""
         # To speed up nearest point search, doing it at only first time.
         if self.old_nearest_point_index is None:
@@ -158,7 +171,9 @@ class TargetCourse:
             while True:
                 if (ind + 1) >= len(self.cx):
                     break
-                distance_next_index = state.calc_distance(self.cx[ind + 1], self.cy[ind + 1])
+                distance_next_index = state.calc_distance(
+                    self.cx[ind + 1], self.cy[ind + 1]
+                )
                 if distance_this_index < distance_next_index:
                     break
                 ind = ind + 1
@@ -181,20 +196,25 @@ class TargetCourse:
 
 class PurePursuitController:
     """Pure pursuit controller class"""
+
     def __init__(self, config: VehicleConfig) -> None:
         self.config: VehicleConfig = config
-    
-    def speed_control(self, target_speed: float, current_speed: float, is_reverse: bool = False) -> float:
+
+    def speed_control(
+        self, target_speed: float, current_speed: float, is_reverse: bool = False
+    ) -> float:
         """Proportional speed control"""
         # Negate target speed if in reverse mode
         actual_target = -abs(target_speed) if is_reverse else abs(target_speed)
         return self.config.speed_p_gain * (actual_target - current_speed)
-    
+
     def calc_look_ahead_distance(self, state: VehicleState) -> float:
         """Calculate look-ahead distance based on velocity"""
         return self.config.k * abs(state.v) + self.config.look_ahead_dist
-    
-    def steering_control(self, state: VehicleState, trajectory: TargetCourse, prev_index: int) -> Tuple[float, int]:
+
+    def steering_control(
+        self, state: VehicleState, trajectory: TargetCourse, prev_index: int
+    ) -> Tuple[float, int]:
         """Pure pursuit steering control"""
         look_ahead = self.calc_look_ahead_distance(state)
         ind, _ = trajectory.search_target_index(state, self.config, look_ahead)
@@ -213,7 +233,9 @@ class PurePursuitController:
         alpha = math.atan2(ty - state.y, tx - state.x) - state.yaw
 
         # Calculate steering angle
-        delta = math.atan2(2.0 * self.config.wheelbase * math.sin(alpha) / look_ahead, 1.0)
+        delta = math.atan2(
+            2.0 * self.config.wheelbase * math.sin(alpha) / look_ahead, 1.0
+        )
 
         # Limit steering angle to max value
         delta = np.clip(delta, -self.config.max_steer, self.config.max_steer)
@@ -223,38 +245,43 @@ class PurePursuitController:
 
 class Visualization:
     """Class for visualization"""
+
     def __init__(self) -> None:
         self.pause_simulation: bool = False
-        
+
         # Setup figure
         self.fig: Figure
         self.ax: Axes
         self.fig, self.ax = plt.subplots(figsize=(10, 6))
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key)
-        
+        self.fig.canvas.mpl_connect("key_release_event", self.on_key)
+
     def on_key(self, event: Any) -> None:
         """Keyboard event handler"""
-        if event.key == ' ':  # Space key
+        if event.key == " ":  # Space key
             self.pause_simulation = not self.pause_simulation
-        elif event.key == 'escape':
+        elif event.key == "escape":
             plt.close()
-            
-    def plot_vehicle(self, state: VehicleState, steer: float, config: VehicleConfig) -> None:
+
+    def plot_vehicle(
+        self, state: VehicleState, steer: float, config: VehicleConfig
+    ) -> None:
         """Plot vehicle with wheels"""
         x, y, yaw = state.x, state.y, state.yaw
-            
+
         # Vehicle body color
-        color = 'blue'
-        front_wheel_color = 'darkblue'
-        
+        color = "blue"
+        front_wheel_color = "darkblue"
+
         # Calculate vehicle body corners
-        corners = np.array([
-            [-config.length/2, config.width/2],
-            [config.length/2, config.width/2],
-            [config.length/2, -config.width/2],
-            [-config.length/2, -config.width/2],
-            [-config.length/2, config.width/2]
-        ])
+        corners = np.array(
+            [
+                [-config.length / 2, config.width / 2],
+                [config.length / 2, config.width / 2],
+                [config.length / 2, -config.width / 2],
+                [-config.length / 2, -config.width / 2],
+                [-config.length / 2, config.width / 2],
+            ]
+        )
 
         # Rotation matrix
         c, s = np.cos(yaw), np.sin(yaw)
@@ -267,38 +294,74 @@ class Visualization:
 
         # Plot vehicle body
         self.ax.plot(rotated[:, 0], rotated[:, 1], color=color)
-        
+
         # Plot wheels
-        self._plot_wheel(x + config.length/4 * c - config.width/2 * s,
-                        y + config.length/4 * s + config.width/2 * c,
-                        yaw, steer, front_wheel_color, config)
-        self._plot_wheel(x + config.length/4 * c + config.width/2 * s,
-                        y + config.length/4 * s - config.width/2 * c,
-                        yaw, steer, front_wheel_color, config)
-        self._plot_wheel(x - config.length/4 * c - config.width/2 * s,
-                        y - config.length/4 * s + config.width/2 * c,
-                        yaw, 0, color, config)
-        self._plot_wheel(x - config.length/4 * c + config.width/2 * s,
-                        y - config.length/4 * s - config.width/2 * c,
-                        yaw, 0, color, config)
+        self._plot_wheel(
+            x + config.length / 4 * c - config.width / 2 * s,
+            y + config.length / 4 * s + config.width / 2 * c,
+            yaw,
+            steer,
+            front_wheel_color,
+            config,
+        )
+        self._plot_wheel(
+            x + config.length / 4 * c + config.width / 2 * s,
+            y + config.length / 4 * s - config.width / 2 * c,
+            yaw,
+            steer,
+            front_wheel_color,
+            config,
+        )
+        self._plot_wheel(
+            x - config.length / 4 * c - config.width / 2 * s,
+            y - config.length / 4 * s + config.width / 2 * c,
+            yaw,
+            0,
+            color,
+            config,
+        )
+        self._plot_wheel(
+            x - config.length / 4 * c + config.width / 2 * s,
+            y - config.length / 4 * s - config.width / 2 * c,
+            yaw,
+            0,
+            color,
+            config,
+        )
 
         # Add direction arrow
-        arrow_length = config.length/3
-        self.ax.arrow(x, y,
-                    arrow_length * math.cos(yaw),
-                    arrow_length * math.sin(yaw),
-                    head_width=config.width/4, head_length=config.width/4,
-                    fc='r', ec='r', alpha=0.5)
-    
-    def _plot_wheel(self, x: float, y: float, yaw: float, steer: float, color: str, config: VehicleConfig) -> None:
+        arrow_length = config.length / 3
+        self.ax.arrow(
+            x,
+            y,
+            arrow_length * math.cos(yaw),
+            arrow_length * math.sin(yaw),
+            head_width=config.width / 4,
+            head_length=config.width / 4,
+            fc="r",
+            ec="r",
+            alpha=0.5,
+        )
+
+    def _plot_wheel(
+        self,
+        x: float,
+        y: float,
+        yaw: float,
+        steer: float,
+        color: str,
+        config: VehicleConfig,
+    ) -> None:
         """Plot single wheel"""
-        wheel = np.array([
-            [-config.wheel_length/2, config.wheel_width/2],
-            [config.wheel_length/2, config.wheel_width/2],
-            [config.wheel_length/2, -config.wheel_width/2],
-            [-config.wheel_length/2, -config.wheel_width/2],
-            [-config.wheel_length/2, config.wheel_width/2]
-        ])
+        wheel = np.array(
+            [
+                [-config.wheel_length / 2, config.wheel_width / 2],
+                [config.wheel_length / 2, config.wheel_width / 2],
+                [config.wheel_length / 2, -config.wheel_width / 2],
+                [-config.wheel_length / 2, -config.wheel_width / 2],
+                [-config.wheel_length / 2, config.wheel_width / 2],
+            ]
+        )
 
         # Rotate wheel if steering
         if steer != 0:
@@ -317,37 +380,51 @@ class Visualization:
 
         # Plot wheel with color
         self.ax.plot(wheel[:, 0], wheel[:, 1], color=color)
-        
-    def update_plot(self, state: VehicleState, target_ind: int, course: TargetCourse, 
-                   states: VehicleStateHistory, target_speed: float, 
-                   controller: PurePursuitController, config: VehicleConfig) -> None:
+
+    def update_plot(
+        self,
+        state: VehicleState,
+        target_ind: int,
+        course: TargetCourse,
+        states: VehicleStateHistory,
+        target_speed: float,
+        controller: PurePursuitController,
+        config: VehicleConfig,
+    ) -> None:
         """Update plot with current simulation state"""
         self.ax.clear()
-        
+
         # Plot course and trajectory
         self.ax.plot(course.cx, course.cy, "-r", label="course")
         self.ax.plot(states.x, states.y, "-b", label="trajectory")
         self.ax.plot(course.cx[target_ind], course.cy[target_ind], "xg", label="target")
-        
+
         # Plot vehicle
         steer, _ = controller.steering_control(state, course, target_ind)
         self.plot_vehicle(state, steer, config)
-        
+
         # Set plot properties
         self.ax.axis("equal")
         self.ax.grid(True)
         self.ax.set_title(f"Pure Pursuit Control - Speed: {state.v * 3.6:.1f} km/h")
         self.ax.legend()
-        
+
         # Add pause state display
         if self.pause_simulation:
-            self.ax.text(0.02, 0.95, 'PAUSED', transform=self.ax.transAxes,
-                    bbox=dict(facecolor='red', alpha=0.5))
-            
-    def show_result_plots(self, course: TargetCourse, states: VehicleStateHistory) -> None:
+            self.ax.text(
+                0.02,
+                0.95,
+                "PAUSED",
+                transform=self.ax.transAxes,
+                bbox=dict(facecolor="red", alpha=0.5),
+            )
+
+    def show_result_plots(
+        self, course: TargetCourse, states: VehicleStateHistory
+    ) -> None:
         """Show result plots after simulation"""
         plt.figure(figsize=(10, 8))
-        
+
         # Plot trajectory
         plt.subplot(2, 1, 1)
         plt.plot(course.cx, course.cy, ".r", label="course")
@@ -357,70 +434,93 @@ class Visualization:
         plt.ylabel("y[m]")
         plt.axis("equal")
         plt.grid(True)
-        
+
         # Plot speed profile
         plt.subplot(2, 1, 2)
         plt.plot(states.t, [v * 3.6 for v in states.v], "-r")
         plt.xlabel("Time[s]")
         plt.ylabel("Speed[km/h]")
         plt.grid(True)
-        
+
         plt.tight_layout()
         plt.show()
 
 
 class Simulation:
     """Simulation class"""
-    def __init__(self, config: VehicleConfig, controller: PurePursuitController, visualizer: Optional[Visualization] = None) -> None:
+
+    def __init__(
+        self,
+        config: VehicleConfig,
+        controller: PurePursuitController,
+        visualizer: Optional[Visualization] = None,
+    ) -> None:
         self.config: VehicleConfig = config
         self.controller: PurePursuitController = controller
         self.visualizer: Optional[Visualization] = visualizer
         self.show_animation: bool = visualizer is not None
-        
-    def run(self, course: TargetCourse, initial_state: VehicleState, 
-           target_speed: float, max_time: float = 100.0) -> Tuple[VehicleStateHistory, bool]:
+
+    def run(
+        self,
+        course: TargetCourse,
+        initial_state: VehicleState,
+        target_speed: float,
+        max_time: float = 100.0,
+    ) -> Tuple[VehicleStateHistory, bool]:
         """Run simulation"""
         state = initial_state
         time = 0.0
         states = VehicleStateHistory()
         states.append(time, state)
-        
+
         target_ind, _ = course.search_target_index(state, self.config)
         last_index = len(course.cx) - 1
-        
+
         while max_time >= time and last_index > target_ind:
             # Calculate control inputs
             # Check if we're in reverse mode based on target speed
             is_reverse = target_speed < 0
-            acceleration = self.controller.speed_control(target_speed, state.v, is_reverse)
-            steer, target_ind = self.controller.steering_control(state, course, target_ind)
-            
+            acceleration = self.controller.speed_control(
+                target_speed, state.v, is_reverse
+            )
+            steer, target_ind = self.controller.steering_control(
+                state, course, target_ind
+            )
+
             # Update state
             state.update(acceleration, steer, self.config)
-            
+
             # Update time and history
             time += self.config.dt
             states.append(time, state)
-            
+
             # Visualization
             if self.show_animation and self.visualizer is not None:
-                self.visualizer.update_plot(state, target_ind, course, states, target_speed, self.controller, self.config)
+                self.visualizer.update_plot(
+                    state,
+                    target_ind,
+                    course,
+                    states,
+                    target_speed,
+                    self.controller,
+                    self.config,
+                )
                 plt.pause(0.001)
-                
+
                 # Handle pause state
                 while self.visualizer.pause_simulation and plt.get_fignums():
                     plt.pause(0.1)  # Reduce CPU usage
-                
+
                 # Check if window was closed
                 if not plt.get_fignums():
                     return states, False
-        
+
         goal_reached = last_index <= target_ind
-        
+
         # Show result plots if animation was enabled
         if self.show_animation and goal_reached and self.visualizer is not None:
             self.visualizer.show_result_plots(course, states)
-            
+
         return states, goal_reached
 
 
@@ -428,40 +528,35 @@ def main() -> None:
     """Main function"""
     # Create configuration
     config = VehicleConfig()
-    
+
     # Create controller
     controller = PurePursuitController(config)
-    
+
     # Create visualizer if animation is enabled
     visualizer = Visualization()
-    
+
     # Create simulation
     simulation = Simulation(config, controller, visualizer)
-    
+
     # Create course
     is_reverse_mode = True
     cx_array = -1 * np.arange(0, 50, 0.5) if is_reverse_mode else np.arange(0, 50, 0.5)
     cy_array = [math.sin(ix / 5.0) * ix / 2.0 for ix in cx_array]
-    
+
     # Convert numpy arrays to lists for type compatibility
     cx = cx_array.tolist()
     cy = [float(y) for y in cy_array]
     course = TargetCourse(cx, cy)
-    
+
     # Set initial state and target speed
-    initial_state = VehicleState(
-        x=-10.0, 
-        y=-3.0, 
-        yaw=0.0, 
-        v=0.0
-    )
+    initial_state = VehicleState(x=-10.0, y=-3.0, yaw=0.0, v=0.0)
     target_speed = 10.0 / 3.6  # [m/s]
-    
+
     # Run simulation
     # If in reverse mode, make target speed negative
     target_speed = -abs(target_speed) if is_reverse_mode else abs(target_speed)
     states, goal_reached = simulation.run(course, initial_state, target_speed)
-    
+
     # Check if goal was reached
     if goal_reached:
         print("Goal reached!")
@@ -469,6 +564,6 @@ def main() -> None:
         print("Failed to reach goal.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Pure pursuit path tracking simulation start")
     main()
