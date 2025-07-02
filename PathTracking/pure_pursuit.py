@@ -53,7 +53,7 @@ class VelocityController:
         max_backward_velocity: float = 2.0,
         max_acceleration: float = 1.0,
         max_deceleration: float = 2.0,
-        goal_tolerance: float = 0.1,
+        goal_tolerance: float = 0.5,
         velocity_tolerance: float = 0.1,
         conservative_braking_factor: float = 1.2,
         min_velocity: float = 0.1,
@@ -662,6 +662,17 @@ def run_simulation(
 
                 # Check if goal is reached
                 goal_reached = controller.is_goal_reached(vehicle_state)
+
+                # Find and plot lookahead point
+                target_point = controller.find_target_point(vehicle_state)
+                if target_point is not None:
+                    target_x, target_y, target_direction = target_point
+                    plt.plot(target_x, target_y, 'mo', markersize=8, label="Lookahead Point")
+                    
+                    # Draw line from vehicle to lookahead point
+                    plt.plot([vehicle_state.position_x, target_x], 
+                            [vehicle_state.position_y, target_y], 
+                            'm--', linewidth=1, alpha=0.7, label="Lookahead Line")
 
                 # Calculate and apply control with time step for acceleration planning
                 steering, target_velocity = controller.compute_control(vehicle_state, time_step)
