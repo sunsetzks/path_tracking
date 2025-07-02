@@ -11,7 +11,7 @@ Author: Assistant
 """
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict, Union
+from typing import List, Tuple, Dict, Union
 import math
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
@@ -53,21 +53,24 @@ class Trajectory:
     It provides methods for interpolation and finding projection points along the path.
     """
     
-    def __init__(self, waypoints: Optional[List[Waypoint]] = None):
+    def __init__(self, waypoints: List[Waypoint] = [], discretization_distance: float = 0.1):
         """
         Initialize the trajectory.
         
         Args:
             waypoints: List of Waypoint objects defining the trajectory
+            discretization_distance: Default distance between discretized points (in meters)
+                                   Used for internal trajectory discretization and sampling
         """
-        self.waypoints = waypoints if waypoints is not None else []
+        self.waypoints = waypoints.copy()  # Make a copy to avoid modifying the input list
         self._s_values: List[float] = []
         self._interpolators: Dict[str, interp1d] = {}
         
         # For discrete point sampling
         self._sampled_s: List[float] = []
         self._sampled_waypoints: List[Waypoint] = []
-        self._sample_count = 100  # Default number of samples
+        self._discretization_distance = discretization_distance
+        self._sample_count = 100  # Initial default, will be updated based on path length
         
         self._update_path_parameters()
     
@@ -86,7 +89,7 @@ class Trajectory:
         self._update_path_parameters()
     
     def add_waypoints_from_arrays(self, x_coords: List[float], y_coords: List[float], 
-                                  yaw_angles: List[float], directions: Optional[List[int]] = None):
+                                  yaw_angles: List[float], directions: List[int] = []):
         """
         Add multiple waypoints from coordinate arrays.
         
@@ -96,7 +99,7 @@ class Trajectory:
             yaw_angles: List of heading angles in radians
             directions: List of movement directions (default: all forward)
         """
-        if directions is None:
+        if not directions:  # If directions is empty
             directions = [1] * len(x_coords)
         
         if not (len(x_coords) == len(y_coords) == len(yaw_angles) == len(directions)):
@@ -144,8 +147,11 @@ class Trajectory:
                                     bounds_error=False, fill_value=np.nan)
             }
             
+            # Calculate number of samples based on path length and discretization distance
+            path_length = self._s_values[-1]
+            self._sample_count = max(1, int(path_length / self._discretization_distance))
+            
             # Create discrete samples for nearest point search
-            self._sample_count = max(100, len(self.waypoints) * 10)
             self._sampled_s = list(np.linspace(0, self._s_values[-1], self._sample_count))
             
             # Pre-compute sampled points
@@ -376,9 +382,12 @@ class Trajectory:
     def sample_by_distance(self, interval: float) -> List[Waypoint]:
         """
         Sample points along the trajectory at fixed distance intervals.
+        The sampled points will include all original waypoints, and additional points
+        will be inserted between original waypoints if their distance is greater than
+        the specified interval.
         
         Args:
-            interval: Distance between sampled points
+            interval: Maximum distance between sampled points
             
         Returns:
             List of sampled Waypoint objects
@@ -391,16 +400,44 @@ class Trajectory:
         if interval <= 0:
             raise ValueError("Sampling interval must be positive")
             
-        total_length = self.get_trajectory_length()
-        num_samples = math.ceil(total_length / interval)
+        sampled_points = []
         
-        # Generate sampling distances
-        s_values = [min(i * interval, total_length) for i in range(num_samples)]
-        if s_values[-1] < total_length:
-            s_values.append(total_length)  # Add endpoint if needed
+        # Add first waypoint
+        sampled_points.append(self.waypoints[0])
+        
+        # Process each pair of consecutive waypoints
+        for i in range(len(self.waypoints) - 1):
+            wp1 = self.waypoints[i]
+            wp2 = self.waypoints[i + 1]
             
-        # Sample points
-        return [self.interpolate_at_distance(s) for s in s_values]
+            # Calculate distance between waypoints
+            dx = wp2.x - wp1.x
+            dy = wp2.y - wp1.y
+            segment_length = math.sqrt(dx*dx + dy*dy)
+            
+            # If segment is longer than interval, insert points
+            if segment_length > interval:
+                # Calculate number of points to insert
+                n_points = math.ceil(segment_length / interval) - 1
+                
+                # Calculate actual interval for even spacing
+                actual_interval = segment_length / (n_points + 1)
+                
+                # Get start and end s values for this segment
+                s1 = self._s_values[i]
+                s2 = self._s_values[i + 1]
+                
+                # Insert interpolated points
+                for j in range(n_points):
+                    # Calculate s value for interpolated point
+                    s = s1 + (j + 1) * actual_interval * (s2 - s1) / segment_length
+                    point = self.interpolate_at_distance(s)
+                    sampled_points.append(point)
+            
+            # Add the next original waypoint
+            sampled_points.append(wp2)
+        
+        return sampled_points
     
     def sample_by_number(self, num_points: int) -> List[Waypoint]:
         """
@@ -425,7 +462,7 @@ class Trajectory:
         
         return [self.interpolate_at_distance(s) for s in s_values]
     
-    def find_lookahead_point(self, pose_x: float, pose_y: float, lookahead_distance: float) -> Optional[ProjectedPoint]:
+    def find_lookahead_point(self, pose_x: float, pose_y: float, lookahead_distance: float) -> ProjectedPoint:
         """
         Find a point on the trajectory that is a specified distance ahead of the nearest point to the given pose.
         
@@ -435,10 +472,10 @@ class Trajectory:
             lookahead_distance: Desired distance to look ahead along the trajectory
             
         Returns:
-            ProjectedPoint containing the look-ahead point data and path distance, or None if no valid point is found
+            ProjectedPoint containing the look-ahead point data and path distance
             
         Raises:
-            ValueError: If trajectory is empty or lookahead_distance is invalid
+            ValueError: If trajectory is empty, lookahead_distance is invalid, or target point would be beyond trajectory end
         """
         if not self._interpolators:
             raise ValueError("Trajectory must have at least 2 waypoints")
@@ -451,9 +488,9 @@ class Trajectory:
         # Calculate target distance along trajectory
         target_s = nearest.s + lookahead_distance
         
-        # If target point would be beyond trajectory end, return None
+        # If target point would be beyond trajectory end, raise error
         if target_s > self.get_trajectory_length():
-            return None
+            raise ValueError("Look-ahead point would be beyond trajectory end")
             
         # Get the look-ahead point
         point = self.interpolate_at_distance(target_s)
