@@ -10,7 +10,7 @@ Author: Assistant
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from trajectory import Trajectory, Waypoint, ProjectedPoint, FrenetCoordinates
+from PathTracking.trajectory import Trajectory, Waypoint, ProjectedPoint, FrenetCoordinates
 
 
 def create_straight_line_trajectory() -> Trajectory:

@@ -11,11 +11,12 @@ Author: Assistant
 """
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Union
 import math
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
 from dataclasses import dataclass
+import numpy.typing as npt
 
 
 @dataclass
@@ -60,8 +61,14 @@ class Trajectory:
             waypoints: List of Waypoint objects defining the trajectory
         """
         self.waypoints = waypoints if waypoints is not None else []
-        self._s_values: Optional[List[float]] = None
+        self._s_values: List[float] = []
         self._interpolators: Dict[str, interp1d] = {}
+        
+        # For discrete point sampling
+        self._sampled_s: List[float] = []
+        self._sampled_waypoints: List[Waypoint] = []
+        self._sample_count = 100  # Default number of samples
+        
         self._update_path_parameters()
     
     def add_waypoint(self, x: float, y: float, yaw: float, direction: int = 1):
@@ -101,8 +108,10 @@ class Trajectory:
     def _update_path_parameters(self):
         """Update internal path parameters after waypoint changes."""
         if len(self.waypoints) < 2:
-            self._s_values = None
+            self._s_values = []
             self._interpolators = {}
+            self._sampled_s = []
+            self._sampled_waypoints = []
             return
         
         # Calculate cumulative distances along the path
@@ -134,6 +143,16 @@ class Trajectory:
                 'direction': interp1d(self._s_values, directions, kind='nearest',
                                     bounds_error=False, fill_value=np.nan)
             }
+            
+            # Create discrete samples for nearest point search
+            self._sample_count = max(100, len(self.waypoints) * 10)
+            self._sampled_s = list(np.linspace(0, self._s_values[-1], self._sample_count))
+            
+            # Pre-compute sampled points
+            self._sampled_waypoints = []
+            for s in self._sampled_s:
+                point = self.interpolate_at_distance(s)
+                self._sampled_waypoints.append(point)
     
     def _unwrap_angles(self, angles: List[float]) -> List[float]:
         """Unwrap angles to avoid discontinuities in interpolation."""
@@ -175,76 +194,38 @@ class Trajectory:
         
         return Waypoint(x=x, y=y, yaw=yaw, direction=direction)
     
-    def find_nearest_point(self, pose_x: float, pose_y: float) -> ProjectedPoint:
+    def find_nearest_point_around(self, target_x: float, target_y: float,
+                                 initial_s: float,
+                                 search_range_meters: float = 10.0,
+                                 tolerance: float = 0.001) -> float:
         """
-        Find the nearest point on the trajectory to a given pose.
+        Find the nearest point on trajectory around a given initial position.
         
         Args:
-            pose_x: X coordinate of the query pose
-            pose_y: Y coordinate of the query pose
+            target_x: X coordinate of target point
+            target_y: Y coordinate of target point
+            initial_s: Initial position along trajectory to search around
+            search_range_meters: Search range in meters around initial position (default: 10.0)
+            tolerance: Search tolerance (default: 0.001)
             
         Returns:
-            ProjectedPoint containing nearest point data and path distance
+            Distance along trajectory (s) to the nearest point
         """
-        if not self._interpolators:
-            raise ValueError("Trajectory must have at least 2 waypoints")
+        # Golden ratio
+        phi = (1 + math.sqrt(5)) / 2
         
-        if self._s_values is None:
-            raise ValueError("Path parameters not initialized")
-            
-        # Sample points along the trajectory for nearest point search
-        total_length = self._s_values[-1]
-        num_samples = max(100, len(self.waypoints) * 10)
-        s_samples = np.linspace(0, total_length, num_samples)
+        # Define search bounds around initial value
+        half_range = search_range_meters / 2
+        left = initial_s - half_range
+        right = initial_s + half_range
         
-        # Get interpolated points
-        sampled_points = []
-        for s in s_samples:
-            point = self.interpolate_at_distance(s)
-            sampled_points.append([point.x, point.y])
+        # Get total path length for clamping
+        total_length = self.get_trajectory_length()
         
-        sampled_points = np.array(sampled_points)
-        
-        # Find nearest point
-        query_point = np.array([[pose_x, pose_y]])
-        distances = cdist(query_point, sampled_points)[0]
-        nearest_idx = np.argmin(distances)
-        nearest_s = s_samples[nearest_idx]
-        
-        # Refine the search using local optimization
-        refined_s = self._refine_nearest_point(pose_x, pose_y, nearest_s, total_length)
-        
-        point = self.interpolate_at_distance(refined_s)
-        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, 
-                            direction=point.direction, s=refined_s)
-    
-    def _refine_nearest_point(self, pose_x: float, pose_y: float, initial_s: float, 
-                             total_length: float, tolerance: float = 0.01) -> float:
-        """
-        Refine nearest point search using golden section search.
-        
-        Args:
-            pose_x: X coordinate of query pose
-            pose_y: Y coordinate of query pose
-            initial_s: Initial guess for nearest point distance
-            total_length: Total trajectory length
-            tolerance: Search tolerance
-            
-        Returns:
-            Refined distance along path to nearest point
-        """
         def distance_squared(s):
             s = max(0, min(s, total_length))  # Clamp to valid range
             point = self.interpolate_at_distance(s)
-            return (point.x - pose_x)**2 + (point.y - pose_y)**2
-        
-        # Golden section search
-        phi = (1 + math.sqrt(5)) / 2  # Golden ratio
-        
-        # Search window around initial guess
-        window_size = min(total_length * 0.1, 10.0)  # 10% of path or 10 units
-        left = max(0, initial_s - window_size)
-        right = min(total_length, initial_s + window_size)
+            return (point.x - target_x)**2 + (point.y - target_y)**2
         
         # Golden section search
         while (right - left) > tolerance:
@@ -257,6 +238,83 @@ class Trajectory:
                 right = s2
         
         return (left + right) / 2
+
+    def find_nearest_discrete_point(self, pose_x: float, pose_y: float) -> Tuple[float, int]:
+        """
+        Find the nearest point among discretely sampled points on trajectory.
+        This is the first step in finding the exact nearest point.
+        
+        Args:
+            pose_x: X coordinate of the query pose
+            pose_y: Y coordinate of the query pose
+            
+        Returns:
+            Tuple of (distance along trajectory, index of nearest sample)
+            
+        Raises:
+            ValueError: If trajectory is not properly initialized
+        """
+        if (not self._interpolators or not self._sampled_waypoints 
+            or not self._sampled_s):
+            raise ValueError("Trajectory must have at least 2 waypoints")
+        
+        # Convert waypoints to numpy array for efficient distance calculation
+        points = np.array([[wp.x, wp.y] for wp in self._sampled_waypoints])
+        query_point = np.array([[pose_x, pose_y]])
+        distances = cdist(query_point, points)[0]
+        nearest_idx = int(np.argmin(distances))
+        nearest_s = float(self._sampled_s[nearest_idx])
+        
+        return nearest_s, nearest_idx
+
+    def find_nearest_point(self, pose_x: float, pose_y: float) -> ProjectedPoint:
+        """
+        Find the nearest point on the trajectory to a given pose.
+        This is a two-step process:
+        1. Find the nearest discretely sampled point
+        2. Refine the search around that point to find the exact nearest point on the curve
+        
+        Args:
+            pose_x: X coordinate of the query pose
+            pose_y: Y coordinate of the query pose
+            
+        Returns:
+            ProjectedPoint containing nearest point data and path distance
+            
+        Raises:
+            ValueError: If trajectory is empty or not properly initialized
+        """
+        if not self._interpolators:
+            raise ValueError("Trajectory must have at least 2 waypoints")
+
+        # Get trajectory bounds
+        total_length = self.get_trajectory_length()
+        
+        # Step 1: Find nearest discrete point
+        try:
+            nearest_s, _ = self.find_nearest_discrete_point(pose_x, pose_y)
+        except ValueError:
+            # If point is far outside trajectory, use endpoint based on x-coordinate
+            if pose_x < self.waypoints[0].x:
+                nearest_s = 0.0
+            else:
+                nearest_s = total_length
+        
+        # Step 2: Refine the search around the initial guess
+        refined_s = self.find_nearest_point_around(
+            target_x=pose_x,
+            target_y=pose_y,
+            initial_s=nearest_s,
+            search_range_meters=10.0,  # Search within 10 meters
+            tolerance=0.001
+        )
+        
+        # Ensure s is within valid bounds
+        refined_s = max(0.0, min(refined_s, total_length))
+        
+        point = self.interpolate_at_distance(refined_s)
+        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, 
+                            direction=point.direction, s=refined_s)
     
     def get_frenet_coordinates(self, pose_x: float, pose_y: float) -> FrenetCoordinates:
         """
@@ -268,22 +326,32 @@ class Trajectory:
             
         Returns:
             FrenetCoordinates containing longitudinal (s) and lateral (d) distances
+            
+        Raises:
+            ValueError: If trajectory is empty or not properly initialized
         """
-        nearest = self.find_nearest_point(pose_x, pose_y)
+        if not self._interpolators:
+            raise ValueError("Trajectory must have at least 2 waypoints")
         
-        # Calculate lateral distance (signed)
-        # Vector from nearest point to query pose
-        dx = pose_x - nearest.x
-        dy = pose_y - nearest.y
-        
-        # Normal vector to the trajectory (pointing left)
-        normal_x = -math.sin(nearest.yaw)
-        normal_y = math.cos(nearest.yaw)
-        
-        # Project displacement onto normal vector
-        lateral_distance = dx * normal_x + dy * normal_y
-        
-        return FrenetCoordinates(s=nearest.s, d=lateral_distance)
+        try:
+            nearest = self.find_nearest_point(pose_x, pose_y)
+            
+            # Calculate lateral distance (signed)
+            # Vector from nearest point to query pose
+            dx = pose_x - nearest.x
+            dy = pose_y - nearest.y
+            
+            # Normal vector to the trajectory (pointing left)
+            normal_x = -math.sin(nearest.yaw)
+            normal_y = math.cos(nearest.yaw)
+            
+            # Project displacement onto normal vector
+            lateral_distance = dx * normal_x + dy * normal_y
+            
+            return FrenetCoordinates(s=nearest.s, d=lateral_distance)
+            
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Failed to get Frenet coordinates: {e}")
     
     def get_trajectory_length(self) -> float:
         """Get the total length of the trajectory."""
@@ -300,8 +368,10 @@ class Trajectory:
     def clear(self):
         """Clear all waypoints from the trajectory."""
         self.waypoints = []
-        self._s_values = None
+        self._s_values = []
         self._interpolators = {}
+        self._sampled_s = []
+        self._sampled_waypoints = []
     
     def sample_by_distance(self, interval: float) -> List[Waypoint]:
         """
