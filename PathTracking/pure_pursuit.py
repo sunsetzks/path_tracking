@@ -44,7 +44,7 @@ class VelocityController:
         max_deceleration: float = 2.0,
         goal_tolerance: float = 0.5,
         velocity_tolerance: float = 0.1,
-        safety_margin_factor: float = 1.2,
+        conservative_braking_factor: float = 1.2,
     ) -> None:
         """
         Initialize the velocity controller with physics-based deceleration.
@@ -54,13 +54,13 @@ class VelocityController:
             max_deceleration (float): Maximum deceleration magnitude [m/s²] (positive value)
             goal_tolerance (float): Distance tolerance to consider goal reached [m]
             velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s]
-            safety_margin_factor (float): Safety factor for deceleration distance (>1.0 for conservative approach)
+            conservative_braking_factor (float): Safety factor for deceleration distance (>1.0 for conservative approach)
         """
         self.max_velocity = max_velocity
         self.max_deceleration = abs(max_deceleration)  # Ensure positive value
         self.goal_tolerance = goal_tolerance
         self.velocity_tolerance = velocity_tolerance
-        self.safety_margin_factor = safety_margin_factor
+        self.conservative_braking_factor = conservative_braking_factor
 
     def calculate_stopping_distance(self, current_velocity: float) -> float:
         """
@@ -82,7 +82,7 @@ class VelocityController:
         stopping_distance = (velocity_magnitude ** 2) / (2 * self.max_deceleration)
         
         # Apply safety margin
-        return stopping_distance * self.safety_margin_factor
+        return stopping_distance * self.conservative_braking_factor
 
     def calculate_max_velocity_for_distance(self, distance_to_goal: float) -> float:
         """
@@ -103,7 +103,7 @@ class VelocityController:
         available_distance = max(0.0, distance_to_goal - self.goal_tolerance)
         
         # Remove safety margin to get actual usable distance
-        usable_distance = available_distance / self.safety_margin_factor
+        usable_distance = available_distance / self.conservative_braking_factor
         
         if usable_distance <= 0.0:
             return 0.0
@@ -572,7 +572,7 @@ def run_simulation(
 
                 # Setup plot properties
                 plt.grid(True)
-                plt.axis("equal")
+                plt.gca().set_aspect('equal', adjustable='box')
 
                 # Plot trajectory
                 plt.plot(x_coords, y_coords, "b--", label="Reference Path")
@@ -657,9 +657,19 @@ def run_simulation(
                 # Add legend
                 plt.legend()
 
-                # Set fixed view limits with margin
-                plt.xlim(x_min - margin, x_max + margin)
-                plt.ylim(y_min - margin, y_max + margin)
+                # Set view limits with margin, compatible with equal aspect
+                x_range = x_max - x_min
+                y_range = y_max - y_min
+                max_range = max(x_range, y_range)
+                
+                # Calculate center points
+                x_center = (x_min + x_max) / 2
+                y_center = (y_min + y_max) / 2
+                
+                # Set symmetric limits for equal aspect ratio
+                half_range = max_range / 2 + margin
+                plt.xlim(x_center - half_range, x_center + half_range)
+                plt.ylim(y_center - half_range, y_center + half_range)
 
                 plt.pause(0.001)
                 time += time_step
@@ -691,7 +701,7 @@ def main() -> None:
         max_deceleration=2.0,  # Maximum deceleration: 2.0 m/s²
         goal_tolerance=1.0,  # Goal tolerance: 1.0 meter
         velocity_tolerance=0.2,  # Stop when velocity < 0.2 m/s
-        safety_margin_factor=1.2,  # 20% safety margin for deceleration
+        conservative_braking_factor=1.2,  # 20% safety margin for deceleration
     )
     
     # Create pure pursuit controller
