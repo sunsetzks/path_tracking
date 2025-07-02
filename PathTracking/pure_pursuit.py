@@ -107,7 +107,7 @@ class VelocityController:
         Calculate maximum velocity that allows stopping within the given distance.
         
         Uses physics equation: v = sqrt(2*a*d) where a is deceleration, d is distance
-        
+         
         Args:
             distance_to_goal (float): Distance to goal [m]
             is_forward (bool): Whether motion is forward direction
@@ -555,6 +555,191 @@ def create_test_trajectory() -> Trajectory:
     return trajectory
 
 
+def create_forward_test_trajectory() -> Trajectory:
+    """
+    Create a forward driving test trajectory with curves and straight segments.
+
+    Returns:
+        Trajectory: Forward driving test trajectory
+    """
+    trajectory = Trajectory()
+
+    # First segment: Forward S-curve
+    for i in range(40):
+        angle = i * np.deg2rad(4)  # More curved
+        radius = 15.0
+        x = radius * math.cos(angle)
+        y = radius * math.sin(angle)
+        yaw = angle + np.deg2rad(90)  # Tangent to circle
+        trajectory.add_waypoint(x, y, yaw, direction=1)  # Forward
+
+    # Second segment: Reverse S-curve (still forward direction)
+    last_x, last_y = trajectory.waypoints[-1].x, trajectory.waypoints[-1].y
+    last_yaw = trajectory.waypoints[-1].yaw
+    
+    for i in range(40):
+        angle = i * np.deg2rad(-3)  # Opposite curve
+        radius = 12.0
+        offset_x = last_x + 5.0  # Offset to connect smoothly
+        offset_y = last_y
+        x = offset_x + radius * math.cos(angle + last_yaw - np.deg2rad(90))
+        y = offset_y + radius * math.sin(angle + last_yaw - np.deg2rad(90))
+        yaw = angle + last_yaw
+        trajectory.add_waypoint(x, y, yaw, direction=1)  # Forward
+
+    # Third segment: Straight line to finish
+    last_x, last_y = trajectory.waypoints[-1].x, trajectory.waypoints[-1].y
+    last_yaw = trajectory.waypoints[-1].yaw
+
+    for i in range(1, 25):
+        distance = i * 1.0
+        x = last_x + distance * math.cos(last_yaw)
+        y = last_y + distance * math.sin(last_yaw)
+        trajectory.add_waypoint(x, y, last_yaw, direction=1)  # Forward
+
+    return trajectory
+
+
+def create_reverse_test_trajectory() -> Trajectory:
+    """
+    Create a reverse driving test trajectory (backing up scenario).
+
+    Returns:
+        Trajectory: Reverse driving test trajectory
+    """
+    trajectory = Trajectory()
+
+    # Start at origin and create a reverse trajectory
+    # This simulates backing into a parking spot or reversing along a path
+    
+    # First segment: Straight reverse line
+    for i in range(20):
+        x = -i * 1.0  # Moving backward (negative x)
+        y = 0.0
+        yaw = np.deg2rad(180)  # Facing backward
+        trajectory.add_waypoint(x, y, yaw, direction=-1)  # Reverse
+
+    # Second segment: Curved reverse maneuver (like backing into parking)
+    last_x, last_y = trajectory.waypoints[-1].x, trajectory.waypoints[-1].y
+    
+    for i in range(30):
+        angle = i * np.deg2rad(3)  # Gradual curve
+        radius = 10.0
+        # Create curve for backing maneuver
+        x = last_x - radius * math.sin(angle)
+        y = last_y - radius * (1 - math.cos(angle))
+        yaw = np.deg2rad(180) + angle  # Gradually turning while backing
+        trajectory.add_waypoint(x, y, yaw, direction=-1)  # Reverse
+
+    # Third segment: Final straight reverse segment
+    last_x, last_y = trajectory.waypoints[-1].x, trajectory.waypoints[-1].y
+    last_yaw = trajectory.waypoints[-1].yaw
+
+    for i in range(1, 15):
+        distance = i * 0.8
+        x = last_x + distance * math.cos(last_yaw)
+        y = last_y + distance * math.sin(last_yaw)
+        trajectory.add_waypoint(x, y, last_yaw, direction=-1)  # Reverse
+
+    return trajectory
+
+
+def run_forward_simulation() -> None:
+    """
+    Run forward driving simulation.
+    """
+    print("\n" + "=" * 60)
+    print("🚗 FORWARD DRIVING SIMULATION")
+    print("=" * 60)
+    print("This simulation demonstrates forward path tracking with:")
+    print("- S-curve trajectories")
+    print("- Dynamic lookahead distance")
+    print("- Physics-based acceleration/deceleration")
+    print("- Smooth velocity planning")
+    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    input("Press Enter to start forward simulation...")
+
+    # Create forward trajectory
+    trajectory = create_forward_test_trajectory()
+
+    # Create vehicle model
+    wheelbase = 2.9
+    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    
+    # Create velocity controller optimized for forward driving
+    velocity_controller = VelocityController(
+        max_forward_velocity=6.0,  # Higher max speed for forward driving
+        max_backward_velocity=2.0,
+        max_acceleration=2.0,  # Faster acceleration for forward
+        max_deceleration=2.5,
+        goal_tolerance=1.0,
+        velocity_tolerance=0.2,
+        conservative_braking_factor=1.2,
+        min_velocity=0.5,
+    )
+    
+    # Create pure pursuit controller
+    controller = PurePursuitController(
+        wheelbase=wheelbase,
+        trajectory=trajectory,
+        min_lookahead=2.5,  # Larger lookahead for forward driving
+        k_gain=1.2,
+        max_steering_angle=np.deg2rad(45.0),
+        velocity_controller=velocity_controller,
+    )
+
+    # Run simulation
+    run_simulation(vehicle_model, controller, max_time=120.0)
+
+
+def run_reverse_simulation() -> None:
+    """
+    Run reverse driving simulation.
+    """
+    print("\n" + "=" * 60)
+    print("🔄 REVERSE DRIVING SIMULATION")
+    print("=" * 60)
+    print("This simulation demonstrates reverse path tracking with:")
+    print("- Backing maneuvers")
+    print("- Reduced speed limits for safety")
+    print("- Smaller lookahead distance")
+    print("- Conservative acceleration limits")
+    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    input("Press Enter to start reverse simulation...")
+
+    # Create reverse trajectory
+    trajectory = create_reverse_test_trajectory()
+
+    # Create vehicle model
+    wheelbase = 2.9
+    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    
+    # Create velocity controller optimized for reverse driving
+    velocity_controller = VelocityController(
+        max_forward_velocity=3.0,
+        max_backward_velocity=2.5,  # Conservative reverse speed
+        max_acceleration=1.0,  # Slower acceleration for reverse
+        max_deceleration=1.5,  # Gentler deceleration
+        goal_tolerance=0.8,  # Tighter tolerance for reverse parking
+        velocity_tolerance=0.1,
+        conservative_braking_factor=1.5,  # More conservative for reverse
+        min_velocity=0.3,  # Lower minimum velocity for precise maneuvering
+    )
+    
+    # Create pure pursuit controller
+    controller = PurePursuitController(
+        wheelbase=wheelbase,
+        trajectory=trajectory,
+        min_lookahead=1.5,  # Smaller lookahead for reverse driving
+        k_gain=0.8,  # Reduced gain for more careful control
+        max_steering_angle=np.deg2rad(35.0),  # Slightly reduced max steering
+        velocity_controller=velocity_controller,
+    )
+
+    # Run simulation
+    run_simulation(vehicle_model, controller, max_time=120.0)
+
+
 def run_simulation(
     vehicle_model: VehicleModel,
     controller: PurePursuitController,
@@ -852,48 +1037,55 @@ def demo_acceleration_planning() -> None:
 
 def main() -> None:
     """
-    Main function to run the pure pursuit simulation.
+    Main function to run both forward and reverse pure pursuit simulations.
     """
-    print("Pure Pursuit Path Tracking Simulation with Acceleration Planning")
-    print("=" * 60)
+    print("Pure Pursuit Path Tracking Simulation with Forward and Reverse Driving")
+    print("=" * 70)
     
     # Run acceleration demo first
     demo_acceleration_planning()
     
-    print("\n" + "=" * 60)
-    print("Starting Pure Pursuit Simulation...")
-
-    # Create test trajectory
-    trajectory = create_test_trajectory()
-
-    # Create vehicle model and velocity controller
-    wheelbase = 2.9
-    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    print("\n" + "=" * 70)
+    print("🎯 SIMULATION MENU")
+    print("=" * 70)
+    print("This demo includes two driving scenarios:")
+    print("1. Forward Driving - High speed S-curve trajectory")
+    print("2. Reverse Driving - Backing and parking maneuvers")
+    print()
     
-    # Create velocity controller with physics-based settings
-    velocity_controller = VelocityController(
-        max_forward_velocity=5.0,  # Maximum velocity: 5.0 m/s
-        max_backward_velocity=2.0,  # Maximum backward velocity: 2.0 m/s
-        max_acceleration=1.5,  # Maximum acceleration: 1.5 m/s² (added for acceleration planning)
-        max_deceleration=2.0,  # Maximum deceleration: 2.0 m/s²
-        goal_tolerance=1.0,  # Goal tolerance: 1.0 meter
-        velocity_tolerance=0.2,  # Stop when velocity < 0.2 m/s
-        conservative_braking_factor=1.2,  # 20% safety margin for deceleration
-        min_velocity=0.5,  # Minimum velocity: 0.5 m/s
-    )
-    
-    # Create pure pursuit controller
-    controller = PurePursuitController(
-        wheelbase=wheelbase,
-        trajectory=trajectory,  # Set the trajectory during initialization
-        min_lookahead=2.0,
-        k_gain= 1,
-        max_steering_angle=np.deg2rad(45.0),
-        velocity_controller=velocity_controller,
-    )
-
-    # Run simulation
-    run_simulation(vehicle_model, controller)
+    while True:
+        print("Select simulation to run:")
+        print("1. Forward Driving Simulation")
+        print("2. Reverse Driving Simulation")
+        print("3. Run Both Simulations")
+        print("4. Exit")
+        
+        choice = input("\nEnter your choice (1-4): ").strip()
+        
+        if choice == "1":
+            run_forward_simulation()
+        elif choice == "2":
+            run_reverse_simulation()
+        elif choice == "3":
+            run_forward_simulation()
+            run_reverse_simulation()
+        elif choice == "4":
+            print("Exiting simulation. Goodbye!")
+            break
+        else:
+            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+        
+        # Ask if user wants to run another simulation
+        if choice in ["1", "2", "3"]:
+            while True:
+                continue_choice = input("\nRun another simulation? (y/n): ").strip().lower()
+                if continue_choice in ['y', 'yes']:
+                    break
+                elif continue_choice in ['n', 'no']:
+                    print("Exiting simulation. Goodbye!")
+                    return
+                else:
+                    print("Please enter 'y' or 'n'")
 
 
 if __name__ == "__main__":
