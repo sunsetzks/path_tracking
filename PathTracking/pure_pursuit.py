@@ -27,6 +27,169 @@ from PathTracking.utils.vehicle_display import VehicleDisplay
 from PathTracking.vehicle_model import VehicleModel, VehicleState
 
 
+class VelocityController:
+    """
+    Velocity controller for path tracking with physics-based velocity planning.
+    
+    This controller manages target velocity based on:
+    - Maximum velocity constraints
+    - Maximum deceleration physics for optimal stopping
+    - Distance to goal for precise stopping at target
+    - Trajectory direction (forward/backward)
+    """
+
+    def __init__(
+        self,
+        max_velocity: float = 5.0,
+        max_deceleration: float = 2.0,
+        goal_tolerance: float = 0.5,
+        velocity_tolerance: float = 0.1,
+        safety_margin_factor: float = 1.2,
+    ) -> None:
+        """
+        Initialize the velocity controller with physics-based deceleration.
+
+        Args:
+            max_velocity (float): Maximum velocity magnitude [m/s]
+            max_deceleration (float): Maximum deceleration magnitude [m/s²] (positive value)
+            goal_tolerance (float): Distance tolerance to consider goal reached [m]
+            velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s]
+            safety_margin_factor (float): Safety factor for deceleration distance (>1.0 for conservative approach)
+        """
+        self.max_velocity = max_velocity
+        self.max_deceleration = abs(max_deceleration)  # Ensure positive value
+        self.goal_tolerance = goal_tolerance
+        self.velocity_tolerance = velocity_tolerance
+        self.safety_margin_factor = safety_margin_factor
+
+    def calculate_stopping_distance(self, current_velocity: float) -> float:
+        """
+        Calculate the minimum distance required to stop from current velocity.
+        
+        Uses physics equation: d = v²/(2*a) where v is velocity, a is deceleration
+        
+        Args:
+            current_velocity (float): Current velocity magnitude [m/s]
+            
+        Returns:
+            float: Stopping distance [m]
+        """
+        velocity_magnitude = abs(current_velocity)
+        if velocity_magnitude < self.velocity_tolerance:
+            return 0.0
+        
+        # Physics-based stopping distance: d = v²/(2*a)
+        stopping_distance = (velocity_magnitude ** 2) / (2 * self.max_deceleration)
+        
+        # Apply safety margin
+        return stopping_distance * self.safety_margin_factor
+
+    def calculate_max_velocity_for_distance(self, distance_to_goal: float) -> float:
+        """
+        Calculate maximum velocity that allows stopping within the given distance.
+        
+        Uses physics equation: v = sqrt(2*a*d) where a is deceleration, d is distance
+        
+        Args:
+            distance_to_goal (float): Distance to goal [m]
+            
+        Returns:
+            float: Maximum velocity magnitude [m/s]
+        """
+        if distance_to_goal <= self.goal_tolerance:
+            return 0.0
+        
+        # Account for goal tolerance in available stopping distance
+        available_distance = max(0.0, distance_to_goal - self.goal_tolerance)
+        
+        # Remove safety margin to get actual usable distance
+        usable_distance = available_distance / self.safety_margin_factor
+        
+        if usable_distance <= 0.0:
+            return 0.0
+        
+        # Physics-based maximum velocity: v = sqrt(2*a*d)
+        max_velocity_for_distance = math.sqrt(2 * self.max_deceleration * usable_distance)
+        
+        return min(max_velocity_for_distance, self.max_velocity)
+
+    def is_goal_reached(
+        self, vehicle_state: VehicleState, trajectory: Trajectory
+    ) -> bool:
+        """
+        Check if the vehicle has reached the goal (end of trajectory).
+
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            trajectory (Trajectory): Path trajectory
+
+        Returns:
+            bool: True if goal is reached, False otherwise
+        """
+        if len(trajectory.waypoints) == 0:
+            return True
+        
+        # Get the last waypoint (goal position)
+        goal_waypoint = trajectory.waypoints[-1]
+        
+        # Calculate distance to goal
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        distance_to_goal = math.sqrt(dx * dx + dy * dy)
+        
+        # Check if within tolerance and velocity is low enough
+        position_reached = distance_to_goal <= self.goal_tolerance
+        velocity_low = abs(vehicle_state.velocity) <= self.velocity_tolerance
+        
+        return position_reached and velocity_low
+
+    def compute_target_velocity(
+        self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float
+    ) -> float:
+        """
+        Compute target velocity using physics-based deceleration planning.
+
+        This method ensures the vehicle can always stop at the goal using maximum
+        deceleration by limiting velocity based on remaining distance.
+
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            trajectory (Trajectory): Path trajectory
+            target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward)
+
+        Returns:
+            float: Target velocity [m/s] (positive for forward, negative for backward)
+        """
+        # Check if goal is reached first
+        if self.is_goal_reached(vehicle_state, trajectory):
+            return 0.0  # Stop the vehicle when goal is reached
+
+        # Calculate distance to end of trajectory
+        trajectory_length = trajectory.get_trajectory_length()
+        nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
+        distance_to_end = trajectory_length - nearest_point.s
+        
+        # Also calculate direct distance to goal for more accurate stopping
+        goal_waypoint = trajectory.waypoints[-1]
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        direct_distance_to_goal = math.sqrt(dx * dx + dy * dy)
+        
+        # Use the smaller of the two distances for conservative approach
+        distance_to_goal = min(distance_to_end, direct_distance_to_goal)
+        
+        # Calculate maximum velocity that allows stopping at goal
+        max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal)
+        
+        # Limit velocity to ensure we can stop at goal
+        velocity_magnitude = min(self.max_velocity, max_velocity_for_stopping)
+        
+        # Apply direction (forward/backward)
+        target_velocity = velocity_magnitude * target_direction
+
+        return target_velocity
+
+
 class PurePursuitController:
     """
     Pure Pursuit path tracking controller with dynamic lookahead distance.
@@ -43,7 +206,7 @@ class PurePursuitController:
         min_lookahead: float = 1.0,
         k_gain: float = 1.0,
         max_steering_angle: float = np.deg2rad(45.0),
-        max_velocity: float = 5.0,
+        velocity_controller: Optional[VelocityController] = None,
         goal_tolerance: float = 0.5,
         velocity_tolerance: float = 0.1,
     ) -> None:
@@ -56,18 +219,27 @@ class PurePursuitController:
             min_lookahead (float): Minimum lookahead distance [m]
             k_gain (float): Lookahead distance gain (lookahead = k_gain * velocity + min_lookahead)
             max_steering_angle (float): Maximum steering angle [rad]
-            max_velocity (float): Maximum velocity magnitude [m/s]
-            goal_tolerance (float): Distance tolerance to consider goal reached [m]
-            velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s]
+            velocity_controller (Optional[VelocityController]): Velocity controller instance. If None, creates default one
+            goal_tolerance (float): Distance tolerance to consider goal reached [m] (used if no velocity_controller provided)
+            velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s] (used if no velocity_controller provided)
         """
         self.wheelbase = wheelbase
         self.trajectory = trajectory
         self.min_lookahead = min_lookahead
         self.k_gain = k_gain
         self.max_steering_angle = max_steering_angle
-        self.max_velocity = max_velocity
-        self.goal_tolerance = goal_tolerance
-        self.velocity_tolerance = velocity_tolerance
+        
+        # Create velocity controller if not provided
+        if velocity_controller is None:
+            self.velocity_controller = VelocityController(
+                max_velocity=5.0,
+                max_deceleration=2.0,
+                goal_tolerance=goal_tolerance,
+                velocity_tolerance=velocity_tolerance,
+            )
+        else:
+            self.velocity_controller = velocity_controller
+            
         self.goal_reached = False
 
     def set_trajectory(self, trajectory: Trajectory) -> None:
@@ -114,7 +286,7 @@ class PurePursuitController:
         if self.trajectory is None:
             return 0.0, 0.0
         
-        return self.compute_control_input(vehicle_state, self.trajectory)
+        return self.compute_control_input(vehicle_state)
 
     def calculate_lookahead_distance(self, velocity: float) -> float:
         """
@@ -130,47 +302,32 @@ class PurePursuitController:
         abs_velocity = abs(velocity)
         return self.k_gain * abs_velocity + self.min_lookahead
 
-    def is_goal_reached(
-        self, vehicle_state: VehicleState, trajectory: Optional[Trajectory] = None
-    ) -> bool:
+    def is_goal_reached(self, vehicle_state: VehicleState) -> bool:
         """
         Check if the vehicle has reached the goal (end of trajectory).
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
-            trajectory (Optional[Trajectory]): Path trajectory. If None, uses internal trajectory
 
         Returns:
             bool: True if goal is reached, False otherwise
         """
-        # Use internal trajectory if none provided
-        traj = trajectory if trajectory is not None else self.trajectory
+        if self.trajectory is None:
+            raise ValueError("No trajectory set")
         
-        if traj is None:
-            raise ValueError("No trajectory provided and no internal trajectory set")
+        # Use velocity controller's goal checking
+        goal_reached = self.velocity_controller.is_goal_reached(vehicle_state, self.trajectory)
         
-        if len(traj.waypoints) == 0:
-            return True
-        
-        # Get the last waypoint (goal position)
-        goal_waypoint = traj.waypoints[-1]
-        
-        # Calculate distance to goal
-        dx = vehicle_state.position_x - goal_waypoint.x
-        dy = vehicle_state.position_y - goal_waypoint.y
-        distance_to_goal = math.sqrt(dx * dx + dy * dy)
-        
-        # Check if within tolerance and velocity is low enough
-        position_reached = distance_to_goal <= self.goal_tolerance
-        velocity_low = abs(vehicle_state.velocity) <= self.velocity_tolerance
-        
-        # Update goal reached state
-        if position_reached and velocity_low:
-            if not self.goal_reached:  # Only print once when goal is first reached
-                print(f"🎯 Goal reached! Distance to goal: {distance_to_goal:.2f}m, Velocity: {abs(vehicle_state.velocity):.2f}m/s")
+        # Update internal goal reached state and print message
+        if goal_reached and not self.goal_reached:
+            goal_waypoint = self.trajectory.waypoints[-1]
+            dx = vehicle_state.position_x - goal_waypoint.x
+            dy = vehicle_state.position_y - goal_waypoint.y
+            distance_to_goal = math.sqrt(dx * dx + dy * dy)
+            print(f"🎯 Goal reached! Distance to goal: {distance_to_goal:.2f}m, Velocity: {abs(vehicle_state.velocity):.2f}m/s")
             self.goal_reached = True
             
-        return self.goal_reached
+        return goal_reached
 
     def reset_goal_state(self) -> None:
         """
@@ -181,25 +338,19 @@ class PurePursuitController:
         """
         self.goal_reached = False
 
-    def find_target_point(
-        self, vehicle_state: VehicleState, trajectory: Optional[Trajectory] = None
-    ) -> Optional[Tuple[float, float, float]]:
+    def find_target_point(self, vehicle_state: VehicleState) -> Optional[Tuple[float, float, float]]:
         """
         Find target point on trajectory using current position and lookahead distance.
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
-            trajectory (Optional[Trajectory]): Path trajectory. If None, uses internal trajectory
 
         Returns:
             tuple: (target_x, target_y, target_direction) - target point coordinates and direction
                   Returns None if no target point is found
         """
-        # Use internal trajectory if none provided
-        traj = trajectory if trajectory is not None else self.trajectory
-        
-        if traj is None:
-            raise ValueError("No trajectory provided and no internal trajectory set")
+        if self.trajectory is None:
+            raise ValueError("No trajectory set")
         
         # Get current position and velocity
         current_x = vehicle_state.position_x
@@ -210,21 +361,21 @@ class PurePursuitController:
         lookahead = self.calculate_lookahead_distance(current_velocity)
 
         # Find nearest point on trajectory
-        nearest_point = traj.find_nearest_point(current_x, current_y)
+        nearest_point = self.trajectory.find_nearest_point(current_x, current_y)
 
         # Get trajectory length
-        trajectory_length = traj.get_trajectory_length()
+        trajectory_length = self.trajectory.get_trajectory_length()
 
         # If we're near the end of the trajectory, use the last point
         if nearest_point.s + lookahead >= trajectory_length:
-            point = traj.interpolate_at_distance(trajectory_length)
+            point = self.trajectory.interpolate_at_distance(trajectory_length)
             return point.x, point.y, point.direction
 
         # Search for target point at lookahead distance
         target_s = nearest_point.s + lookahead
 
         # Get interpolated point
-        point = traj.interpolate_at_distance(target_s)
+        point = self.trajectory.interpolate_at_distance(target_s)
         return point.x, point.y, point.direction
 
     def compute_steering_angle(
@@ -274,32 +425,26 @@ class PurePursuitController:
 
         return steering_angle
 
-    def compute_control_input(
-        self, vehicle_state: VehicleState, trajectory: Optional[Trajectory] = None
-    ) -> Tuple[float, float]:
+    def compute_control_input(self, vehicle_state: VehicleState) -> Tuple[float, float]:
         """
         Compute control input (steering angle and velocity) for the vehicle.
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
-            trajectory (Optional[Trajectory]): Path trajectory. If None, uses internal trajectory
 
         Returns:
             tuple: (steering_angle, target_velocity) - control inputs
                   Returns (0, 0) if no target point is found or goal is reached
         """
-        # Use internal trajectory if none provided
-        traj = trajectory if trajectory is not None else self.trajectory
-        
-        if traj is None:
-            raise ValueError("No trajectory provided and no internal trajectory set")
+        if self.trajectory is None:
+            raise ValueError("No trajectory set")
         
         # Check if goal is reached first
-        if self.is_goal_reached(vehicle_state, traj):
+        if self.is_goal_reached(vehicle_state):
             return 0.0, 0.0  # Stop the vehicle when goal is reached
 
         # Find target point
-        target_point = self.find_target_point(vehicle_state, traj)
+        target_point = self.find_target_point(vehicle_state)
 
         if target_point is None:
             return 0.0, 0.0
@@ -309,19 +454,10 @@ class PurePursuitController:
         # Compute steering angle
         steering_angle = self.compute_steering_angle(vehicle_state, target_x, target_y)
 
-        # Check if we're very close to the end of trajectory - reduce speed for smooth stopping
-        trajectory_length = traj.get_trajectory_length()
-        nearest_point = traj.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
-        distance_to_end = trajectory_length - nearest_point.s
-        
-        # Set velocity based on trajectory direction and distance to goal
-        velocity_magnitude = self.max_velocity  # Use max velocity from controller settings
-        
-        # Reduce velocity when approaching the goal for smoother stopping
-        if distance_to_end < 3.0 * self.goal_tolerance:  # Start slowing down early
-            velocity_magnitude *= max(0.2, distance_to_end / (3.0 * self.goal_tolerance))
-        
-        target_velocity = velocity_magnitude * target_direction
+        # Compute target velocity using velocity controller
+        target_velocity = self.velocity_controller.compute_target_velocity(
+            vehicle_state, self.trajectory, target_direction
+        )
 
         return steering_angle, target_velocity
 
@@ -358,7 +494,6 @@ def create_test_trajectory() -> Trajectory:
 
 
 def run_simulation(
-    trajectory: Trajectory,
     vehicle_model: VehicleModel,
     controller: PurePursuitController,
     time_step: float = 0.1,
@@ -368,7 +503,6 @@ def run_simulation(
     Run simulation of pure pursuit controller.
 
     Args:
-        trajectory (Trajectory): Path trajectory
         vehicle_model (VehicleModel): Vehicle model
         controller (PurePursuitController): Pure pursuit controller
         time_step (float): Simulation time step [s]
@@ -378,6 +512,11 @@ def run_simulation(
         Space: Pause/Resume simulation
         Q/ESC: Quit simulation
     """
+    # Get trajectory from controller
+    trajectory = controller.get_trajectory()
+    if trajectory is None:
+        raise ValueError("Controller has no trajectory set")
+    
     # Initialize vehicle state at trajectory start
     nearest_point = trajectory.find_nearest_point(0, 0)
     vehicle_model.set_state(
@@ -442,7 +581,7 @@ def run_simulation(
                 goal_waypoint = trajectory.waypoints[-1]
                 goal_circle = patches.Circle(
                     (goal_waypoint.x, goal_waypoint.y), 
-                    controller.goal_tolerance, 
+                    controller.velocity_controller.goal_tolerance, 
                     fill=False, 
                     edgecolor='red', 
                     linewidth=2
@@ -467,6 +606,15 @@ def run_simulation(
                 # Plot vehicle path
                 plt.plot(x_history, y_history, "g-", label="Vehicle Path")
 
+                # Calculate physics-based information for display
+                goal_waypoint = trajectory.waypoints[-1]
+                dx_goal = vehicle_state.position_x - goal_waypoint.x
+                dy_goal = vehicle_state.position_y - goal_waypoint.y
+                distance_to_goal = math.sqrt(dx_goal * dx_goal + dy_goal * dy_goal)
+                
+                stopping_distance = controller.velocity_controller.calculate_stopping_distance(vehicle_state.velocity)
+                max_vel_for_distance = controller.velocity_controller.calculate_max_velocity_for_distance(distance_to_goal)
+
                 # Plot vehicle
                 vehicle_display.plot_vehicle(
                     vehicle_state.position_x,
@@ -474,10 +622,26 @@ def run_simulation(
                     vehicle_state.yaw_angle,
                     vehicle_state.steering_angle,
                 )
-
-                # Add status text
+                
+                # Plot stopping distance circle around vehicle
+                if not goal_reached and stopping_distance > 0.1:
+                    stopping_circle = patches.Circle(
+                        (vehicle_state.position_x, vehicle_state.position_y), 
+                        stopping_distance, 
+                        fill=False, 
+                        edgecolor='orange', 
+                        linewidth=1,
+                        linestyle='--',
+                        alpha=0.7
+                    )
+                    plt.gca().add_patch(stopping_circle)
+                
+                # Add status text with physics information
                 status_text = f"Time: {time:.1f}s\n"
                 status_text += f"Speed: {abs(vehicle_state.velocity):.2f} m/s\n"
+                status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
+                status_text += f"Stopping Distance: {stopping_distance:.2f} m\n"
+                status_text += f"Max Vel for Distance: {max_vel_for_distance:.2f} m/s\n"
                 status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}"
                 if goal_reached:
                     status_text += "\nVehicle STOPPED at goal!"
@@ -517,22 +681,31 @@ def main() -> None:
     # Create test trajectory
     trajectory = create_test_trajectory()
 
-    # Create vehicle model and controller
+    # Create vehicle model and velocity controller
     wheelbase = 2.9
     vehicle_model = VehicleModel(wheelbase=wheelbase)
+    
+    # Create velocity controller with physics-based settings
+    velocity_controller = VelocityController(
+        max_velocity=5.0,  # Maximum velocity: 5.0 m/s
+        max_deceleration=2.0,  # Maximum deceleration: 2.0 m/s²
+        goal_tolerance=1.0,  # Goal tolerance: 1.0 meter
+        velocity_tolerance=0.2,  # Stop when velocity < 0.2 m/s
+        safety_margin_factor=1.2,  # 20% safety margin for deceleration
+    )
+    
+    # Create pure pursuit controller
     controller = PurePursuitController(
         wheelbase=wheelbase,
         trajectory=trajectory,  # Set the trajectory during initialization
         min_lookahead=2.0,
         k_gain=0.1,
         max_steering_angle=np.deg2rad(45.0),
-        max_velocity=5.0,  # Maximum velocity: 5.0 m/s
-        goal_tolerance=1.0,  # Goal tolerance: 1.0 meter
-        velocity_tolerance=0.2,  # Stop when velocity < 0.2 m/s
+        velocity_controller=velocity_controller,
     )
 
     # Run simulation
-    run_simulation(trajectory, vehicle_model, controller)
+    run_simulation(vehicle_model, controller)
 
 
 if __name__ == "__main__":
