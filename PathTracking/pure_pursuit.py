@@ -296,10 +296,6 @@ class PurePursuitController:
         # Create velocity controller if not provided
         if velocity_controller is None:
             self.velocity_controller = VelocityController(
-                max_velocity=5.0,
-                max_deceleration=2.0,
-                goal_tolerance=goal_tolerance,
-                velocity_tolerance=velocity_tolerance,
             )
         else:
             self.velocity_controller = velocity_controller
@@ -612,7 +608,7 @@ def run_simulation(
     y_coords = [wp.y for wp in trajectory.waypoints]
     x_min, x_max = min(x_coords), max(x_coords)
     y_min, y_max = min(y_coords), max(y_coords)
-    margin = 5.0  # Add margin to view
+    margin = 7.0  # Add margin to view (increased by 2m)
 
     def on_key(event) -> None:
         nonlocal paused
