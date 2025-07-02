@@ -16,6 +16,7 @@ import pathlib
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 from utils.angle import angle_mod
+from utils.vehicle_display import VehicleDisplay
 from CubicSpline import cubic_spline_planner
 
 k = 0.5  # control gain
@@ -161,6 +162,15 @@ def main():
     v = [state.v]
     t = [0.0]
     target_idx, _ = calc_target_index(state, cx, cy)
+    
+    # Vehicle display
+    vehicle_display = VehicleDisplay(
+        vehicle_length=4.5,
+        vehicle_width=2.0,
+        wheelbase=L,
+        wheel_length=0.6,
+        wheel_width=0.25
+    )
 
     while max_simulation_time >= time and last_idx > target_idx:
         ai = pid_control(target_speed, state.v)
@@ -183,6 +193,10 @@ def main():
             plt.plot(cx, cy, ".r", label="course")
             plt.plot(x, y, "-b", label="trajectory")
             plt.plot(cx[target_idx], cy[target_idx], "xg", label="target")
+            
+            # show vehicle
+            vehicle_display.plot_vehicle(state.x, state.y, state.yaw, di)
+            
             plt.axis("equal")
             plt.grid(True)
             plt.title("Speed[km/h]:" + str(state.v * 3.6)[:4])
