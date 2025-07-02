@@ -11,29 +11,37 @@ Author: Assistant
 """
 
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import math
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
+from dataclasses import dataclass
 
 
+@dataclass
 class Waypoint:
-    """Represents a single waypoint in the trajectory."""
-    
-    def __init__(self, x: float, y: float, yaw: float, direction: int = 1):
-        """
-        Initialize a waypoint.
-        
-        Args:
-            x: X coordinate
-            y: Y coordinate  
-            yaw: Heading angle in radians
-            direction: Movement direction (1 for forward, -1 for backward)
-        """
-        self.x = x
-        self.y = y
-        self.yaw = yaw
-        self.direction = direction
+    """Represents a point on the trajectory (can be waypoint or interpolated point)."""
+    x: float
+    y: float
+    yaw: float
+    direction: int = 1
+
+
+@dataclass
+class ProjectedPoint:
+    """Represents a point projected onto the trajectory."""
+    x: float
+    y: float
+    yaw: float
+    s: float  # distance along path
+    direction: int = 1
+
+
+@dataclass
+class FrenetCoordinates:
+    """Represents Frenet coordinates relative to the trajectory."""
+    s: float  # longitudinal distance along path
+    d: float  # lateral distance from path (positive = left)
 
 
 class Trajectory:
@@ -44,7 +52,7 @@ class Trajectory:
     It provides methods for interpolation and finding projection points.
     """
     
-    def __init__(self, waypoints: List[Waypoint] = None):
+    def __init__(self, waypoints: Optional[List[Waypoint]] = None):
         """
         Initialize the trajectory.
         
@@ -52,8 +60,8 @@ class Trajectory:
             waypoints: List of Waypoint objects defining the trajectory
         """
         self.waypoints = waypoints if waypoints is not None else []
-        self._s_values = None  # Cumulative distances along the path
-        self._interpolators = {}  # Cached interpolation functions
+        self._s_values: Optional[List[float]] = None
+        self._interpolators: Dict[str, interp1d] = {}
         self._update_path_parameters()
     
     def add_waypoint(self, x: float, y: float, yaw: float, direction: int = 1):
@@ -71,7 +79,7 @@ class Trajectory:
         self._update_path_parameters()
     
     def add_waypoints_from_arrays(self, x_coords: List[float], y_coords: List[float], 
-                                  yaw_angles: List[float], directions: List[int] = None):
+                                  yaw_angles: List[float], directions: Optional[List[int]] = None):
         """
         Add multiple waypoints from coordinate arrays.
         
@@ -115,15 +123,16 @@ class Trajectory:
             # Handle angle wrapping for yaw interpolation
             yaw_unwrapped = self._unwrap_angles(yaw_angles)
             
+            # Use np.nan as fill_value for extrapolation
             self._interpolators = {
                 'x': interp1d(self._s_values, x_coords, kind='linear', 
-                            bounds_error=False, fill_value='extrapolate'),
+                            bounds_error=False, fill_value=np.nan),
                 'y': interp1d(self._s_values, y_coords, kind='linear',
-                            bounds_error=False, fill_value='extrapolate'),
+                            bounds_error=False, fill_value=np.nan),
                 'yaw': interp1d(self._s_values, yaw_unwrapped, kind='linear',
-                              bounds_error=False, fill_value='extrapolate'),
+                              bounds_error=False, fill_value=np.nan),
                 'direction': interp1d(self._s_values, directions, kind='nearest',
-                                    bounds_error=False, fill_value='extrapolate')
+                                    bounds_error=False, fill_value=np.nan)
             }
     
     def _unwrap_angles(self, angles: List[float]) -> List[float]:
@@ -143,7 +152,7 @@ class Trajectory:
         
         return unwrapped
     
-    def interpolate_at_distance(self, s: float) -> Tuple[float, float, float, int]:
+    def interpolate_at_distance(self, s: float) -> Waypoint:
         """
         Interpolate trajectory at a given cumulative distance.
         
@@ -151,7 +160,7 @@ class Trajectory:
             s: Cumulative distance along the trajectory
             
         Returns:
-            Tuple of (x, y, yaw, direction)
+            Waypoint containing interpolated position, heading and direction
         """
         if not self._interpolators:
             raise ValueError("Trajectory must have at least 2 waypoints for interpolation")
@@ -164,9 +173,9 @@ class Trajectory:
         # Wrap yaw angle to [-pi, pi]
         yaw = math.atan2(math.sin(yaw), math.cos(yaw))
         
-        return x, y, yaw, direction
+        return Waypoint(x=x, y=y, yaw=yaw, direction=direction)
     
-    def find_nearest_point(self, pose_x: float, pose_y: float) -> Tuple[float, float, float, int, float]:
+    def find_nearest_point(self, pose_x: float, pose_y: float) -> ProjectedPoint:
         """
         Find the nearest point on the trajectory to a given pose.
         
@@ -175,11 +184,14 @@ class Trajectory:
             pose_y: Y coordinate of the query pose
             
         Returns:
-            Tuple of (nearest_x, nearest_y, nearest_yaw, nearest_direction, distance_along_path)
+            ProjectedPoint containing nearest point data and path distance
         """
         if not self._interpolators:
             raise ValueError("Trajectory must have at least 2 waypoints")
         
+        if self._s_values is None:
+            raise ValueError("Path parameters not initialized")
+            
         # Sample points along the trajectory for nearest point search
         total_length = self._s_values[-1]
         num_samples = max(100, len(self.waypoints) * 10)
@@ -188,8 +200,8 @@ class Trajectory:
         # Get interpolated points
         sampled_points = []
         for s in s_samples:
-            x, y, yaw, direction = self.interpolate_at_distance(s)
-            sampled_points.append([x, y])
+            point = self.interpolate_at_distance(s)
+            sampled_points.append([point.x, point.y])
         
         sampled_points = np.array(sampled_points)
         
@@ -202,9 +214,9 @@ class Trajectory:
         # Refine the search using local optimization
         refined_s = self._refine_nearest_point(pose_x, pose_y, nearest_s, total_length)
         
-        nearest_x, nearest_y, nearest_yaw, nearest_direction = self.interpolate_at_distance(refined_s)
-        
-        return nearest_x, nearest_y, nearest_yaw, nearest_direction, refined_s
+        point = self.interpolate_at_distance(refined_s)
+        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, 
+                            direction=point.direction, s=refined_s)
     
     def _refine_nearest_point(self, pose_x: float, pose_y: float, initial_s: float, 
                              total_length: float, tolerance: float = 0.01) -> float:
@@ -223,8 +235,8 @@ class Trajectory:
         """
         def distance_squared(s):
             s = max(0, min(s, total_length))  # Clamp to valid range
-            x, y, _, _ = self.interpolate_at_distance(s)
-            return (x - pose_x)**2 + (y - pose_y)**2
+            point = self.interpolate_at_distance(s)
+            return (point.x - pose_x)**2 + (point.y - pose_y)**2
         
         # Golden section search
         phi = (1 + math.sqrt(5)) / 2  # Golden ratio
@@ -246,7 +258,7 @@ class Trajectory:
         
         return (left + right) / 2
     
-    def get_frenet_coordinates(self, pose_x: float, pose_y: float) -> Tuple[float, float]:
+    def get_frenet_coordinates(self, pose_x: float, pose_y: float) -> FrenetCoordinates:
         """
         Get Frenet coordinates (longitudinal and lateral) for a given pose.
         
@@ -255,25 +267,23 @@ class Trajectory:
             pose_y: Y coordinate of the query pose
             
         Returns:
-            Tuple of (longitudinal_distance, lateral_distance)
-            - longitudinal_distance: Distance along the trajectory (s-coordinate)
-            - lateral_distance: Signed distance from trajectory (d-coordinate, positive = left)
+            FrenetCoordinates containing longitudinal (s) and lateral (d) distances
         """
-        nearest_x, nearest_y, nearest_yaw, _, s_coordinate = self.find_nearest_point(pose_x, pose_y)
+        nearest = self.find_nearest_point(pose_x, pose_y)
         
         # Calculate lateral distance (signed)
         # Vector from nearest point to query pose
-        dx = pose_x - nearest_x
-        dy = pose_y - nearest_y
+        dx = pose_x - nearest.x
+        dy = pose_y - nearest.y
         
         # Normal vector to the trajectory (pointing left)
-        normal_x = -math.sin(nearest_yaw)
-        normal_y = math.cos(nearest_yaw)
+        normal_x = -math.sin(nearest.yaw)
+        normal_y = math.cos(nearest.yaw)
         
         # Project displacement onto normal vector
         lateral_distance = dx * normal_x + dy * normal_y
         
-        return s_coordinate, lateral_distance
+        return FrenetCoordinates(s=nearest.s, d=lateral_distance)
     
     def get_trajectory_length(self) -> float:
         """Get the total length of the trajectory."""
@@ -321,14 +331,14 @@ if __name__ == "__main__":
     
     # Test interpolation
     test_s = trajectory.get_trajectory_length() / 2
-    x, y, yaw, direction = trajectory.interpolate_at_distance(test_s)
-    print(f"Interpolated point at s={test_s:.2f}: x={x:.2f}, y={y:.2f}, yaw={yaw:.2f}")
+    point = trajectory.interpolate_at_distance(test_s)
+    print(f"Interpolated point at s={test_s:.2f}: {point}")
     
     # Test nearest point finding
     query_x, query_y = 5.0, 8.0
-    nearest_x, nearest_y, nearest_yaw, nearest_dir, s_coord = trajectory.find_nearest_point(query_x, query_y)
-    print(f"Nearest point to ({query_x}, {query_y}): ({nearest_x:.2f}, {nearest_y:.2f}), s={s_coord:.2f}")
+    nearest = trajectory.find_nearest_point(query_x, query_y)
+    print(f"Nearest point to ({query_x}, {query_y}): {nearest}")
     
     # Test Frenet coordinates
-    s_frenet, d_frenet = trajectory.get_frenet_coordinates(query_x, query_y)
-    print(f"Frenet coordinates: s={s_frenet:.2f}, d={d_frenet:.2f}") 
+    frenet = trajectory.get_frenet_coordinates(query_x, query_y)
+    print(f"Frenet coordinates: {frenet}") 

@@ -10,7 +10,7 @@ Author: Assistant
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from trajectory import Trajectory, Waypoint
+from trajectory import Trajectory, Waypoint, ProjectedPoint, FrenetCoordinates
 
 
 def create_straight_line_trajectory() -> Trajectory:
@@ -107,9 +107,9 @@ def demonstrate_interpolation(trajectory: Trajectory):
     
     for s in test_distances:
         try:
-            x, y, yaw, direction = trajectory.interpolate_at_distance(s)
-            print(f"s={s:6.2f}: pos=({x:6.2f}, {y:6.2f}), "
-                  f"yaw={yaw:6.2f}, dir={direction:2d}")
+            point = trajectory.interpolate_at_distance(s)
+            print(f"s={s:6.2f}: pos=({point.x:6.2f}, {point.y:6.2f}), "
+                  f"yaw={point.yaw:6.2f}, dir={point.direction:2d}")
         except ValueError as e:
             print(f"s={s:6.2f}: Error - {e}")
 
@@ -130,18 +130,17 @@ def demonstrate_projection(trajectory: Trajectory):
     for pose_x, pose_y in test_points:
         try:
             # Find nearest point
-            nearest_x, nearest_y, nearest_yaw, nearest_dir, s_coord = \
-                trajectory.find_nearest_point(pose_x, pose_y)
+            nearest = trajectory.find_nearest_point(pose_x, pose_y)
             
             # Get Frenet coordinates
-            s_frenet, d_frenet = trajectory.get_frenet_coordinates(pose_x, pose_y)
+            frenet = trajectory.get_frenet_coordinates(pose_x, pose_y)
             
             # Calculate actual distance to nearest point
-            actual_distance = math.sqrt((pose_x - nearest_x)**2 + (pose_y - nearest_y)**2)
+            actual_distance = math.sqrt((pose_x - nearest.x)**2 + (pose_y - nearest.y)**2)
             
             print(f"Query: ({pose_x:5.1f}, {pose_y:5.1f}) -> "
-                  f"Nearest: ({nearest_x:5.2f}, {nearest_y:5.2f}), "
-                  f"s={s_coord:5.2f}, d={d_frenet:5.2f}, "
+                  f"Nearest: ({nearest.x:5.2f}, {nearest.y:5.2f}), "
+                  f"s={nearest.s:5.2f}, d={frenet.d:5.2f}, "
                   f"dist={actual_distance:.3f}")
             
         except ValueError as e:
@@ -158,9 +157,9 @@ def plot_trajectory_with_projections(trajectory: Trajectory, test_points: list):
         traj_x = []
         traj_y = []
         for s in s_samples:
-            x, y, _, _ = trajectory.interpolate_at_distance(s)
-            traj_x.append(x)
-            traj_y.append(y)
+            point = trajectory.interpolate_at_distance(s)
+            traj_x.append(point.x)
+            traj_y.append(point.y)
         
         plt.figure(figsize=(12, 8))
         
@@ -175,22 +174,22 @@ def plot_trajectory_with_projections(trajectory: Trajectory, test_points: list):
         # Plot test points and their projections
         for i, (px, py) in enumerate(test_points):
             try:
-                nearest_x, nearest_y, _, _, _ = trajectory.find_nearest_point(px, py)
+                nearest = trajectory.find_nearest_point(px, py)
                 
                 # Plot query point
                 plt.plot(px, py, 'ro', markersize=8, label='Query Points' if i == 0 else "")
                 
                 # Plot projection line
-                plt.plot([px, nearest_x], [py, nearest_y], 'r--', alpha=0.7,
+                plt.plot([px, nearest.x], [py, nearest.y], 'r--', alpha=0.7,
                         label='Projections' if i == 0 else "")
                 
                 # Plot projected point
-                plt.plot(nearest_x, nearest_y, 'gs', markersize=6, 
+                plt.plot(nearest.x, nearest.y, 'gs', markersize=6, 
                         label='Projected Points' if i == 0 else "")
                 
                 # Add Frenet coordinates as text
-                s_frenet, d_frenet = trajectory.get_frenet_coordinates(px, py)
-                plt.annotate(f's={s_frenet:.1f}\nd={d_frenet:.1f}', 
+                frenet = trajectory.get_frenet_coordinates(px, py)
+                plt.annotate(f's={frenet.s:.1f}\nd={frenet.d:.1f}', 
                            xy=(px, py), xytext=(px+0.5, py+0.5),
                            fontsize=8, ha='left')
                 
@@ -244,13 +243,13 @@ def main():
     
     print("\nDetailed Frenet Coordinate Analysis:")
     for px, py in test_points:
-        s_frenet, d_frenet = s_curve.get_frenet_coordinates(px, py)
-        nearest_x, nearest_y, nearest_yaw, _, _ = s_curve.find_nearest_point(px, py)
+        frenet = s_curve.get_frenet_coordinates(px, py)
+        nearest = s_curve.find_nearest_point(px, py)
         
         print(f"Point ({px:3.0f}, {py:3.0f}): "
-              f"s={s_frenet:6.2f}, d={d_frenet:6.2f}, "
-              f"nearest=({nearest_x:6.2f}, {nearest_y:6.2f}), "
-              f"yaw={nearest_yaw:6.2f}")
+              f"s={frenet.s:6.2f}, d={frenet.d:6.2f}, "
+              f"nearest=({nearest.x:6.2f}, {nearest.y:6.2f}), "
+              f"yaw={nearest.yaw:6.2f}")
     
     # Visualization (if matplotlib is available)
     plot_trajectory_with_projections(s_curve, test_points)
