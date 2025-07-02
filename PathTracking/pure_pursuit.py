@@ -268,7 +268,7 @@ class PurePursuitController:
         wheelbase: float,
         trajectory: Optional[Trajectory] = None,
         min_lookahead: float = 1.0,
-        k_gain: float = 1.0,
+        k_gain: float = 10.0,
         max_steering_angle: float = np.deg2rad(45.0),
         velocity_controller: Optional[VelocityController] = None,
         goal_tolerance: float = 0.5,
@@ -667,7 +667,7 @@ def run_simulation(
                 target_point = controller.find_target_point(vehicle_state)
                 if target_point is not None:
                     target_x, target_y, target_direction = target_point
-                    plt.plot(target_x, target_y, 'mo', markersize=8, label="Lookahead Point")
+                    plt.plot(target_x, target_y, 'mx', markersize=12, alpha=0.7, markeredgewidth=3, label="Lookahead Point")
                     
                     # Draw line from vehicle to lookahead point
                     plt.plot([vehicle_state.position_x, target_x], 
@@ -696,6 +696,9 @@ def run_simulation(
                 current_acceleration = controller.velocity_controller.calculate_current_acceleration(
                     vehicle_state.velocity, target_velocity, time_step
                 )
+                
+                # Calculate lookahead distance
+                lookahead_distance = controller.calculate_lookahead_distance(vehicle_state.velocity)
 
                 # Plot vehicle
                 vehicle_display.plot_vehicle(
@@ -723,6 +726,7 @@ def run_simulation(
                 status_text += f"Speed: {abs(vehicle_state.velocity):.2f} m/s\n"
                 status_text += f"Target Speed: {abs(target_velocity):.2f} m/s\n"
                 status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n"
+                status_text += f"Lookahead Distance: {lookahead_distance:.2f} m\n"
                 status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
                 status_text += f"Stopping Distance: {stopping_distance:.2f} m\n"
                 status_text += f"Max Vel for Distance: {max_vel_for_distance:.2f} m/s\n"
@@ -887,7 +891,7 @@ def main() -> None:
         wheelbase=wheelbase,
         trajectory=trajectory,  # Set the trajectory during initialization
         min_lookahead=2.0,
-        k_gain=0.1,
+        k_gain= 1,
         max_steering_angle=np.deg2rad(45.0),
         velocity_controller=velocity_controller,
     )
