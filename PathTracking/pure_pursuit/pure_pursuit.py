@@ -84,6 +84,60 @@ class TargetCourse:
         self.cx: List[float] = cx
         self.cy: List[float] = cy
         self.old_nearest_point_index: Optional[int] = None
+        
+    def resample_path(self, ds: float = 0.1) -> None:
+        """
+        Resample the path with equal distance points
+        
+        Args:
+            ds: Sampling interval (default: 0.1m)
+        """
+        # Convert to numpy arrays for computation
+        cx_arr = np.array(self.cx)
+        cy_arr = np.array(self.cy)
+        
+        # Calculate the cumulative distance along the path
+        dx = np.diff(cx_arr)
+        dy = np.diff(cy_arr)
+        segment_lengths = np.hypot(dx, dy)
+        cum_dist = np.concatenate(([0], np.cumsum(segment_lengths)))
+        path_length = cum_dist[-1]
+        
+        # Create new sampled points
+        sampled_x = []
+        sampled_y = []
+        
+        # Calculate number of points
+        n_points = max(int(path_length / ds), len(self.cx))
+        
+        # Generate equally spaced distances
+        sample_distances = np.linspace(0, path_length, n_points)
+        
+        # Interpolate points
+        for dist in sample_distances:
+            # Find the segment that contains this distance
+            idx = np.searchsorted(cum_dist, dist) - 1
+            idx = max(0, min(idx, len(self.cx) - 2))
+            
+            # Calculate interpolation ratio
+            segment_length = cum_dist[idx + 1] - cum_dist[idx]
+            if segment_length > 0:
+                ratio = (dist - cum_dist[idx]) / segment_length
+            else:
+                ratio = 0
+                
+            # Interpolate x and y coordinates
+            x = float(cx_arr[idx] + ratio * (cx_arr[idx + 1] - cx_arr[idx]))
+            y = float(cy_arr[idx] + ratio * (cy_arr[idx + 1] - cy_arr[idx]))
+            
+            sampled_x.append(x)
+            sampled_y.append(y)
+        
+        # Update path with resampled points
+        self.cx = sampled_x
+        self.cy = sampled_y
+        # Reset nearest point index since path has changed
+        self.old_nearest_point_index = None
 
     def search_target_index(self, state: VehicleState, config: VehicleConfig, look_ahead: Optional[float] = None) -> Tuple[int, float]:
         """Search target index for pure pursuit control"""
@@ -389,9 +443,9 @@ def main() -> None:
     
     # Set initial state and target speed
     initial_state = VehicleState(
-        x=-0.0, 
+        x=-10.0, 
         y=-3.0, 
-        yaw=math.pi if is_reverse_mode else 0.0, 
+        yaw=0.0, 
         v=0.0
     )
     target_speed = 10.0 / 3.6  # [m/s]

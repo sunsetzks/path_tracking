@@ -303,6 +303,93 @@ class Trajectory:
         self._s_values = None
         self._interpolators = {}
     
+    def sample_by_distance(self, interval: float) -> List[Waypoint]:
+        """
+        Sample points along the trajectory at fixed distance intervals.
+        
+        Args:
+            interval: Distance between sampled points
+            
+        Returns:
+            List of sampled Waypoint objects
+            
+        Raises:
+            ValueError: If trajectory is empty or interval is invalid
+        """
+        if not self._interpolators:
+            raise ValueError("Trajectory must have at least 2 waypoints for sampling")
+        if interval <= 0:
+            raise ValueError("Sampling interval must be positive")
+            
+        total_length = self.get_trajectory_length()
+        num_samples = math.ceil(total_length / interval)
+        
+        # Generate sampling distances
+        s_values = [min(i * interval, total_length) for i in range(num_samples)]
+        if s_values[-1] < total_length:
+            s_values.append(total_length)  # Add endpoint if needed
+            
+        # Sample points
+        return [self.interpolate_at_distance(s) for s in s_values]
+    
+    def sample_by_number(self, num_points: int) -> List[Waypoint]:
+        """
+        Sample a fixed number of evenly spaced points along the trajectory.
+        
+        Args:
+            num_points: Number of points to sample (must be >= 2)
+            
+        Returns:
+            List of sampled Waypoint objects
+            
+        Raises:
+            ValueError: If trajectory is empty or num_points is invalid
+        """
+        if not self._interpolators:
+            raise ValueError("Trajectory must have at least 2 waypoints for sampling")
+        if num_points < 2:
+            raise ValueError("Number of sample points must be at least 2")
+            
+        total_length = self.get_trajectory_length()
+        s_values = np.linspace(0, total_length, num_points)
+        
+        return [self.interpolate_at_distance(s) for s in s_values]
+    
+    def find_lookahead_point(self, pose_x: float, pose_y: float, lookahead_distance: float) -> Optional[ProjectedPoint]:
+        """
+        Find a point on the trajectory that is a specified distance ahead of the nearest point to the given pose.
+        
+        Args:
+            pose_x: X coordinate of the current pose
+            pose_y: Y coordinate of the current pose
+            lookahead_distance: Desired distance to look ahead along the trajectory
+            
+        Returns:
+            ProjectedPoint containing the look-ahead point data and path distance, or None if no valid point is found
+            
+        Raises:
+            ValueError: If trajectory is empty or lookahead_distance is invalid
+        """
+        if not self._interpolators:
+            raise ValueError("Trajectory must have at least 2 waypoints")
+        if lookahead_distance <= 0:
+            raise ValueError("Look-ahead distance must be positive")
+            
+        # Find nearest point on trajectory
+        nearest = self.find_nearest_point(pose_x, pose_y)
+        
+        # Calculate target distance along trajectory
+        target_s = nearest.s + lookahead_distance
+        
+        # If target point would be beyond trajectory end, return None
+        if target_s > self.get_trajectory_length():
+            return None
+            
+        # Get the look-ahead point
+        point = self.interpolate_at_distance(target_s)
+        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, 
+                            direction=point.direction, s=target_s)
+    
     def __len__(self) -> int:
         """Return the number of waypoints in the trajectory."""
         return len(self.waypoints)
