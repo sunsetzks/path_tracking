@@ -32,35 +32,45 @@ class VelocityController:
     Velocity controller for path tracking with physics-based velocity planning.
     
     This controller manages target velocity based on:
-    - Maximum velocity constraints
-    - Maximum deceleration physics for optimal stopping
+    - Maximum velocity constraints (forward/backward)
+    - Maximum acceleration/deceleration physics
     - Distance to goal for precise stopping at target
     - Trajectory direction (forward/backward)
+    - Minimum velocity constraint
     """
 
     def __init__(
         self,
-        max_velocity: float = 5.0,
+        max_forward_velocity: float = 5.0,
+        max_backward_velocity: float = 2.0,
+        max_acceleration: float = 1.0,
         max_deceleration: float = 2.0,
         goal_tolerance: float = 0.5,
         velocity_tolerance: float = 0.1,
         conservative_braking_factor: float = 1.2,
+        min_velocity: float = 0.5,
     ) -> None:
         """
-        Initialize the velocity controller with physics-based deceleration.
+        Initialize the velocity controller with physics-based acceleration/deceleration.
 
         Args:
-            max_velocity (float): Maximum velocity magnitude [m/s]
+            max_forward_velocity (float): Maximum forward velocity [m/s]
+            max_backward_velocity (float): Maximum backward velocity [m/s]
+            max_acceleration (float): Maximum acceleration magnitude [m/s²] (positive value)
             max_deceleration (float): Maximum deceleration magnitude [m/s²] (positive value)
             goal_tolerance (float): Distance tolerance to consider goal reached [m]
             velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s]
             conservative_braking_factor (float): Safety factor for deceleration distance (>1.0 for conservative approach)
+            min_velocity (float): Minimum velocity magnitude [m/s] (absolute value)
         """
-        self.max_velocity = max_velocity
+        self.max_forward_velocity = max_forward_velocity
+        self.max_backward_velocity = max_backward_velocity
+        self.max_acceleration = abs(max_acceleration)  # Ensure positive value
         self.max_deceleration = abs(max_deceleration)  # Ensure positive value
         self.goal_tolerance = goal_tolerance
         self.velocity_tolerance = velocity_tolerance
         self.conservative_braking_factor = conservative_braking_factor
+        self.min_velocity = abs(min_velocity)  # Ensure positive value
 
     def calculate_stopping_distance(self, current_velocity: float) -> float:
         """
@@ -84,7 +94,7 @@ class VelocityController:
         # Apply safety margin
         return stopping_distance * self.conservative_braking_factor
 
-    def calculate_max_velocity_for_distance(self, distance_to_goal: float) -> float:
+    def calculate_max_velocity_for_distance(self, distance_to_goal: float, is_forward: bool) -> float:
         """
         Calculate maximum velocity that allows stopping within the given distance.
         
@@ -92,6 +102,7 @@ class VelocityController:
         
         Args:
             distance_to_goal (float): Distance to goal [m]
+            is_forward (bool): Whether motion is forward direction
             
         Returns:
             float: Maximum velocity magnitude [m/s]
@@ -111,7 +122,9 @@ class VelocityController:
         # Physics-based maximum velocity: v = sqrt(2*a*d)
         max_velocity_for_distance = math.sqrt(2 * self.max_deceleration * usable_distance)
         
-        return min(max_velocity_for_distance, self.max_velocity)
+        # Apply velocity constraints based on direction
+        max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
+        return max(min(max_velocity_for_distance, max_velocity), self.min_velocity)
 
     def is_goal_reached(
         self, vehicle_state: VehicleState, trajectory: Trajectory
@@ -139,18 +152,18 @@ class VelocityController:
         
         # Check if within tolerance and velocity is low enough
         position_reached = distance_to_goal <= self.goal_tolerance
-        velocity_low = abs(vehicle_state.velocity) <= self.velocity_tolerance
         
-        return position_reached and velocity_low
+        return position_reached
 
     def compute_target_velocity(
         self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float
     ) -> float:
         """
-        Compute target velocity using physics-based deceleration planning.
+        Compute target velocity using physics-based acceleration/deceleration planning.
 
         This method ensures the vehicle can always stop at the goal using maximum
-        deceleration by limiting velocity based on remaining distance.
+        deceleration by limiting velocity based on remaining distance, while maintaining
+        a minimum velocity threshold and respecting acceleration limits.
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
@@ -179,17 +192,20 @@ class VelocityController:
         distance_to_goal = min(distance_to_end, direct_distance_to_goal)
         
         # Calculate maximum velocity that allows stopping at goal
-        max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal)
+        is_forward = target_direction > 0
+        max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
         
-        # Limit velocity to ensure we can stop at goal
-        velocity_magnitude = min(self.max_velocity, max_velocity_for_stopping)
+        # Get direction-specific max velocity
+        max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
+        
+        # Limit velocity to ensure we can stop at goal while maintaining minimum velocity
+        velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
         
         # Apply direction (forward/backward)
         target_velocity = velocity_magnitude * target_direction
 
         return target_velocity
-
-
+    
 class PurePursuitController:
     """
     Pure Pursuit path tracking controller with dynamic lookahead distance.
