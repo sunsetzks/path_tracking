@@ -46,10 +46,10 @@ class FrenetCoordinates:
 
 class Trajectory:
     """
-    A trajectory class that supports interpolation and projection operations.
+    A trajectory class that supports interpolation and projection operations for one-directional paths.
     
-    The trajectory consists of waypoints with coordinates, heading angles, and directions.
-    It provides methods for interpolation and finding projection points.
+    The trajectory consists of waypoints with coordinates and heading angles, moving in a single forward direction.
+    It provides methods for interpolation and finding projection points along the path.
     """
     
     def __init__(self, waypoints: Optional[List[Waypoint]] = None):

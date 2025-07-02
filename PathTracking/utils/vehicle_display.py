@@ -10,6 +10,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.axes import Axes
 from typing import Optional, Tuple
 
 
@@ -56,13 +57,14 @@ class VehicleDisplay:
                     y: float, 
                     yaw: float,
                     steering_angle: float = 0.0,
-                    ax: Optional[plt.Axes] = None,
+                    ax: Optional[Axes] = None,
                     body_color: str = 'none',
                     wheel_color: str = 'black',
                     front_wheel_color: str = 'red',
                     show_direction_arrow: bool = True,
                     arrow_color: str = 'green',
-                    alpha: float = 0.3) -> None:
+                    alpha: float = 0.3,
+                    show_labels: bool = False) -> None:
         """
         Plot vehicle with four wheels and steering visualization
         
@@ -71,13 +73,14 @@ class VehicleDisplay:
             y (float): Vehicle center y position [m]  
             yaw (float): Vehicle heading angle [rad]
             steering_angle (float): Front wheel steering angle [rad]
-            ax (Optional[plt.Axes]): Matplotlib axes to plot on. If None, uses current axes
+            ax (Optional[Axes]): Matplotlib axes to plot on. If None, uses current axes
             body_color (str): Color for vehicle body
             wheel_color (str): Color for rear wheels
             front_wheel_color (str): Color for front wheels (to distinguish steering wheels)
             show_direction_arrow (bool): Whether to show direction arrow
             arrow_color (str): Color for direction arrow
             alpha (float): Transparency level (0-1)
+            show_labels (bool): Whether to show labels in legend (default: False)
         """
         # Use provided axes or current axes
         if ax is None:
@@ -99,11 +102,12 @@ class VehicleDisplay:
         rotated_body = self._rotate_and_translate(body_corners, rotation_matrix, x, y)
         
         # Plot vehicle body
-        self._plot_polygon(rotated_body, body_color, alpha, 'Vehicle Body', ax)
+        body_label = 'Vehicle Body' if show_labels else None
+        self._plot_polygon(rotated_body, body_color, alpha, body_label, ax)
         
         # Plot wheels
         self._plot_wheels(wheel_positions, x, y, yaw, steering_angle, 
-                         wheel_color, front_wheel_color, alpha, ax)
+                         wheel_color, front_wheel_color, alpha, ax, show_labels)
         
         # Plot direction arrow if requested
         if show_direction_arrow:
@@ -197,7 +201,7 @@ class VehicleDisplay:
         return rotated
     
     def _plot_polygon(self, points: np.ndarray, color: str, 
-                     alpha: float, label: Optional[str] = None, ax: plt.Axes = None) -> None:
+                     alpha: float, label: Optional[str] = None, ax: Optional[Axes] = None) -> None:
         """
         Plot a polygon from points
         
@@ -206,21 +210,23 @@ class VehicleDisplay:
             color (str): Fill color
             alpha (float): Transparency
             label (str, optional): Legend label
-            ax (plt.Axes, optional): Matplotlib axes to plot on. If None, uses current axes
+            ax (Optional[Axes]): Matplotlib axes to plot on. If None, uses current axes
         """
+        if ax is None:
+            ax = plt.gca()
+            
         polygon = patches.Polygon(points[:-1], closed=True, 
                                 facecolor=color, edgecolor='black',
                                 alpha=alpha, linewidth=1)
         ax.add_patch(polygon)
-        
-        # Add to legend if label provided
-        if label:
-            ax.plot([], [], color=color, alpha=alpha, label=label)
+    
+        ax.plot([], [], color=color, alpha=alpha, label=label)
     
     def _plot_wheels(self, wheel_positions: dict, 
                     vehicle_x: float, vehicle_y: float, vehicle_yaw: float,
                     steering_angle: float, wheel_color: str, 
-                    front_wheel_color: str, alpha: float, ax: plt.Axes = None) -> None:
+                    front_wheel_color: str, alpha: float, ax: Optional[Axes] = None,
+                    show_labels: bool = False) -> None:
         """
         Plot all four wheels with proper steering for front wheels
         
@@ -234,6 +240,7 @@ class VehicleDisplay:
             front_wheel_color (str): Front wheel color
             alpha (float): Transparency
             ax (plt.Axes, optional): Matplotlib axes to plot on. If None, uses current axes
+            show_labels (bool): Whether to show labels in legend
         """
         # Use provided axes or current axes
         if ax is None:
@@ -260,12 +267,12 @@ class VehicleDisplay:
                 # Apply steering rotation first, then vehicle rotation
                 rotated_wheel = wheel_shape @ steering_rotation.T @ vehicle_rotation.T
                 color = front_wheel_color
-                label = 'Front Wheels (Steerable)' if wheel_name == 'front_left' else None
+                label = 'Front Wheels (Steerable)' if wheel_name == 'front_left' and show_labels else None
             else:
                 # Only apply vehicle rotation for rear wheels
                 rotated_wheel = wheel_shape @ vehicle_rotation.T
                 color = wheel_color
-                label = 'Rear Wheels' if wheel_name == 'rear_left' else None
+                label = 'Rear Wheels' if wheel_name == 'rear_left' and show_labels else None
             
             # Transform wheel position to world coordinates
             world_wheel_pos = wheel_pos @ vehicle_rotation.T
@@ -280,7 +287,7 @@ class VehicleDisplay:
             self._plot_polygon(rotated_wheel, color, alpha, label, ax)
     
     def _plot_direction_arrow(self, x: float, y: float, yaw: float, 
-                            arrow_color: str, alpha: float, ax: plt.Axes = None) -> None:
+                            arrow_color: str, alpha: float, ax: Optional[Axes] = None) -> None:
         """
         Plot direction arrow showing vehicle heading
         
@@ -304,15 +311,14 @@ class VehicleDisplay:
                  head_width=self.vehicle_width * 0.2,
                  head_length=self.vehicle_length * 0.1,
                  fc=arrow_color, ec=arrow_color,
-                 alpha=alpha, linewidth=2,
-                 label='Vehicle Direction')
+                 alpha=alpha, linewidth=2)
 
 
 def plot_vehicle_simple(x: float, y: float, yaw: float, 
                        steering_angle: float = 0.0,
                        vehicle_length: float = 4.5,
                        vehicle_width: float = 2.0,
-                       ax: Optional[plt.Axes] = None,
+                       ax: Optional[Axes] = None,
                        body_color: str = 'none',
                        alpha: float = 0.3,
                        **kwargs) -> None:
@@ -326,7 +332,7 @@ def plot_vehicle_simple(x: float, y: float, yaw: float,
         steering_angle (float): Steering angle [rad]
         vehicle_length (float): Vehicle length [m]
         vehicle_width (float): Vehicle width [m]
-        ax (Optional[plt.Axes]): Matplotlib axes to plot on. If None, uses current axes
+        ax (Optional[Axes]): Matplotlib axes to plot on. If None, uses current axes
         body_color (str): Color for vehicle body
         alpha (float): Transparency level (0-1)
         **kwargs: Additional arguments passed to VehicleDisplay.plot_vehicle()
@@ -384,12 +390,12 @@ def demo_vehicle_display():
     plt.show()
 
 
-def demo_vehicle_trajectory(ax: Optional[plt.Axes] = None):
+def demo_vehicle_trajectory(ax: Optional[Axes] = None):
     """
     Demonstration of vehicle following a trajectory with steering
     
     Args:
-        ax (Optional[plt.Axes]): Matplotlib axes to plot on. If None, creates new figure
+        ax (Optional[Axes]): Matplotlib axes to plot on. If None, creates new figure
     """
     if ax is None:
         plt.figure(figsize=(12, 8))
