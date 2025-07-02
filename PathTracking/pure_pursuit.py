@@ -3,7 +3,7 @@ Pure Pursuit Path Tracking Controller
 
 This module implements the Pure Pursuit path tracking algorithm with the following features:
 - Dynamic lookahead distance based on vehicle speed
-- Support for both forward and backward trajectory segments
+- Support for both forward and backward trajectory segments 
 - Nearest point search on trajectory
 - Visualization using vehicle display
 

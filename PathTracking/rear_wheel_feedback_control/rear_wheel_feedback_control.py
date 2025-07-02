@@ -215,7 +215,7 @@ def calc_target_speed(state, yaw_ref):
 def main():
     print("rear wheel feedback tracking start!!")
     ax = [0.0, 6.0, 12.5, 5.0, 7.5, 3.0, -1.0]
-    ay = [0.0, 0.0, 5.0, 6.5, 3.0, 5.0, -2.0]
+    ay = [0.0, 1.0, 5.0, 6.5, 3.0, 5.0, -2.0]
     goal = [ax[-1], ay[-1]]
 
     reference_path = CubicSplinePath(ax, ay)
