@@ -238,7 +238,7 @@ class VelocityController:
         else:
             target_velocity = desired_velocity
 
-        return target_velocity
+        return target_velocity * target_direction
     
     def calculate_current_acceleration(
         self, current_velocity: float, target_velocity: float, dt: float = 0.1
