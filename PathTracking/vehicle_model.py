@@ -196,7 +196,7 @@ class BicycleKinematicModel:
     """
 
     def __init__(
-        self, wheelbase=2.9, max_steering_angle=np.deg2rad(45.0), max_velocity=50.0
+        self, wheelbase=2.9, max_steering_angle=np.deg2rad(45.0), max_velocity=50.0, min_velocity=-10.0
     ):
         """
         Initialize bicycle model parameters
@@ -204,11 +204,13 @@ class BicycleKinematicModel:
         Args:
             wheelbase (float): Distance between front and rear axles [m]
             max_steering_angle (float): Maximum steering angle [rad]
-            max_velocity (float): Maximum velocity [m/s]
+            max_velocity (float): Maximum forward velocity [m/s]
+            min_velocity (float): Maximum reverse velocity [m/s] (negative value)
         """
         self.wheelbase = wheelbase
         self.max_steering_angle = max_steering_angle
         self.max_velocity = max_velocity
+        self.min_velocity = min_velocity
 
         # Control limits
         self.max_steering_rate = np.deg2rad(30)  # rad/s
@@ -245,9 +247,9 @@ class BicycleKinematicModel:
             self.max_steering_angle,
         )
 
-        # Update velocity with limits
+        # Update velocity with limits (allow reverse driving)
         new_velocity = np.clip(
-            self.state.velocity + acceleration * time_step, 0.0, self.max_velocity
+            self.state.velocity + acceleration * time_step, self.min_velocity, self.max_velocity
         )
 
         # Update position using bicycle model
@@ -340,6 +342,7 @@ class VehicleModel:
         wheelbase=2.9,
         max_steering_angle=np.deg2rad(45.0),
         max_velocity=50.0,
+        min_velocity=-10.0,
         steering_delay=0.0,
         acceleration_delay=0.0,
         steering_rate_gain=5.0,
@@ -351,7 +354,8 @@ class VehicleModel:
         Args:
             wheelbase (float): Distance between front and rear axles [m]
             max_steering_angle (float): Maximum steering angle [rad]
-            max_velocity (float): Maximum velocity [m/s]
+            max_velocity (float): Maximum forward velocity [m/s]
+            min_velocity (float): Maximum reverse velocity [m/s] (negative value)
             steering_delay (float): Time delay for steering commands [s]
             acceleration_delay (float): Time delay for acceleration commands [s]
             steering_rate_gain (float): Gain for converting steering error to steering rate [rad/s per rad]
@@ -359,7 +363,7 @@ class VehicleModel:
         """
         # Core kinematic model
         self.kinematics = BicycleKinematicModel(
-            wheelbase, max_steering_angle, max_velocity
+            wheelbase, max_steering_angle, max_velocity, min_velocity
         )
 
         # Delay buffers
@@ -429,7 +433,7 @@ class VehicleModel:
             -self.kinematics.max_steering_angle,
             self.kinematics.max_steering_angle,
         )
-        clipped_velocity = np.clip(target_velocity, 0.0, self.kinematics.max_velocity)
+        clipped_velocity = np.clip(target_velocity, self.kinematics.min_velocity, self.kinematics.max_velocity)
 
         # Add commands to buffers with current time
         self.steering_delay_buffer.add_command(clipped_steering, self.current_time)
@@ -577,6 +581,8 @@ def simulate_vehicle_motion(
     control_sequence,
     time_step=0.1,
     wheelbase=2.9,
+    min_velocity=-10.0,
+    max_velocity=50.0,
     steering_delay=0.0,
     acceleration_delay=0.0,
 ):
@@ -589,6 +595,8 @@ def simulate_vehicle_motion(
         control_sequence (array): Control inputs [[steering_rate1, acceleration1], [steering_rate2, acceleration2], ...]
         time_step (float): Time step [s]
         wheelbase (float): Vehicle wheelbase [m]
+        min_velocity (float): Maximum reverse velocity [m/s] (negative value)
+        max_velocity (float): Maximum forward velocity [m/s]
         steering_delay (float): Time delay for steering commands [s]
         acceleration_delay (float): Time delay for acceleration commands [s]
 
@@ -597,6 +605,8 @@ def simulate_vehicle_motion(
     """
     vehicle = VehicleModel(
         wheelbase=wheelbase,
+        min_velocity=min_velocity,
+        max_velocity=max_velocity,
         steering_delay=steering_delay,
         acceleration_delay=acceleration_delay,
     )

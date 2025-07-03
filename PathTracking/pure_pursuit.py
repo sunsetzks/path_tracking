@@ -1,23 +1,7 @@
 """
-Pure Pursuit Path Tracking Controller
-
-This module implements the Pure Pursuit path tracking algorithm with the following features:
-- Dynamic lookahead distance based on vehicle speed
-- Support for both forward and backward trajectory segments 
-- Nearest point search on trajectory
-- Physics-based velocity planning with acceleration/deceleration constraints
-- Real-time acceleration monitoring and display
-- Visualization using vehicle display
-
-The velocity controller now considers:
-- Maximum acceleration limits for smooth speed changes
-- Maximum deceleration limits for safe braking
-- Physics-based stopping distance calculations
-- Conservative braking factors for safety margins
-
-Author: Assistant
 """
 
+import argparse
 import math
 import os
 import sys
@@ -32,234 +16,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PathTracking.trajectory import Trajectory
 from PathTracking.utils.vehicle_display import VehicleDisplay
+from PathTracking.velocity_planning import VelocityController
 from PathTracking.vehicle_model import VehicleModel, VehicleState
 
 
-class VelocityController:
-    """
-    Velocity controller for path tracking with physics-based velocity planning.
-    
-    This controller manages target velocity based on:
-    - Maximum velocity constraints (forward/backward)
-    - Maximum acceleration/deceleration physics
-    - Distance to goal for precise stopping at target
-    - Trajectory direction (forward/backward)
-    - Minimum velocity constraint
-    """
 
-    def __init__(
-        self,
-        max_forward_velocity: float = 5.0,
-        max_backward_velocity: float = 2.0,
-        max_acceleration: float = 1.0,
-        max_deceleration: float = 2.0,
-        goal_tolerance: float = 0.5,
-        velocity_tolerance: float = 0.1,
-        conservative_braking_factor: float = 1.2,
-        min_velocity: float = 0.1,
-    ) -> None:
-        """
-        Initialize the velocity controller with physics-based acceleration/deceleration.
-
-        Args:
-            max_forward_velocity (float): Maximum forward velocity [m/s]
-            max_backward_velocity (float): Maximum backward velocity [m/s]
-            max_acceleration (float): Maximum acceleration magnitude [m/s²] (positive value)
-            max_deceleration (float): Maximum deceleration magnitude [m/s²] (positive value)
-            goal_tolerance (float): Distance tolerance to consider goal reached [m]
-            velocity_tolerance (float): Velocity tolerance to consider vehicle stopped [m/s]
-            conservative_braking_factor (float): Safety factor for deceleration distance (>1.0 for conservative approach)
-            min_velocity (float): Minimum velocity magnitude [m/s] (absolute value)
-        """
-        self.max_forward_velocity = max_forward_velocity
-        self.max_backward_velocity = max_backward_velocity
-        self.max_acceleration = abs(max_acceleration)  # Ensure positive value
-        self.max_deceleration = abs(max_deceleration)  # Ensure positive value
-        self.goal_tolerance = goal_tolerance
-        self.velocity_tolerance = velocity_tolerance
-        self.conservative_braking_factor = conservative_braking_factor
-        self.min_velocity = abs(min_velocity)  # Ensure positive value
-
-    def calculate_stopping_distance(self, current_velocity: float) -> float:
-        """
-        Calculate the minimum distance required to stop from current velocity.
-        
-        Uses physics equation: d = v²/(2*a) where v is velocity, a is deceleration
-        
-        Args:
-            current_velocity (float): Current velocity magnitude [m/s]
-            
-        Returns:
-            float: Stopping distance [m]
-        """
-        velocity_magnitude = abs(current_velocity)
-        if velocity_magnitude < self.velocity_tolerance:
-            return 0.0
-        
-        # Physics-based stopping distance: d = v²/(2*a)
-        stopping_distance = (velocity_magnitude ** 2) / (2 * self.max_deceleration)
-        
-        # Apply safety margin
-        return stopping_distance * self.conservative_braking_factor
-
-    def calculate_max_velocity_for_distance(self, distance_to_goal: float, is_forward: bool) -> float:
-        """
-        Calculate maximum velocity that allows stopping within the given distance.
-        
-        Uses physics equation: v = sqrt(2*a*d) where a is deceleration, d is distance
-         
-        Args:
-            distance_to_goal (float): Distance to goal [m]
-            is_forward (bool): Whether motion is forward direction
-            
-        Returns:
-            float: Maximum velocity magnitude [m/s]
-        """
-        if distance_to_goal <= self.goal_tolerance:
-            return 0.0
-        
-        # Account for goal tolerance in available stopping distance
-        available_distance = max(0.0, distance_to_goal - self.goal_tolerance)
-        
-        # Remove safety margin to get actual usable distance
-        usable_distance = available_distance / self.conservative_braking_factor
-        
-        if usable_distance <= 0.0:
-            return 0.0
-        
-        # Physics-based maximum velocity: v = sqrt(2*a*d)
-        max_velocity_for_distance = math.sqrt(2 * self.max_deceleration * usable_distance)
-        
-        # Apply velocity constraints based on direction
-        max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
-        return max(min(max_velocity_for_distance, max_velocity), self.min_velocity)
-
-    def is_goal_reached(
-        self, vehicle_state: VehicleState, trajectory: Trajectory
-    ) -> bool:
-        """
-        Check if the vehicle has reached the goal (end of trajectory).
-
-        Args:
-            vehicle_state (VehicleState): Current vehicle state
-            trajectory (Trajectory): Path trajectory
-
-        Returns:
-            bool: True if goal is reached, False otherwise
-        """
-        if len(trajectory.waypoints) == 0:
-            return True
-        
-        # Get the last waypoint (goal position)
-        goal_waypoint = trajectory.waypoints[-1]
-        
-        # Calculate distance to goal
-        dx = vehicle_state.position_x - goal_waypoint.x
-        dy = vehicle_state.position_y - goal_waypoint.y
-        distance_to_goal = math.sqrt(dx * dx + dy * dy)
-        
-        # Check if within tolerance and velocity is low enough
-        position_reached = distance_to_goal <= self.goal_tolerance
-        
-        return position_reached
-
-    def calculate_distance_to_goal(self, vehicle_state: VehicleState, trajectory: Trajectory) -> float:
-        """
-        Calculate the distance from the vehicle to the goal (end of trajectory).
-
-        Args:
-            vehicle_state (VehicleState): Current vehicle state.
-            trajectory (Trajectory): Path trajectory.
-
-        Returns:
-            float: Distance to the goal [m].
-        """
-        if len(trajectory.waypoints) == 0:
-            return 0.0
-
-        # Calculate distance to end of trajectory
-        trajectory_length = trajectory.get_trajectory_length()
-        nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
-        distance_to_end = trajectory_length - nearest_point.s
-
-        # Calculate direct distance to goal
-        goal_waypoint = trajectory.waypoints[-1]
-        dx = vehicle_state.position_x - goal_waypoint.x
-        dy = vehicle_state.position_y - goal_waypoint.y
-        direct_distance_to_goal = math.sqrt(dx * dx + dy * dy)
-
-        # Use the smaller of the two distances for conservative approach
-        return min(distance_to_end, direct_distance_to_goal)
-
-    def compute_target_velocity(
-        self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float, dt: float = 0.1
-    ) -> float:
-        """
-        Compute target velocity using physics-based acceleration/deceleration planning.
-
-        Args:
-            vehicle_state (VehicleState): Current vehicle state.
-            trajectory (Trajectory): Path trajectory.
-            target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward).
-            dt (float): Time step for acceleration calculation [s].
-
-        Returns:
-            float: Target velocity [m/s] (positive for forward, negative for backward).
-        """
-        if self.is_goal_reached(vehicle_state, trajectory):
-            return 0.0  # Stop the vehicle when goal is reached
-
-        # Calculate distance to goal using the new method
-        distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
-
-        # Calculate maximum velocity that allows stopping at goal
-        is_forward = target_direction > 0
-        max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
-
-        # Rest of the logic remains the same...
-        max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
-        desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
-        desired_velocity = desired_velocity_magnitude * target_direction
-
-        # Apply acceleration constraints
-        current_velocity = vehicle_state.velocity
-        velocity_difference = desired_velocity - current_velocity
-
-        if velocity_difference > 0:
-            max_velocity_change = self.max_acceleration * dt
-        else:
-            max_velocity_change = self.max_deceleration * dt
-
-        if abs(velocity_difference) > max_velocity_change:
-            if velocity_difference > 0:
-                target_velocity = current_velocity + max_velocity_change
-            else:
-                target_velocity = current_velocity - max_velocity_change
-        else:
-            target_velocity = desired_velocity
-
-        return target_velocity * target_direction
-    
-    def calculate_current_acceleration(
-        self, current_velocity: float, target_velocity: float, dt: float = 0.1
-    ) -> float:
-        """
-        Calculate the current acceleration based on velocity change.
-        
-        Args:
-            current_velocity (float): Current velocity [m/s]
-            target_velocity (float): Target velocity [m/s] 
-            dt (float): Time step [s]
-            
-        Returns:
-            float: Current acceleration [m/s²]
-        """
-        if dt <= 0:
-            return 0.0
-        
-        acceleration = (target_velocity - current_velocity) / dt
-        return acceleration
-    
 class PurePursuitController:
     """
     Pure Pursuit path tracking controller with dynamic lookahead distance.
@@ -663,7 +424,7 @@ def run_forward_simulation() -> None:
     print("- Physics-based acceleration/deceleration")
     print("- Smooth velocity planning")
     print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    input("Press Enter to start forward simulation...")
+    print("Starting forward simulation...")
 
     # Create forward trajectory
     trajectory = create_forward_test_trajectory()
@@ -711,7 +472,7 @@ def run_reverse_simulation() -> None:
     print("- Smaller lookahead distance")
     print("- Conservative acceleration limits")
     print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    input("Press Enter to start reverse simulation...")
+    print("Starting reverse simulation...")
 
     # Create reverse trajectory
     trajectory = create_reverse_test_trajectory()
@@ -863,6 +624,7 @@ def run_simulation(
 
                 # Calculate and apply control with time step for acceleration planning
                 steering, target_velocity = controller.compute_control(vehicle_state, time_step)
+                import ipdb; ipdb.set_trace()
                 vehicle_model.update_with_direct_control(
                     [steering, target_velocity], time_step
                 )
@@ -877,7 +639,11 @@ def run_simulation(
                 distance_to_goal = math.sqrt(dx_goal * dx_goal + dy_goal * dy_goal)
                 
                 stopping_distance = controller.velocity_controller.calculate_stopping_distance(vehicle_state.velocity)
-                max_vel_for_distance = controller.velocity_controller.calculate_max_velocity_for_distance(distance_to_goal, is_forward=True)
+                # Determine direction based on target point direction
+                current_is_forward = True  # Default
+                if target_point is not None:
+                    current_is_forward = target_point[2] > 0  # target_direction > 0 means forward
+                max_vel_for_distance = controller.velocity_controller.calculate_max_velocity_for_distance(distance_to_goal, is_forward=current_is_forward)
                 
                 # Calculate current acceleration
                 current_acceleration = controller.velocity_controller.calculate_current_acceleration(
@@ -909,9 +675,12 @@ def run_simulation(
                     plt.gca().add_patch(stopping_circle)
                 
                 # Add status text with physics information
+                velocity_dir = "Forward" if vehicle_state.velocity >= 0 else "Reverse"
+                target_dir = "Forward" if target_velocity >= 0 else "Reverse"
+                
                 status_text = f"Time: {time:.1f}s\n"
-                status_text += f"Speed: {abs(vehicle_state.velocity):.2f} m/s\n"
-                status_text += f"Target Speed: {abs(target_velocity):.2f} m/s\n"
+                status_text += f"Velocity: {vehicle_state.velocity:.2f} m/s ({velocity_dir})\n"
+                status_text += f"Target Velocity: {target_velocity:.2f} m/s ({target_dir})\n"
                 status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n"
                 status_text += f"Lookahead Distance: {lookahead_distance:.2f} m\n"
                 status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
@@ -1043,8 +812,32 @@ def demo_acceleration_planning() -> None:
 
 def main() -> None:
     """
-    Main function to run both forward and reverse pure pursuit simulations.
+    Main function to run pure pursuit simulations with command line argument support.
     """
+    # Set up command line argument parsing
+    parser = argparse.ArgumentParser(
+        description="Pure Pursuit Path Tracking Simulation with Forward and Reverse Driving",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Simulation Options:
+  1 - Forward Driving Simulation (High speed S-curve trajectory)
+  2 - Reverse Driving Simulation (Backing and parking maneuvers) [DEFAULT]
+  3 - Run Both Simulations
+        """
+    )
+    
+    parser.add_argument(
+        'simulation_choice',
+        type=int,
+        nargs='?',  # Make argument optional
+        default=2,  # Default to option 2 (Reverse Driving)
+        choices=[1, 2, 3],
+        help='Simulation choice: 1=Forward, 2=Reverse (default), 3=Both'
+    )
+    
+    args = parser.parse_args()
+    choice = args.simulation_choice
+    
     print("Pure Pursuit Path Tracking Simulation with Forward and Reverse Driving")
     print("=" * 70)
     
@@ -1052,46 +845,22 @@ def main() -> None:
     demo_acceleration_planning()
     
     print("\n" + "=" * 70)
-    print("🎯 SIMULATION MENU")
+    print("🎯 RUNNING SIMULATION")
     print("=" * 70)
-    print("This demo includes two driving scenarios:")
-    print("1. Forward Driving - High speed S-curve trajectory")
-    print("2. Reverse Driving - Backing and parking maneuvers")
-    print()
     
-    while True:
-        print("Select simulation to run:")
-        print("1. Forward Driving Simulation")
-        print("2. Reverse Driving Simulation")
-        print("3. Run Both Simulations")
-        print("4. Exit")
-        
-        choice = input("\nEnter your choice (1-4): ").strip()
-        
-        if choice == "1":
-            run_forward_simulation()
-        elif choice == "2":
-            run_reverse_simulation()
-        elif choice == "3":
-            run_forward_simulation()
-            run_reverse_simulation()
-        elif choice == "4":
-            print("Exiting simulation. Goodbye!")
-            break
-        else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
-        
-        # Ask if user wants to run another simulation
-        if choice in ["1", "2", "3"]:
-            while True:
-                continue_choice = input("\nRun another simulation? (y/n): ").strip().lower()
-                if continue_choice in ['y', 'yes']:
-                    break
-                elif continue_choice in ['n', 'no']:
-                    print("Exiting simulation. Goodbye!")
-                    return
-                else:
-                    print("Please enter 'y' or 'n'")
+    # Execute the selected simulation
+    if choice == 1:
+        print("Running Forward Driving Simulation...")
+        run_forward_simulation()
+    elif choice == 2:
+        print("Running Reverse Driving Simulation...")
+        run_reverse_simulation()
+    elif choice == 3:
+        print("Running Both Simulations...")
+        run_forward_simulation()
+        run_reverse_simulation()
+    
+    print("\nSimulation completed successfully!")
 
 
 if __name__ == "__main__":
