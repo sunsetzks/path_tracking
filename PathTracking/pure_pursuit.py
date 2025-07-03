@@ -81,6 +81,100 @@ class PurePursuitController:
             
         self.goal_reached = False
 
+    @classmethod
+    def create_high_precision_controller(
+        cls,
+        wheelbase: float,
+        trajectory: Optional[Trajectory] = None,
+        precision_target: float = 0.01,  # 1cm precision
+    ) -> 'PurePursuitController':
+        """
+        Create a high-precision Pure Pursuit controller optimized for sub-centimeter accuracy.
+        
+        This factory method creates a controller with parameters specifically tuned for 
+        high-precision positioning, including:
+        - Ultra-low goal tolerance (1cm by default)
+        - Small minimum lookahead distance for precise maneuvering
+        - Conservative velocity limits and acceleration
+        - High-resolution trajectory following
+        
+        Args:
+            wheelbase (float): Vehicle wheelbase [m]
+            trajectory (Optional[Trajectory]): Reference trajectory to follow
+            precision_target (float): Target precision in meters (default: 0.01m = 1cm)
+            
+        Returns:
+            PurePursuitController: High-precision controller instance
+        """
+        # High-precision velocity controller with very tight tolerances
+        high_precision_velocity_controller = VelocityController(
+            max_forward_velocity=1.0,  # Slower for precision
+            max_backward_velocity=0.5,  # Even slower in reverse
+            max_acceleration=0.5,  # Gentle acceleration
+            max_deceleration=1.0,  # Controlled deceleration
+            goal_tolerance=precision_target,  # 1cm tolerance
+            velocity_tolerance=0.02,  # Very low velocity tolerance (2cm/s)
+            conservative_braking_factor=2.0,  # Extra conservative braking
+            min_velocity=0.05,  # Very slow minimum velocity (5cm/s)
+        )
+        
+        # Create controller with precision-optimized parameters
+        controller = cls(
+            wheelbase=wheelbase,
+            trajectory=trajectory,
+            min_lookahead=0.2,  # Small lookahead for tight maneuvering
+            k_gain=3.0,  # Reduced gain for more stable tracking
+            max_steering_angle=np.deg2rad(30.0),  # Reduced max steering for smoothness
+            velocity_controller=high_precision_velocity_controller,
+        )
+        
+        return controller
+
+    @classmethod
+    def create_ultra_precision_controller(
+        cls,
+        wheelbase: float,
+        trajectory: Optional[Trajectory] = None,
+        precision_target: float = 0.005,  # 5mm precision
+    ) -> 'PurePursuitController':
+        """
+        Create an ultra-precision Pure Pursuit controller for millimeter-level accuracy.
+        
+        This factory method creates a controller optimized for the highest possible
+        positioning accuracy, suitable for applications requiring sub-centimeter precision.
+        
+        Args:
+            wheelbase (float): Vehicle wheelbase [m]
+            trajectory (Optional[Trajectory]): Reference trajectory to follow
+            precision_target (float): Target precision in meters (default: 0.005m = 5mm)
+            
+        Returns:
+            PurePursuitController: Ultra-precision controller instance
+        """
+        # Ultra-precision velocity controller with extreme conservative settings
+        ultra_precision_velocity_controller = VelocityController(
+            max_forward_velocity=0.3,  # Very slow for maximum precision
+            max_backward_velocity=0.2,  # Ultra-slow in reverse
+            max_acceleration=0.2,  # Very gentle acceleration
+            max_deceleration=0.5,  # Gentle deceleration
+            goal_tolerance=precision_target,  # 5mm tolerance
+            velocity_tolerance=0.01,  # Ultra-low velocity tolerance (1cm/s)
+            conservative_braking_factor=3.0,  # Maximum conservative braking
+            min_velocity=0.02,  # Ultra-slow minimum velocity (2cm/s)
+        )
+        
+        # Create controller with ultra-precision parameters
+        controller = cls(
+            wheelbase=wheelbase,
+            trajectory=trajectory,
+            min_lookahead=0.1,  # Very small lookahead
+            k_gain=1.5,  # Very low gain for maximum stability
+            max_steering_angle=np.deg2rad(15.0),  # Very limited steering for smoothness
+            velocity_controller=ultra_precision_velocity_controller,
+        )
+        
+        return controller
+
     def set_trajectory(self, trajectory: Trajectory) -> None:
         """
         Set the reference trajectory for the controller.
@@ -221,6 +315,108 @@ class PurePursuitController:
         """
         self.goal_reached = False
 
+    def is_in_precision_zone(self, vehicle_state: VehicleState, precision_radius: float = 0.2) -> bool:
+        """
+        Check if vehicle is within precision zone near the goal.
+        
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            precision_radius (float): Distance threshold for precision zone [m]
+            
+        Returns:
+            bool: True if within precision zone, False otherwise
+        """
+        if self.trajectory is None:
+            return False
+            
+        goal_waypoint = self.trajectory.waypoints[-1]
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        distance_to_goal = math.sqrt(dx * dx + dy * dy)
+        
+        # Adaptive precision zone based on speed and approach quality
+        # Slower vehicles can enter precision mode earlier
+        speed_factor = max(0.5, min(1.5, abs(vehicle_state.velocity) / 0.5))
+        
+        # Better aligned vehicles can enter precision mode earlier  
+        goal_direction = math.atan2(dy, dx)
+        heading_error = abs(goal_direction - vehicle_state.yaw_angle)
+        while heading_error > math.pi:
+            heading_error -= 2 * math.pi
+        while heading_error < -math.pi:
+            heading_error += 2 * math.pi
+        
+        alignment_factor = max(0.7, 1.0 - abs(heading_error) / math.pi)
+        
+        # Adaptive radius: larger when moving fast or poorly aligned
+        adaptive_radius = precision_radius * speed_factor / alignment_factor
+        
+        return distance_to_goal <= adaptive_radius
+
+    def compute_precision_control(self, vehicle_state: VehicleState, dt: float = 0.1) -> Tuple[float, float]:
+        """
+        Compute high-precision control when near the goal.
+        
+        This method uses a different control strategy when the vehicle is very close to the goal,
+        prioritizing accuracy over speed and using direct positioning control.
+        
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            dt (float): Time step [s]
+            
+        Returns:
+            tuple: (steering_angle, target_velocity) - precision control inputs
+        """
+        if self.trajectory is None:
+            raise ValueError("No trajectory set")
+            
+        goal_waypoint = self.trajectory.waypoints[-1]
+        
+        # Calculate position errors in goal frame
+        longitudinal_error, lateral_error, angle_error = self.calculate_goal_errors(vehicle_state, goal_waypoint)
+        
+        # Calculate total distance error
+        distance_error = math.sqrt(longitudinal_error**2 + lateral_error**2)
+        
+        # If already at high precision, stop
+        if distance_error <= self.velocity_controller.goal_tolerance:
+            return 0.0, 0.0
+        
+        # Enhanced direct positioning control with adaptive parameters
+        dx = goal_waypoint.x - vehicle_state.position_x
+        dy = goal_waypoint.y - vehicle_state.position_y
+        
+        # Calculate desired heading to goal
+        desired_heading = math.atan2(dy, dx)
+        heading_error = desired_heading - vehicle_state.yaw_angle
+        
+        # Normalize heading error
+        while heading_error > math.pi:
+            heading_error -= 2 * math.pi
+        while heading_error < -math.pi:
+            heading_error += 2 * math.pi
+        
+        # Conservative precision steering control
+        steering_gain = 2.0  # Moderate gain for stability
+        steering_angle = np.clip(
+            steering_gain * heading_error,
+            -self.max_steering_angle,
+            self.max_steering_angle
+        )
+        
+        # Very slow approach velocity based on distance and alignment
+        max_approach_velocity = 0.05  # Ultra-slow 5cm/s maximum
+        distance_factor = min(distance_error / 0.05, 1.0)  # Scale with distance (5cm reference)
+        angle_factor = max(0.3, 1.0 - abs(heading_error) / math.pi)  # Slower if not aligned
+        
+        target_velocity = max_approach_velocity * distance_factor * angle_factor
+        
+        # Ensure minimum movement if not at goal
+        if distance_error > self.velocity_controller.goal_tolerance:
+            target_velocity = max(target_velocity, 0.01)  # Minimum 1cm/s
+        
+        return steering_angle, target_velocity
+
     def find_target_point(self, vehicle_state: VehicleState) -> Optional[Tuple[float, float, float]]:
         """
         Find target point on trajectory using current position and lookahead distance.
@@ -327,6 +523,11 @@ class PurePursuitController:
         if self.is_goal_reached(vehicle_state):
             return 0.0, 0.0  # Stop the vehicle when goal is reached
 
+        # Check if we should use precision control mode
+        if self.is_in_precision_zone(vehicle_state):
+            return self.compute_precision_control(vehicle_state, dt)
+
+        # Standard Pure Pursuit control for normal operation
         # Find target point
         target_point = self.find_target_point(vehicle_state)
 

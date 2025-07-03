@@ -711,6 +711,152 @@ def demo_acceleration_planning() -> None:
         print(f"  Max acceleration achieved: {max(accelerations):.2f} m/s²")
 
 
+def demo_high_precision_control() -> None:
+    """
+    Demonstrate high-precision Pure Pursuit control with sub-centimeter accuracy.
+    
+    This example shows how to achieve 1cm positioning accuracy using:
+    - High-precision controller configuration
+    - Slow approach speeds near the goal
+    - Precision zone control mode
+    """
+    print("=" * 60)
+    print("High-Precision Pure Pursuit Control Demo (1cm accuracy)")
+    print("=" * 60)
+    
+    # Create a simple test trajectory with a challenging final approach
+    waypoints = [
+        (0.0, 0.0, 0.0),          # Start
+        (2.0, 0.0, 0.0),          # Straight segment
+        (4.0, 1.0, np.pi/4),      # Turn
+        (5.0, 2.0, np.pi/2),      # Another turn
+        (5.0, 3.0, np.pi/2),      # Final goal - requires precise positioning
+    ]
+    
+    trajectory = Trajectory()
+    for x, y, yaw in waypoints:
+        trajectory.add_waypoint(x, y, yaw)
+    
+    # Create high-precision controller with 1cm target accuracy
+    wheelbase = 2.5
+    precision_target = 0.01  # 1cm precision
+    
+    controller = PurePursuitController.create_high_precision_controller(
+        wheelbase=wheelbase,
+        trajectory=trajectory,
+        precision_target=precision_target
+    )
+    
+    # Create vehicle model
+    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    
+    # Set initial state
+    initial_state = VehicleState(
+        position_x=0.0,
+        position_y=0.0,
+        yaw_angle=0.0,
+        velocity=0.0
+    )
+    vehicle_model.set_state(initial_state)
+    
+    print(f"Target precision: {precision_target*100:.1f}cm")
+    print(f"Initial position: ({initial_state.position_x:.3f}, {initial_state.position_y:.3f})")
+    
+    goal_waypoint = trajectory.waypoints[-1]
+    print(f"Goal position: ({goal_waypoint.x:.3f}, {goal_waypoint.y:.3f})")
+    print(f"Goal tolerance: {controller.velocity_controller.goal_tolerance*100:.1f}cm")
+    print("\nStarting high-precision simulation...")
+    
+    # Run simulation with detailed logging
+    time_step = 0.05  # Smaller time step for precision
+    max_time = 120.0  # Allow more time for precise approach
+    simulation_time = 0.0
+    
+    # Storage for analysis
+    positions = []
+    errors = []
+    velocities = []
+    times = []
+    precision_mode_times = []
+    
+    while simulation_time < max_time:
+        vehicle_state = vehicle_model.get_state()
+        
+        # Check if goal reached
+        if controller.is_goal_reached(vehicle_state):
+            # Calculate final errors
+            longitudinal_error, lateral_error, angle_error = controller.calculate_goal_errors(
+                vehicle_state, goal_waypoint
+            )
+            final_distance_error = math.sqrt(longitudinal_error**2 + lateral_error**2)
+            
+            print(f"\n🎯 High-precision goal reached at t={simulation_time:.2f}s!")
+            print(f"Final positioning accuracy: {final_distance_error*100:.2f}cm")
+            print(f"Target was: {precision_target*100:.1f}cm")
+            
+            if final_distance_error <= precision_target:
+                print("✅ TARGET PRECISION ACHIEVED!")
+            else:
+                print("⚠️  Target precision not quite achieved, but within tolerance")
+            
+            break
+        
+        # Get control input
+        steering_angle, target_velocity = controller.compute_control(vehicle_state, time_step)
+        
+        # Update vehicle model
+        vehicle_model.update_with_direct_control([steering_angle, target_velocity], time_step)
+        
+        # Log data for analysis
+        positions.append((vehicle_state.position_x, vehicle_state.position_y))
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        current_error = math.sqrt(dx*dx + dy*dy)
+        errors.append(current_error)
+        velocities.append(abs(vehicle_state.velocity))
+        times.append(simulation_time)
+        
+        # Track when precision mode is active
+        if controller.is_in_precision_zone(vehicle_state):
+            precision_mode_times.append(simulation_time)
+        
+        # Progress logging every 2 seconds
+        if simulation_time % 2.0 < time_step:
+            precision_mode = "🎯 PRECISION" if controller.is_in_precision_zone(vehicle_state) else "🚗 NORMAL"
+            print(f"t={simulation_time:5.1f}s | Error: {current_error*100:5.1f}cm | "
+                  f"Speed: {abs(vehicle_state.velocity)*100:4.1f}cm/s | Mode: {precision_mode}")
+        
+        simulation_time += time_step
+    
+    if simulation_time >= max_time:
+        print(f"\n⏰ Simulation timeout after {max_time}s")
+        vehicle_state = vehicle_model.get_state()
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        final_error = math.sqrt(dx*dx + dy*dy)
+        print(f"Final error: {final_error*100:.2f}cm")
+    
+    # Analysis
+    print(f"\n📊 Performance Analysis:")
+    print(f"   Total simulation time: {simulation_time:.2f}s")
+    print(f"   Minimum error achieved: {min(errors)*100:.2f}cm")
+    print(f"   Average speed: {np.mean(velocities)*100:.1f}cm/s")
+    print(f"   Time in precision mode: {len(precision_mode_times)*time_step:.1f}s")
+    
+    if precision_mode_times:
+        precision_start = precision_mode_times[0]
+        print(f"   Precision mode activated at: t={precision_start:.1f}s")
+    
+    return {
+        'final_error': min(errors),
+        'simulation_time': simulation_time,
+        'precision_achieved': min(errors) <= precision_target,
+        'positions': positions,
+        'errors': errors,
+        'times': times
+    }
+
+
 def main() -> None:
     """
     Main function to run pure pursuit simulations with command line argument support.
@@ -745,6 +891,9 @@ Simulation Options:
     
     # Run acceleration demo first
     demo_acceleration_planning()
+    
+    # Run high-precision control demonstration
+    demo_high_precision_control()
     
     print("\n" + "=" * 70)
     print("🎯 RUNNING SIMULATION")
