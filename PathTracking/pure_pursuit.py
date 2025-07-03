@@ -163,67 +163,73 @@ class VelocityController:
         
         return position_reached
 
+    def calculate_distance_to_goal(self, vehicle_state: VehicleState, trajectory: Trajectory) -> float:
+        """
+        Calculate the distance from the vehicle to the goal (end of trajectory).
+
+        Args:
+            vehicle_state (VehicleState): Current vehicle state.
+            trajectory (Trajectory): Path trajectory.
+
+        Returns:
+            float: Distance to the goal [m].
+        """
+        if len(trajectory.waypoints) == 0:
+            return 0.0
+
+        # Calculate distance to end of trajectory
+        trajectory_length = trajectory.get_trajectory_length()
+        nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
+        distance_to_end = trajectory_length - nearest_point.s
+
+        # Calculate direct distance to goal
+        goal_waypoint = trajectory.waypoints[-1]
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        direct_distance_to_goal = math.sqrt(dx * dx + dy * dy)
+
+        # Use the smaller of the two distances for conservative approach
+        return min(distance_to_end, direct_distance_to_goal)
+
     def compute_target_velocity(
         self, vehicle_state: VehicleState, trajectory: Trajectory, target_direction: float, dt: float = 0.1
     ) -> float:
         """
         Compute target velocity using physics-based acceleration/deceleration planning.
 
-        This method ensures the vehicle can always stop at the goal using maximum
-        deceleration by limiting velocity based on remaining distance, while maintaining
-        a minimum velocity threshold and respecting acceleration limits.
-
         Args:
-            vehicle_state (VehicleState): Current vehicle state
-            trajectory (Trajectory): Path trajectory
-            target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward)
-            dt (float): Time step for acceleration calculation [s]
+            vehicle_state (VehicleState): Current vehicle state.
+            trajectory (Trajectory): Path trajectory.
+            target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward).
+            dt (float): Time step for acceleration calculation [s].
 
         Returns:
-            float: Target velocity [m/s] (positive for forward, negative for backward)
+            float: Target velocity [m/s] (positive for forward, negative for backward).
         """
-        # Check if goal is reached first
         if self.is_goal_reached(vehicle_state, trajectory):
             return 0.0  # Stop the vehicle when goal is reached
 
-        # Calculate distance to end of trajectory
-        trajectory_length = trajectory.get_trajectory_length()
-        nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
-        distance_to_end = trajectory_length - nearest_point.s
-        
-        # Also calculate direct distance to goal for more accurate stopping
-        goal_waypoint = trajectory.waypoints[-1]
-        dx = vehicle_state.position_x - goal_waypoint.x
-        dy = vehicle_state.position_y - goal_waypoint.y
-        direct_distance_to_goal = math.sqrt(dx * dx + dy * dy)
-        
-        # Use the smaller of the two distances for conservative approach
-        distance_to_goal = min(distance_to_end, direct_distance_to_goal)
-        
+        # Calculate distance to goal using the new method
+        distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
+
         # Calculate maximum velocity that allows stopping at goal
         is_forward = target_direction > 0
         max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
-        
-        # Get direction-specific max velocity
+
+        # Rest of the logic remains the same...
         max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
-        
-        # Calculate desired velocity based on distance constraints
         desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
         desired_velocity = desired_velocity_magnitude * target_direction
-        
+
         # Apply acceleration constraints
         current_velocity = vehicle_state.velocity
         velocity_difference = desired_velocity - current_velocity
-        
-        # Calculate maximum velocity change based on acceleration limits
+
         if velocity_difference > 0:
-            # Accelerating
             max_velocity_change = self.max_acceleration * dt
         else:
-            # Decelerating
             max_velocity_change = self.max_deceleration * dt
-        
-        # Limit velocity change to respect acceleration constraints
+
         if abs(velocity_difference) > max_velocity_change:
             if velocity_difference > 0:
                 target_velocity = current_velocity + max_velocity_change
