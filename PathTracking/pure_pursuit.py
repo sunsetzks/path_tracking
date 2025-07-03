@@ -88,15 +88,6 @@ class PurePursuitController:
         """
         return self.trajectory
 
-    def has_trajectory(self) -> bool:
-        """
-        Check if a trajectory is currently set.
-
-        Returns:
-            bool: True if trajectory is set, False otherwise
-        """
-        return self.trajectory is not None
-
     def compute_control(self, vehicle_state: VehicleState, dt: float = 0.1) -> Tuple[float, float]:
         """
         Compute control input using the internal trajectory.
@@ -624,7 +615,6 @@ def run_simulation(
 
                 # Calculate and apply control with time step for acceleration planning
                 steering, target_velocity = controller.compute_control(vehicle_state, time_step)
-                import ipdb; ipdb.set_trace()
                 vehicle_model.update_with_direct_control(
                     [steering, target_velocity], time_step
                 )
