@@ -4,6 +4,9 @@ Author: PathTracking
 Description: Provides comprehensive vehicle visualization with four wheels,
             steerable front wheels, direction indicators, and support for
             plotting on specific matplotlib axes objects for flexible subplot integration
+
+Note: The vehicle display system uses rear wheel center as the reference point.
+      Input coordinates (x, y) represent the rear wheel center position.
 """
 
 import math
@@ -74,8 +77,8 @@ class VehicleDisplay:
         Plot vehicle with four wheels and steering visualization
 
         Args:
-            x (float): Vehicle center x position [m]
-            y (float): Vehicle center y position [m]
+            x (float): Rear wheel center x position [m]
+            y (float): Rear wheel center y position [m]
             yaw (float): Vehicle heading angle [rad]
             steering_angle (float): Front wheel steering angle [rad]
             ax (Optional[Axes]): Matplotlib axes to plot on. If None, uses current axes
@@ -102,14 +105,18 @@ class VehicleDisplay:
         sin_yaw = math.sin(yaw)
         rotation_matrix = np.array([[cos_yaw, -sin_yaw], [sin_yaw, cos_yaw]])
 
-        # Rotate and translate vehicle body
-        rotated_body = self._rotate_and_translate(body_corners, rotation_matrix, x, y)
+        # Calculate vehicle center position from rear wheel position
+        vehicle_center_x = x + (self.wheelbase / 2) * math.cos(yaw)
+        vehicle_center_y = y + (self.wheelbase / 2) * math.sin(yaw)
+        
+        # Rotate and translate vehicle body around vehicle center
+        rotated_body = self._rotate_and_translate(body_corners, rotation_matrix, vehicle_center_x, vehicle_center_y)
 
         # Plot vehicle body
         body_label = "Vehicle Body" if show_labels else None
         self._plot_polygon(rotated_body, body_color, alpha, body_label, ax)
 
-        # Plot wheels
+        # Plot wheels (relative to rear wheel center)
         self._plot_wheels(
             wheel_positions,
             x,
@@ -123,11 +130,11 @@ class VehicleDisplay:
             show_labels,
         )
 
-        # Plot direction arrow if requested
+        # Plot direction arrow at vehicle center
         if show_direction_arrow:
-            self._plot_direction_arrow(x, y, yaw, arrow_color, alpha, ax)
+            self._plot_direction_arrow(vehicle_center_x, vehicle_center_y, yaw, arrow_color, alpha, ax)
 
-        # Plot vehicle center point
+        # Plot rear wheel center point (reference point)
         ax.plot(x, y, "ko", markersize=3, alpha=alpha)
 
     def _get_vehicle_body_corners(self) -> np.ndarray:
@@ -154,14 +161,14 @@ class VehicleDisplay:
 
     def _get_wheel_positions(self) -> dict:
         """
-        Get wheel center positions in vehicle frame
+        Get wheel center positions relative to rear wheel center
 
         Returns:
             dict: Dictionary with wheel positions for each wheel
         """
-        # Calculate wheel center positions relative to vehicle center
-        front_x = self.wheelbase / 2
-        rear_x = -self.wheelbase / 2
+        # Calculate wheel center positions relative to rear wheel center
+        front_x = self.wheelbase  # Front wheels are wheelbase distance ahead
+        rear_x = 0.0  # Rear wheels are at the reference point
         left_y = self.wheel_track / 2
         right_y = -self.wheel_track / 2
 
@@ -268,9 +275,9 @@ class VehicleDisplay:
         Plot all four wheels with proper steering for front wheels
 
         Args:
-            wheel_positions (dict): Wheel center positions in vehicle frame
-            vehicle_x (float): Vehicle x position
-            vehicle_y (float): Vehicle y position
+            wheel_positions (dict): Wheel center positions relative to rear wheel center
+            vehicle_x (float): Rear wheel center x position
+            vehicle_y (float): Rear wheel center y position
             vehicle_yaw (float): Vehicle heading
             steering_angle (float): Front wheel steering angle
             wheel_color (str): Rear wheel color
@@ -385,8 +392,8 @@ def plot_vehicle_simple(
     Simple function to plot vehicle with default parameters
 
     Args:
-        x (float): Vehicle x position [m]
-        y (float): Vehicle y position [m]
+        x (float): Rear wheel center x position [m]
+        y (float): Rear wheel center y position [m]
         yaw (float): Vehicle heading [rad]
         steering_angle (float): Steering angle [rad]
         vehicle_length (float): Vehicle length [m]
