@@ -121,6 +121,9 @@ class VelocityController:
     ) -> bool:
         """
         Check if the vehicle has reached the goal (end of trajectory).
+        The goal is considered reached if either:
+        1. The vehicle is within goal_tolerance distance of the goal point, or
+        2. The vehicle's longitudinal position s equals the goal's s on the trajectory
 
         Args:
             vehicle_state (VehicleState): Current vehicle state
@@ -140,10 +143,15 @@ class VelocityController:
         dy = vehicle_state.position_y - goal_waypoint.y
         distance_to_goal = math.sqrt(dx * dx + dy * dy)
         
-        # Check if within tolerance and velocity is low enough
+        # Check if within distance tolerance
         position_reached = distance_to_goal <= self.goal_tolerance
         
-        return position_reached
+        # Check if current longitudinal position s equals goal's s
+        nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
+        trajectory_length = trajectory.get_trajectory_length()
+        s_reached = abs(nearest_point.s - trajectory_length) <= self.goal_tolerance
+        
+        return position_reached or s_reached
 
     def calculate_distance_to_goal(self, vehicle_state: "VehicleState", trajectory: "Trajectory") -> float:
         """

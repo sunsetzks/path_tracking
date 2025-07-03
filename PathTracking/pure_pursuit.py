@@ -121,6 +121,46 @@ class PurePursuitController:
         abs_velocity = abs(velocity)
         return self.k_gain * abs_velocity + self.min_lookahead
 
+    def calculate_goal_errors(self, vehicle_state: VehicleState, goal_waypoint) -> Tuple[float, float, float]:
+        """
+        Calculate errors in the goal's coordinate frame.
+
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            goal_waypoint: Goal waypoint
+
+        Returns:
+            Tuple[float, float, float]: (longitudinal_error, lateral_error, angle_error)
+                longitudinal_error: Error along the goal direction (positive = ahead of goal)
+                lateral_error: Error perpendicular to goal direction (positive = left of goal)
+                angle_error: Angular error in radians
+        """
+        # Calculate position errors
+        dx = vehicle_state.position_x - goal_waypoint.x
+        dy = vehicle_state.position_y - goal_waypoint.y
+        
+        # Calculate longitudinal and lateral errors relative to goal orientation
+        cos_goal_yaw = math.cos(goal_waypoint.yaw)
+        sin_goal_yaw = math.sin(goal_waypoint.yaw)
+        
+        # Transform position error to goal frame
+        # Longitudinal error: along the goal direction (positive = ahead of goal)
+        longitudinal_error = dx * cos_goal_yaw + dy * sin_goal_yaw
+        
+        # Lateral error: perpendicular to goal direction (positive = left of goal)
+        lateral_error = -dx * sin_goal_yaw + dy * cos_goal_yaw
+        
+        # Calculate angular error
+        angle_error = vehicle_state.yaw_angle - goal_waypoint.yaw
+        
+        # Normalize angle error to [-pi, pi]
+        while angle_error > math.pi:
+            angle_error -= 2 * math.pi
+        while angle_error < -math.pi:
+            angle_error += 2 * math.pi
+            
+        return longitudinal_error, lateral_error, angle_error
+
     def is_goal_reached(self, vehicle_state: VehicleState) -> bool:
         """
         Check if the vehicle has reached the goal (end of trajectory).
@@ -137,13 +177,25 @@ class PurePursuitController:
         # Use velocity controller's goal checking
         goal_reached = self.velocity_controller.is_goal_reached(vehicle_state, self.trajectory)
         
-        # Update internal goal reached state and print message
+        # Update internal goal reached state and print message with detailed errors
         if goal_reached and not self.goal_reached:
             goal_waypoint = self.trajectory.waypoints[-1]
-            dx = vehicle_state.position_x - goal_waypoint.x
-            dy = vehicle_state.position_y - goal_waypoint.y
-            distance_to_goal = math.sqrt(dx * dx + dy * dy)
-            print(f"🎯 Goal reached! Distance to goal: {distance_to_goal:.2f}m, Velocity: {abs(vehicle_state.velocity):.2f}m/s")
+            
+            # Calculate position errors in goal frame
+            longitudinal_error, lateral_error, angle_error = self.calculate_goal_errors(vehicle_state, goal_waypoint)
+            
+            # Calculate total distance error
+            distance_to_goal = math.sqrt(longitudinal_error**2 + lateral_error**2)
+            
+            angle_error_deg = math.degrees(angle_error)
+            
+            print(f"🎯 Goal reached! Final position errors:")
+            print(f"   Total distance error: {distance_to_goal:.3f}m")
+            print(f"   Longitudinal error: {longitudinal_error:.3f}m ({'ahead' if longitudinal_error > 0 else 'behind'} goal)")
+            print(f"   Lateral error: {lateral_error:.3f}m ({'left' if lateral_error > 0 else 'right'} of goal)")
+            print(f"   Angular error: {angle_error_deg:.2f}° ({'counterclockwise' if angle_error > 0 else 'clockwise'} from goal)")
+            print(f"   Final velocity: {abs(vehicle_state.velocity):.2f}m/s")
+            
             self.goal_reached = True
             
         return goal_reached
@@ -846,6 +898,11 @@ def run_simulation(
                     robot_direction_str = "Forward" if robot_direction > 0 else "Reverse"
                     direction_match = abs(path_direction - robot_direction) <= 0.1
                 
+                # Calculate position errors for display
+                goal_waypoint = trajectory.waypoints[-1]
+                longitudinal_error, lateral_error, angle_error = controller.calculate_goal_errors(vehicle_state, goal_waypoint)
+                angle_error_deg = math.degrees(angle_error)
+                
                 # Add status text with physics and direction information
                 status_text = f"Time: {time:.1f}s\n"
                 status_text += f"Velocity: {vehicle_state.velocity:.2f} m/s ({velocity_dir})\n"
@@ -858,7 +915,11 @@ def run_simulation(
                 status_text += f"Path Direction: {path_direction_str}\n"
                 status_text += f"Robot Direction: {robot_direction_str}\n"
                 status_text += f"Direction Match: {'YES' if direction_match else 'NO ⚠️'}\n"
-                status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}"
+                status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}\n"
+                status_text += f"--- Goal Errors ---\n"
+                status_text += f"Longitudinal: {longitudinal_error:.3f}m\n"
+                status_text += f"Lateral: {lateral_error:.3f}m\n"
+                status_text += f"Angular: {angle_error_deg:.1f}°"
                 if goal_reached:
                     status_text += "\nVehicle STOPPED at goal!"
                 
