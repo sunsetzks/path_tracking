@@ -432,7 +432,7 @@ def run_simulation(
                 # Plot trajectory
                 ax_sim.plot(x_coords, y_coords, "b--", label="Reference Path")
 
-                # Plot goal position with circle
+                # Plot goal position with circle and arrow
                 goal_waypoint = trajectory.waypoints[-1]
                 goal_circle = patches.Circle(
                     (goal_waypoint.x, goal_waypoint.y), 
@@ -442,7 +442,19 @@ def run_simulation(
                     linewidth=2
                 )
                 ax_sim.add_patch(goal_circle)
-                ax_sim.plot(goal_waypoint.x, goal_waypoint.y, 'ro', markersize=8, label="Goal")
+                
+                # Add arrow showing goal orientation
+                arrow_length = 2.0  # Length of the arrow
+                arrow_dx = arrow_length * math.cos(goal_waypoint.yaw)
+                arrow_dy = arrow_length * math.sin(goal_waypoint.yaw)
+                ax_sim.arrow(
+                    goal_waypoint.x, goal_waypoint.y,
+                    arrow_dx, arrow_dy,
+                    head_width=0.8, head_length=0.6,
+                    fc='red', ec='red', alpha=0.5,
+                    linewidth=2,
+                    label="Goal"
+                )
 
                 # Update vehicle state and history
                 vehicle_state = vehicle_model.get_state()
