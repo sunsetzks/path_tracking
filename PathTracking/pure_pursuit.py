@@ -271,15 +271,83 @@ class PurePursuitController:
 
         target_x, target_y, target_direction = target_point
 
+        # Determine actual driving direction based on robot orientation and target position
+        actual_direction = self.determine_driving_direction(vehicle_state, target_x, target_y, target_direction)
+
         # Compute steering angle
         steering_angle = self.compute_steering_angle(vehicle_state, target_x, target_y)
 
         # Compute target velocity using velocity controller with time step
         target_velocity = self.velocity_controller.compute_target_velocity(
-            vehicle_state, self.trajectory, target_direction, dt
+            vehicle_state, self.trajectory, actual_direction, dt
         )
 
         return steering_angle, target_velocity
+
+    def determine_driving_direction(
+        self, vehicle_state: VehicleState, target_x: float, target_y: float, path_direction: float
+    ) -> float:
+        """
+        Determine the driving direction based on robot orientation and target point position.
+        
+        This method considers the vehicle's current heading and the relative position of the target point
+        to determine whether the vehicle should move forward or backward. It issues warnings when
+        the determined direction conflicts with the path's intended direction.
+
+        Args:
+            vehicle_state (VehicleState): Current vehicle state
+            target_x (float): Target point x-coordinate
+            target_y (float): Target point y-coordinate  
+            path_direction (float): Intended direction from path (1.0 for forward, -1.0 for backward)
+
+        Returns:
+            float: Actual driving direction (1.0 for forward, -1.0 for backward)
+        """
+        # Calculate vector from vehicle to target point
+        dx = target_x - vehicle_state.position_x
+        dy = target_y - vehicle_state.position_y
+        
+        # Handle case where target is at current position
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            # Use path direction when target is at current position
+            return path_direction
+        
+        # Calculate angle from vehicle to target point in global frame
+        target_angle = math.atan2(dy, dx)
+        
+        # Calculate angle difference between vehicle heading and target direction
+        angle_diff = target_angle - vehicle_state.yaw_angle
+        
+        # Normalize angle difference to [-pi, pi]
+        while angle_diff > math.pi:
+            angle_diff -= 2 * math.pi
+        while angle_diff < -math.pi:
+            angle_diff += 2 * math.pi
+        
+        # Determine driving direction based on angle difference
+        # If target is within [-pi/2, pi/2] relative to vehicle heading: forward
+        # If target is outside this range: backward
+        if abs(angle_diff) <= math.pi / 2:
+            robot_based_direction = 1.0  # Forward
+        else:
+            robot_based_direction = -1.0  # Backward
+        
+        # Check for conflict between path direction and robot-based direction
+        if abs(path_direction - robot_based_direction) > 0.1:  # Threshold for floating point comparison
+            path_dir_str = "forward" if path_direction > 0 else "backward"
+            robot_dir_str = "forward" if robot_based_direction > 0 else "backward"
+            
+            print(f"⚠️  WARNING: Direction conflict detected!")
+            print(f"   Path direction: {path_dir_str} ({path_direction:.1f})")
+            print(f"   Robot-based direction: {robot_dir_str} ({robot_based_direction:.1f})")
+            print(f"   Target point: ({target_x:.2f}, {target_y:.2f})")
+            print(f"   Vehicle position: ({vehicle_state.position_x:.2f}, {vehicle_state.position_y:.2f})")
+            print(f"   Vehicle heading: {math.degrees(vehicle_state.yaw_angle):.1f}°")
+            print(f"   Angle to target: {math.degrees(target_angle):.1f}°")
+            print(f"   Angle difference: {math.degrees(angle_diff):.1f}°")
+            print(f"   Using robot-based direction: {robot_dir_str}")
+        
+        return robot_based_direction
 
 
 def create_test_trajectory() -> Trajectory:
@@ -402,6 +470,54 @@ def create_reverse_test_trajectory() -> Trajectory:
     return trajectory
 
 
+def create_direction_conflict_test_trajectory() -> Trajectory:
+    """
+    Create a test trajectory that demonstrates direction conflicts.
+    
+    This trajectory has segments where the path direction might conflict
+    with the robot's optimal driving direction based on its orientation.
+
+    Returns:
+        Trajectory: Test trajectory with potential direction conflicts
+    """
+    trajectory = Trajectory()
+
+    # Segment 1: Normal forward path
+    for i in range(10):
+        x = i * 1.0
+        y = 0.0
+        yaw = 0.0  # Facing forward (east)
+        trajectory.add_waypoint(x, y, yaw, direction=1)  # Forward
+
+    # Segment 2: Sharp U-turn where robot might want to reverse instead
+    # Path says "forward" but robot facing forward would need to reverse
+    for i in range(15):
+        angle = i * np.deg2rad(12)  # 180 degree turn in 15 steps
+        radius = 3.0
+        center_x = 9.0
+        center_y = 3.0
+        x = center_x + radius * math.cos(math.pi - angle)
+        y = center_y + radius * math.sin(math.pi - angle)
+        yaw = math.pi - angle + np.deg2rad(90)  # Tangent direction
+        
+        # Force path direction to be forward even though backing might be easier
+        trajectory.add_waypoint(x, y, yaw, direction=1)  # Force forward
+
+    # Segment 3: Return path where robot is now facing backward
+    # but path says forward
+    last_x, last_y = trajectory.waypoints[-1].x, trajectory.waypoints[-1].y
+    last_yaw = trajectory.waypoints[-1].yaw
+    
+    for i in range(1, 12):
+        distance = i * 1.0
+        x = last_x + distance * math.cos(last_yaw)
+        y = last_y + distance * math.sin(last_yaw)
+        # Keep the orientation from the turn
+        trajectory.add_waypoint(x, y, last_yaw, direction=1)  # Force forward
+
+    return trajectory
+
+
 def run_forward_simulation() -> None:
     """
     Run forward driving simulation.
@@ -496,6 +612,54 @@ def run_reverse_simulation() -> None:
 
     # Run simulation
     run_simulation(vehicle_model, controller, max_time=120.0)
+
+
+def run_direction_conflict_test() -> None:
+    """
+    Run a test simulation to demonstrate direction conflict detection.
+    """
+    print("\n" + "=" * 60)
+    print("🔄 DIRECTION CONFLICT TEST")
+    print("=" * 60)
+    print("This simulation demonstrates direction conflict detection:")
+    print("- Path with forced forward direction")
+    print("- Scenarios where backing up would be more natural")
+    print("- Warning messages when conflicts are detected")
+    print("- Real-time direction analysis in status display")
+    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    print("Starting direction conflict test...")
+
+    # Create conflict test trajectory
+    trajectory = create_direction_conflict_test_trajectory()
+
+    # Create vehicle model
+    wheelbase = 2.9
+    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    
+    # Create velocity controller with moderate settings
+    velocity_controller = VelocityController(
+        max_forward_velocity=4.0,
+        max_backward_velocity=3.0,
+        max_acceleration=1.5,
+        max_deceleration=2.0,
+        goal_tolerance=1.0,
+        velocity_tolerance=0.1,
+        conservative_braking_factor=1.3,
+        min_velocity=0.3,
+    )
+    
+    # Create pure pursuit controller with smaller lookahead for tight maneuvers
+    controller = PurePursuitController(
+        wheelbase=wheelbase,
+        trajectory=trajectory,
+        min_lookahead=1.8,
+        k_gain=0.9,
+        max_steering_angle=np.deg2rad(40.0),
+        velocity_controller=velocity_controller,
+    )
+
+    # Run simulation
+    run_simulation(vehicle_model, controller, max_time=150.0)
 
 
 def run_simulation(
@@ -664,10 +828,25 @@ def run_simulation(
                     )
                     plt.gca().add_patch(stopping_circle)
                 
-                # Add status text with physics information
+                # Calculate direction information for display
                 velocity_dir = "Forward" if vehicle_state.velocity >= 0 else "Reverse"
                 target_dir = "Forward" if target_velocity >= 0 else "Reverse"
                 
+                # Get direction information if target point exists
+                path_direction_str = "N/A"
+                robot_direction_str = "N/A"
+                direction_match = True
+                
+                if target_point is not None:
+                    target_x, target_y, path_direction = target_point
+                    robot_direction = controller.determine_driving_direction(
+                        vehicle_state, target_x, target_y, path_direction
+                    )
+                    path_direction_str = "Forward" if path_direction > 0 else "Reverse"
+                    robot_direction_str = "Forward" if robot_direction > 0 else "Reverse"
+                    direction_match = abs(path_direction - robot_direction) <= 0.1
+                
+                # Add status text with physics and direction information
                 status_text = f"Time: {time:.1f}s\n"
                 status_text += f"Velocity: {vehicle_state.velocity:.2f} m/s ({velocity_dir})\n"
                 status_text += f"Target Velocity: {target_velocity:.2f} m/s ({target_dir})\n"
@@ -676,6 +855,9 @@ def run_simulation(
                 status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
                 status_text += f"Stopping Distance: {stopping_distance:.2f} m\n"
                 status_text += f"Max Vel for Distance: {max_vel_for_distance:.2f} m/s\n"
+                status_text += f"Path Direction: {path_direction_str}\n"
+                status_text += f"Robot Direction: {robot_direction_str}\n"
+                status_text += f"Direction Match: {'YES' if direction_match else 'NO ⚠️'}\n"
                 status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}"
                 if goal_reached:
                     status_text += "\nVehicle STOPPED at goal!"
@@ -813,6 +995,7 @@ Simulation Options:
   1 - Forward Driving Simulation (High speed S-curve trajectory)
   2 - Reverse Driving Simulation (Backing and parking maneuvers) [DEFAULT]
   3 - Run Both Simulations
+  4 - Direction Conflict Test (Demonstrates robot-based direction detection)
         """
     )
     
@@ -821,8 +1004,8 @@ Simulation Options:
         type=int,
         nargs='?',  # Make argument optional
         default=2,  # Default to option 2 (Reverse Driving)
-        choices=[1, 2, 3],
-        help='Simulation choice: 1=Forward, 2=Reverse (default), 3=Both'
+        choices=[1, 2, 3, 4],
+        help='Simulation choice: 1=Forward, 2=Reverse (default), 3=Both, 4=Direction Conflict Test'
     )
     
     args = parser.parse_args()
@@ -849,6 +1032,9 @@ Simulation Options:
         print("Running Both Simulations...")
         run_forward_simulation()
         run_reverse_simulation()
+    elif choice == 4:
+        print("Running Direction Conflict Test...")
+        run_direction_conflict_test()
     
     print("\nSimulation completed successfully!")
 
