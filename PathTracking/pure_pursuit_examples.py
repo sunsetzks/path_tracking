@@ -379,8 +379,11 @@ def run_simulation(
         )
     )
 
-    # Setup plot
-    fig = plt.figure(figsize=(10, 8))
+    # Setup plot with subplots - left column for info, right for simulation
+    fig, (ax_info, ax_sim) = plt.subplots(1, 2, figsize=(16, 8), gridspec_kw={'width_ratios': [1, 3]})
+    
+    # Remove axes for info panel
+    ax_info.axis('off')
 
     # Initialize vehicle display and path history
     vehicle_display = VehicleDisplay(wheelbase=controller.wheelbase)
@@ -396,7 +399,7 @@ def run_simulation(
     y_coords = [wp.y for wp in trajectory.waypoints]
     x_min, x_max = min(x_coords), max(x_coords)
     y_min, y_max = min(y_coords), max(y_coords)
-    margin = 7.0  # Add margin to view (increased by 2m)
+    margin = 5.0  # Reduced margin since we have separate info panel
 
     def on_key(event) -> None:
         nonlocal paused
@@ -417,15 +420,17 @@ def run_simulation(
     try:
         while time < max_time and plt.fignum_exists(fig.number):
             if not paused:
-                # Clear previous plot
-                plt.cla()
+                # Clear previous plots
+                ax_info.clear()
+                ax_sim.clear()
+                ax_info.axis('off')  # Keep info panel without axes
 
-                # Setup plot properties
-                plt.grid(True)
-                plt.gca().set_aspect('equal', adjustable='box')
+                # Setup simulation plot properties
+                ax_sim.grid(True)
+                ax_sim.set_aspect('equal', adjustable='box')
 
                 # Plot trajectory
-                plt.plot(x_coords, y_coords, "b--", label="Reference Path")
+                ax_sim.plot(x_coords, y_coords, "b--", label="Reference Path")
 
                 # Plot goal position with circle
                 goal_waypoint = trajectory.waypoints[-1]
@@ -436,8 +441,8 @@ def run_simulation(
                     edgecolor='red', 
                     linewidth=2
                 )
-                plt.gca().add_patch(goal_circle)
-                plt.plot(goal_waypoint.x, goal_waypoint.y, 'ro', markersize=8, label="Goal")
+                ax_sim.add_patch(goal_circle)
+                ax_sim.plot(goal_waypoint.x, goal_waypoint.y, 'ro', markersize=8, label="Goal")
 
                 # Update vehicle state and history
                 vehicle_state = vehicle_model.get_state()
@@ -451,10 +456,10 @@ def run_simulation(
                 target_point = controller.find_target_point(vehicle_state)
                 if target_point is not None:
                     target_x, target_y, target_direction = target_point
-                    plt.plot(target_x, target_y, 'mx', markersize=12, alpha=0.7, markeredgewidth=3, label="Lookahead Point")
+                    ax_sim.plot(target_x, target_y, 'mx', markersize=12, alpha=0.7, markeredgewidth=3, label="Lookahead Point")
                     
                     # Draw line from vehicle to lookahead point
-                    plt.plot([vehicle_state.position_x, target_x], 
+                    ax_sim.plot([vehicle_state.position_x, target_x], 
                             [vehicle_state.position_y, target_y], 
                             'm--', linewidth=1, alpha=0.7, label="Lookahead Line")
 
@@ -465,7 +470,7 @@ def run_simulation(
                 )
 
                 # Plot vehicle path
-                plt.plot(x_history, y_history, "g-", label="Vehicle Path")
+                ax_sim.plot(x_history, y_history, "g-", label="Vehicle Path")
 
                 # Calculate physics-based information for display
                 goal_waypoint = trajectory.waypoints[-1]
@@ -494,6 +499,7 @@ def run_simulation(
                     vehicle_state.position_y,
                     vehicle_state.yaw_angle,
                     vehicle_state.steering_angle,
+                    ax=ax_sim,  # Pass the specific axes
                 )
                 
                 # Plot stopping distance circle around vehicle
@@ -507,7 +513,7 @@ def run_simulation(
                         linestyle='--',
                         alpha=0.7
                     )
-                    plt.gca().add_patch(stopping_circle)
+                    ax_sim.add_patch(stopping_circle)
                 
                 # Calculate direction information for display
                 velocity_dir = "Forward" if vehicle_state.velocity >= 0 else "Reverse"
@@ -532,36 +538,53 @@ def run_simulation(
                 longitudinal_error, lateral_error, angle_error = controller.calculate_goal_errors(vehicle_state, goal_waypoint)
                 angle_error_deg = math.degrees(angle_error)
                 
-                # Add status text with physics and direction information
-                status_text = f"Time: {time:.1f}s\n"
-                status_text += f"Velocity: {vehicle_state.velocity:.2f} m/s ({velocity_dir})\n"
-                status_text += f"Target Velocity: {target_velocity:.2f} m/s ({target_dir})\n"
-                status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n"
-                status_text += f"Lookahead Distance: {lookahead_distance:.2f} m\n"
+                # Add status text to the left info panel
+                status_text = f"1. Vehicle Status\n"
+                status_text += f"{'='*25}\n"
+                status_text += f"Time: {time:.1f}s\n\n"
+                
+                status_text += f"2. Motion Info\n"
+                status_text += f"Velocity: {vehicle_state.velocity:.2f} m/s\n"
+                status_text += f"  Direction: {velocity_dir}\n"
+                status_text += f"Target Vel: {target_velocity:.2f} m/s\n"
+                status_text += f"  Direction: {target_dir}\n"
+                status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n\n"
+                
+                status_text += f"3. Control Info\n"
+                status_text += f"Lookahead: {lookahead_distance:.2f} m\n"
                 status_text += f"Distance to Goal: {distance_to_goal:.2f} m\n"
-                status_text += f"Stopping Distance: {stopping_distance:.2f} m\n"
-                status_text += f"Max Vel for Distance: {max_vel_for_distance:.2f} m/s\n"
+                status_text += f"Stopping Dist: {stopping_distance:.2f} m\n"
+                status_text += f"Max Vel for Dist: {max_vel_for_distance:.2f} m/s\n\n"
+                
+                status_text += f"4. Direction Info\n"
                 status_text += f"Path Direction: {path_direction_str}\n"
                 status_text += f"Robot Direction: {robot_direction_str}\n"
-                status_text += f"Direction Match: {'YES' if direction_match else 'NO ⚠️'}\n"
-                status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}\n"
-                status_text += f"--- Goal Errors ---\n"
-                status_text += f"Longitudinal: {longitudinal_error:.3f}m\n"
-                status_text += f"Lateral: {lateral_error:.3f}m\n"
-                status_text += f"Angular: {angle_error_deg:.1f}°"
-                if goal_reached:
-                    status_text += "\nVehicle STOPPED at goal!"
+                status_text += f"Direction Match: {'YES' if direction_match else 'NO'}\n\n"
                 
-                plt.text(
-                    x_min - margin + 1, 
-                    y_max + margin - 1, 
+                status_text += f"5. Goal Status\n"
+                status_text += f"Goal Reached: {'YES' if goal_reached else 'NO'}\n"
+                status_text += f"Errors:\n"
+                status_text += f"  Longitudinal: {longitudinal_error:.3f}m\n"
+                status_text += f"  Lateral: {lateral_error:.3f}m\n"
+                status_text += f"  Angular: {angle_error_deg:.1f}°\n"
+                
+                if goal_reached:
+                    status_text += f"\nVehicle STOPPED at goal!"
+                
+                # Display status text in left panel
+                ax_info.text(
+                    0.05, 0.95, 
                     status_text, 
-                    fontsize=10, 
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7)
+                    fontsize=11, 
+                    verticalalignment='top',
+                    horizontalalignment='left',
+                    transform=ax_info.transAxes,
+                    bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8),
+                    family='monospace'
                 )
 
-                # Add legend
-                plt.legend()
+                # Add legend to simulation plot
+                ax_sim.legend(loc='upper right')
 
                 # Set view limits with margin, compatible with equal aspect
                 x_range = x_max - x_min
@@ -574,8 +597,12 @@ def run_simulation(
                 
                 # Set symmetric limits for equal aspect ratio
                 half_range = max_range / 2 + margin
-                plt.xlim(x_center - half_range, x_center + half_range)
-                plt.ylim(y_center - half_range, y_center + half_range)
+                ax_sim.set_xlim(x_center - half_range, x_center + half_range)
+                ax_sim.set_ylim(y_center - half_range, y_center + half_range)
+                
+                # Set titles
+                ax_info.set_title("Status Information", fontsize=14, fontweight='bold')
+                ax_sim.set_title("Path Tracking Simulation", fontsize=14, fontweight='bold')
 
                 plt.pause(0.001)
                 time += time_step
