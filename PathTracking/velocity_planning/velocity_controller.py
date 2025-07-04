@@ -17,13 +17,6 @@ if TYPE_CHECKING:
     from PathTracking.vehicle_model import VehicleState
     from ..config import VelocityControllerConfig
 
-# Import configuration management
-try:
-    from ..config import get_velocity_controller_config
-except ImportError:
-    # Fallback for standalone usage
-    get_velocity_controller_config = None
-
 
 class VelocityController:
     """
@@ -39,54 +32,30 @@ class VelocityController:
 
     def __init__(
         self,
-        max_forward_velocity: Optional[float] = None,
-        max_backward_velocity: Optional[float] = None,
-        max_acceleration: Optional[float] = None,
-        max_deceleration: Optional[float] = None,
-        goal_tolerance: Optional[float] = None,
-        velocity_tolerance: Optional[float] = None,
-        conservative_braking_factor: Optional[float] = None,
-        min_velocity: Optional[float] = None,
         config: Optional['VelocityControllerConfig'] = None,
     ) -> None:
         """
         Initialize the velocity controller with physics-based acceleration/deceleration.
 
         Args:
-            max_forward_velocity (float, optional): Maximum forward velocity [m/s]. If None, uses config default
-            max_backward_velocity (float, optional): Maximum backward velocity [m/s]. If None, uses config default
-            max_acceleration (float, optional): Maximum acceleration magnitude [m/s²] (positive value). If None, uses config default
-            max_deceleration (float, optional): Maximum deceleration magnitude [m/s²] (positive value). If None, uses config default
-            goal_tolerance (float, optional): Distance tolerance to consider goal reached [m]. If None, uses config default
-            velocity_tolerance (float, optional): Velocity tolerance to consider vehicle stopped [m/s]. If None, uses config default
-            conservative_braking_factor (float, optional): Safety factor for deceleration distance (>1.0 for conservative approach). If None, uses config default
-            min_velocity (float, optional): Minimum velocity magnitude [m/s] (absolute value). If None, uses config default
-            config (VelocityControllerConfig, optional): Configuration object. If None, uses global config
+            config (VelocityControllerConfig, optional): Configuration object. If None, creates a default config.
         """
-        # Get configuration
-        if config is None and get_velocity_controller_config is not None:
-            config = get_velocity_controller_config()
+        if config is None:
+            # This allows creating a default controller when no config is passed.
+            # In a real application, it's recommended to always pass a config.
+            from ..config import VelocityControllerConfig
+            config = VelocityControllerConfig()
         
-        # Set parameters with fallback to defaults
-        if config is not None:
-            self.max_forward_velocity = max_forward_velocity if max_forward_velocity is not None else config.max_forward_velocity
-            self.max_backward_velocity = max_backward_velocity if max_backward_velocity is not None else config.max_backward_velocity
-            self.max_acceleration = abs(max_acceleration) if max_acceleration is not None else abs(config.max_acceleration)
-            self.max_deceleration = abs(max_deceleration) if max_deceleration is not None else abs(config.max_deceleration)
-            self.goal_tolerance = goal_tolerance if goal_tolerance is not None else config.goal_tolerance
-            self.velocity_tolerance = velocity_tolerance if velocity_tolerance is not None else config.velocity_tolerance
-            self.conservative_braking_factor = conservative_braking_factor if conservative_braking_factor is not None else config.conservative_braking_factor
-            self.min_velocity = abs(min_velocity) if min_velocity is not None else abs(config.min_velocity)
-        else:
-            # Fallback defaults for standalone usage
-            self.max_forward_velocity = max_forward_velocity if max_forward_velocity is not None else 5.0
-            self.max_backward_velocity = max_backward_velocity if max_backward_velocity is not None else 2.0
-            self.max_acceleration = abs(max_acceleration) if max_acceleration is not None else 1.0
-            self.max_deceleration = abs(max_deceleration) if max_deceleration is not None else 2.0
-            self.goal_tolerance = goal_tolerance if goal_tolerance is not None else 0.5
-            self.velocity_tolerance = velocity_tolerance if velocity_tolerance is not None else 0.1
-            self.conservative_braking_factor = conservative_braking_factor if conservative_braking_factor is not None else 1.2
-            self.min_velocity = abs(min_velocity) if min_velocity is not None else 0.1
+        self.config = config
+
+        self.max_forward_velocity = self.config.max_forward_velocity
+        self.max_backward_velocity = self.config.max_backward_velocity
+        self.max_acceleration = abs(self.config.max_acceleration)
+        self.max_deceleration = abs(self.config.max_deceleration)
+        self.goal_tolerance = self.config.goal_tolerance
+        self.velocity_tolerance = self.config.velocity_tolerance
+        self.conservative_braking_factor = self.config.conservative_braking_factor
+        self.min_velocity = abs(self.config.min_velocity)
 
     def calculate_stopping_distance(self, current_velocity: float) -> float:
         """

@@ -24,6 +24,7 @@ import numpy as np
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from PathTracking.config import load_config, VelocityControllerConfig
 from PathTracking.pure_pursuit import PurePursuitController
 from PathTracking.trajectory import Trajectory
 from PathTracking.utils.vehicle_display import VehicleDisplay
@@ -38,7 +39,8 @@ def create_test_trajectory() -> Trajectory:
     Returns:
         Trajectory: Test trajectory
     """
-    trajectory = Trajectory()
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
 
     # First segment: Forward curve
     for i in range(50):
@@ -69,7 +71,8 @@ def create_forward_test_trajectory() -> Trajectory:
     Returns:
         Trajectory: Forward driving test trajectory
     """
-    trajectory = Trajectory()
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
 
     # First segment: Forward S-curve
     for i in range(40):
@@ -114,7 +117,8 @@ def create_reverse_test_trajectory() -> Trajectory:
     Returns:
         Trajectory: Reverse driving test trajectory
     """
-    trajectory = Trajectory()
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
 
     # Start at origin and create a reverse trajectory
     # This simulates backing into a parking spot or reversing along a path
@@ -161,7 +165,8 @@ def create_direction_conflict_test_trajectory() -> Trajectory:
     Returns:
         Trajectory: Test trajectory with potential direction conflicts
     """
-    trajectory = Trajectory()
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
 
     # Segment 1: Normal forward path
     for i in range(10):
@@ -217,12 +222,15 @@ def run_forward_simulation() -> None:
     # Create forward trajectory
     trajectory = create_forward_test_trajectory()
 
+    # Load configuration
+    config = load_config()
+    
     # Create vehicle model
     wheelbase = 2.9
-    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    vehicle_model = VehicleModel(config.vehicle)
     
     # Create velocity controller optimized for forward driving
-    velocity_controller = VelocityController(
+    velocity_config = VelocityControllerConfig(
         max_forward_velocity=6.0,  # Higher max speed for forward driving
         max_backward_velocity=2.0,
         max_acceleration=2.0,  # Faster acceleration for forward
@@ -232,14 +240,18 @@ def run_forward_simulation() -> None:
         conservative_braking_factor=1.2,
         min_velocity=0.5,
     )
+    velocity_controller = VelocityController(velocity_config)
     
     # Create pure pursuit controller
+    pure_pursuit_config = config.pure_pursuit
+    pure_pursuit_config.min_lookahead = 2.5  # Larger lookahead for forward driving
+    pure_pursuit_config.k_gain = 1.2
+    pure_pursuit_config.max_steering_angle = 45.0  # degrees
+    
     controller = PurePursuitController(
         wheelbase=wheelbase,
+        config=pure_pursuit_config,
         trajectory=trajectory,
-        min_lookahead=2.5,  # Larger lookahead for forward driving
-        k_gain=1.2,
-        max_steering_angle=np.deg2rad(45.0),
         velocity_controller=velocity_controller,
     )
 
@@ -265,12 +277,15 @@ def run_reverse_simulation() -> None:
     # Create reverse trajectory
     trajectory = create_reverse_test_trajectory()
 
+    # Load configuration
+    config = load_config()
+    
     # Create vehicle model
     wheelbase = 2.9
-    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    vehicle_model = VehicleModel(config.vehicle)
     
     # Create velocity controller optimized for reverse driving
-    velocity_controller = VelocityController(
+    velocity_config = VelocityControllerConfig(
         max_forward_velocity=3.0,
         max_backward_velocity=2.5,  # Conservative reverse speed
         max_acceleration=1.0,  # Slower acceleration for reverse
@@ -280,14 +295,18 @@ def run_reverse_simulation() -> None:
         conservative_braking_factor=1.5,  # More conservative for reverse
         min_velocity=0.3,  # Lower minimum velocity for precise maneuvering
     )
+    velocity_controller = VelocityController(velocity_config)
     
     # Create pure pursuit controller
+    pure_pursuit_config = config.pure_pursuit
+    pure_pursuit_config.min_lookahead = 1.5  # Smaller lookahead for reverse driving
+    pure_pursuit_config.k_gain = 0.8  # Reduced gain for more careful control
+    pure_pursuit_config.max_steering_angle = 35.0  # degrees, slightly reduced max steering
+    
     controller = PurePursuitController(
         wheelbase=wheelbase,
+        config=pure_pursuit_config,
         trajectory=trajectory,
-        min_lookahead=1.5,  # Smaller lookahead for reverse driving
-        k_gain=0.8,  # Reduced gain for more careful control
-        max_steering_angle=np.deg2rad(35.0),  # Slightly reduced max steering
         velocity_controller=velocity_controller,
     )
 
@@ -313,12 +332,15 @@ def run_direction_conflict_test() -> None:
     # Create conflict test trajectory
     trajectory = create_direction_conflict_test_trajectory()
 
+    # Load configuration
+    config = load_config()
+    
     # Create vehicle model
     wheelbase = 2.9
-    vehicle_model = VehicleModel(wheelbase=wheelbase)
+    vehicle_model = VehicleModel(config.vehicle)
     
     # Create velocity controller with moderate settings
-    velocity_controller = VelocityController(
+    velocity_config = VelocityControllerConfig(
         max_forward_velocity=4.0,
         max_backward_velocity=3.0,
         max_acceleration=1.5,
@@ -328,14 +350,18 @@ def run_direction_conflict_test() -> None:
         conservative_braking_factor=1.3,
         min_velocity=0.3,
     )
+    velocity_controller = VelocityController(velocity_config)
     
     # Create pure pursuit controller with smaller lookahead for tight maneuvers
+    pure_pursuit_config = config.pure_pursuit
+    pure_pursuit_config.min_lookahead = 1.8
+    pure_pursuit_config.k_gain = 0.9
+    pure_pursuit_config.max_steering_angle = 40.0  # degrees
+    
     controller = PurePursuitController(
         wheelbase=wheelbase,
+        config=pure_pursuit_config,
         trajectory=trajectory,
-        min_lookahead=1.8,
-        k_gain=0.9,
-        max_steering_angle=np.deg2rad(40.0),
         velocity_controller=velocity_controller,
     )
 
@@ -635,7 +661,8 @@ def demo_acceleration_planning() -> None:
     print("Testing different acceleration limits...")
     
     # Create simple straight line trajectory for clear acceleration demonstration
-    trajectory = Trajectory()
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
     for i in range(100):  # 100m straight line
         x = i * 1.0
         y = 0.0
@@ -651,19 +678,20 @@ def demo_acceleration_planning() -> None:
         {"name": "Low Acceleration", "max_acc": 0.5, "max_dec": 1.0},
     ]
     
-    for config in test_configs:
-        print(f"\nTesting {config['name']}:")
-        print(f"  Max Acceleration: {config['max_acc']} m/s²")
-        print(f"  Max Deceleration: {config['max_dec']} m/s²")
+    for config_item in test_configs:
+        print(f"\nTesting {config_item['name']}:")
+        print(f"  Max Acceleration: {config_item['max_acc']} m/s²")
+        print(f"  Max Deceleration: {config_item['max_dec']} m/s²")
         
         # Create velocity controller with specific settings
-        velocity_controller = VelocityController(
+        velocity_config = VelocityControllerConfig(
             max_forward_velocity=5.0,
-            max_acceleration=config['max_acc'],
-            max_deceleration=config['max_dec'],
+            max_acceleration=config_item['max_acc'],
+            max_deceleration=config_item['max_dec'],
             goal_tolerance=1.0,
             min_velocity=0.5,
         )
+        velocity_controller = VelocityController(velocity_config)
         
         # Test acceleration calculation
         dt = 0.1
@@ -683,9 +711,9 @@ def demo_acceleration_planning() -> None:
             velocity_diff = desired_vel - current_vel
             
             if velocity_diff > 0:
-                max_vel_change = config['max_acc'] * dt
+                max_vel_change = config_item['max_acc'] * dt
             else:
-                max_vel_change = config['max_dec'] * dt
+                max_vel_change = config_item['max_dec'] * dt
                 
             if abs(velocity_diff) > max_vel_change:
                 if velocity_diff > 0:

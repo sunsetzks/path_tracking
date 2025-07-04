@@ -23,12 +23,6 @@ from scipy.spatial.distance import cdist
 if TYPE_CHECKING:
     from .config import TrajectoryConfig
 
-try:
-    from .config import get_trajectory_config
-except ImportError:
-    # Fallback for standalone usage
-    get_trajectory_config = None
-
 
 @dataclass
 class Waypoint:
@@ -68,34 +62,21 @@ class Trajectory:
     """
 
     def __init__(
-        self, 
-        waypoints: List[Waypoint] = [], 
-        discretization_distance: Optional[float] = None,
-        config: Optional['TrajectoryConfig'] = None
+        self,
+        config: 'TrajectoryConfig',
+        waypoints: List[Waypoint] = [],
     ):
         """
         Initialize the trajectory.
 
         Args:
+            config: Configuration object.
             waypoints: List of Waypoint objects defining the trajectory
-            discretization_distance: Default distance between discretized points (in meters)
-                                   Used for internal trajectory discretization and sampling.
-                                   If None, uses config default
-            config: Configuration object. If None, uses global config
         """
-        # Get configuration
-        if config is None and get_trajectory_config is not None:
-            config = get_trajectory_config()
-        
-        # Set parameters with fallback to defaults
-        if config is not None:
-            self._discretization_distance = discretization_distance if discretization_distance is not None else config.discretization_distance
-            self._sample_count = config.default_sample_count
-        else:
-            # Fallback defaults for standalone usage
-            self._discretization_distance = discretization_distance if discretization_distance is not None else 0.1
-            self._sample_count = 100  # Initial default, will be updated based on path length
-        
+        self.config = config
+        self._discretization_distance = self.config.discretization_distance
+        self._sample_count = self.config.default_sample_count
+
         self.waypoints = (
             waypoints.copy()
         )  # Make a copy to avoid modifying the input list
@@ -583,7 +564,81 @@ class Trajectory:
 
     def __str__(self) -> str:
         """String representation of the trajectory."""
-        return f"Trajectory with {len(self.waypoints)} waypoints, length: {self.get_trajectory_length():.2f}"
+        return f"Trajectory with {len(self.waypoints)} waypoints, length {self.get_trajectory_length():.2f}m"
+
+    def plot(
+        self,
+        show_arrows: bool = True,
+        show_direction: bool = False,
+        show_samples: bool = False,
+    ):
+        """
+        Plot the trajectory using matplotlib.
+
+        Args:
+            show_arrows: Whether to show orientation arrows at waypoints
+            show_direction: Whether to color-code waypoints by direction
+            show_samples: Whether to show discrete sample points
+        """
+        import matplotlib.pyplot as plt
+
+        if not self.waypoints:
+            print("Trajectory is empty, nothing to plot.")
+            return
+
+        # For a smoother plot, sample the trajectory
+        if len(self.waypoints) > 2:
+            sampled_trajectory = Trajectory(
+                config=self.config,
+                waypoints=self.sample_by_distance(self.get_trajectory_length() / 20)
+            )
+            x_coords = [wp.x for wp in sampled_trajectory.waypoints]
+            y_coords = [wp.y for wp in sampled_trajectory.waypoints]
+        else:
+            x_coords = [wp.x for wp in self.waypoints]
+            y_coords = [wp.y for wp in self.waypoints]
+
+        plt.plot(x_coords, y_coords, "-b", label="Trajectory")
+
+        if show_arrows:
+            for wp in self.waypoints:
+                plt.arrow(
+                    wp.x,
+                    wp.y,
+                    0.5 * math.cos(wp.yaw),
+                    0.5 * math.sin(wp.yaw),
+                    head_width=0.3,
+                    head_length=0.4,
+                    fc="k",
+                    ec="k",
+                )
+
+        if show_direction:
+            colors = ["green" if wp.direction == 1 else "red" for wp in self.waypoints]
+            plt.scatter(
+                [wp.x for wp in self.waypoints],
+                [wp.y for wp in self.waypoints],
+                c=colors,
+                s=50,
+                label="Direction (Green: Fwd, Red: Rev)",
+            )
+
+        if show_samples and self._sampled_waypoints:
+            plt.scatter(
+                [wp.x for wp in self._sampled_waypoints],
+                [wp.y for wp in self._sampled_waypoints],
+                s=10,
+                c="orange",
+                label="Discrete Samples",
+                alpha=0.7,
+            )
+
+        plt.xlabel("X coordinate")
+        plt.ylabel("Y coordinate")
+        plt.title("Trajectory Plot")
+        plt.grid(True)
+        plt.axis("equal")
+        plt.legend()
 
 
 # Example usage and testing

@@ -2,281 +2,162 @@
 """
 Configuration Management Example
 
-This example demonstrates how to use the PathTracking configuration management system
-including loading configurations, using presets, and customizing parameters.
+This example demonstrates how to use the new simplified PathTracking configuration system.
+It shows how to load default configurations, load from a YAML file, and customize
+parameters before passing them to different components.
 
 Author: Assistant
 """
 
 import os
 import sys
-import numpy as np
+import yaml
+from dataclasses import asdict
 
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PathTracking.config import (
-    ConfigManager, 
-    get_config_manager, 
-    load_preset_config,
-    get_vehicle_config,
-    get_pure_pursuit_config,
-    get_velocity_controller_config,
-    reset_config_manager
+    load_config,
+    PathTrackingConfig,
+    VehicleConfig,
+    PurePursuitConfig,
+    VelocityControllerConfig,
+    TrajectoryConfig
 )
-from PathTracking.vehicle_model import VehicleModel
+from PathTracking.vehicle_model import VehicleModel, VehicleState
 from PathTracking.pure_pursuit import PurePursuitController
 from PathTracking.velocity_planning import VelocityController
-from PathTracking.trajectory import Trajectory
+from PathTracking.trajectory import Trajectory, Waypoint
 
 
 def demonstrate_basic_config_usage():
     """Demonstrate basic configuration loading and usage"""
     print("=== Basic Configuration Usage ===")
     
-    # Reset config manager to start fresh
-    reset_config_manager()
+    # Load default configuration
+    config = load_config()
     
-    # Get the global configuration manager
-    config_manager = get_config_manager()
-    
-    # Print current configuration
+    # Print some default configuration values
     print("Default configuration:")
-    print(f"Vehicle wheelbase: {config_manager.vehicle.wheelbase}m")
-    print(f"Max steering angle: {config_manager.vehicle.max_steering_angle}°")
-    print(f"Pure pursuit min lookahead: {config_manager.pure_pursuit.min_lookahead}m")
-    print(f"Velocity controller max forward velocity: {config_manager.velocity_controller.max_forward_velocity}m/s")
+    print(f"Vehicle wheelbase: {config.vehicle.wheelbase}m")
+    print(f"Max steering angle: {config.vehicle.max_steering_angle}°")
+    print(f"Pure pursuit min lookahead: {config.pure_pursuit.min_lookahead}m")
     print()
     
-    # Create components using configuration
-    vehicle = VehicleModel()  # Will use global config automatically
-    velocity_controller = VelocityController()  # Will use global config automatically
+    # Create components using the configuration objects
+    # Note: Each component now requires its specific config to be passed explicitly.
+    vehicle = VehicleModel(config=config.vehicle, initial_state=VehicleState())
+    velocity_controller = VelocityController(config=config.velocity_controller)
     
-    print(f"Vehicle model wheelbase: {vehicle.kinematics.wheelbase}m")
+    print(f"Vehicle model wheelbase: {vehicle.kinematic_model.wheelbase}m")
     print(f"Velocity controller max forward velocity: {velocity_controller.max_forward_velocity}m/s")
     print()
 
 
 def demonstrate_config_from_file():
-    """Demonstrate loading configuration from YAML file"""
+    """Demonstrate loading configuration from a YAML file"""
     print("=== Configuration from File ===")
     
-    # Reset to start fresh
-    reset_config_manager()
-    
     # Create a custom config file
-    custom_config = """
-# Custom PathTracking Configuration
-vehicle:
-  wheelbase: 3.2
-  max_steering_angle: 35.0
-  max_velocity: 40.0
-
-pure_pursuit:
-  min_lookahead: 2.0
-  k_gain: 8.0
-
-velocity_controller:
-  max_forward_velocity: 8.0
-  max_backward_velocity: 3.0
-"""
+    custom_config_dict = {
+        'vehicle': {
+            'wheelbase': 3.2,
+            'max_steering_angle': 35.0
+        },
+        'pure_pursuit': {
+            'min_lookahead': 2.0,
+            'k_gain': 8.0
+        }
+    }
     
     config_file_path = "custom_config.yaml"
     with open(config_file_path, 'w') as f:
-        f.write(custom_config)
+        yaml.dump(custom_config_dict, f)
     
     try:
-        # Load configuration from file
-        config_manager = ConfigManager(config_file_path)
+        # Load configuration from the file
+        config = load_config(config_file_path)
         
-        print("Custom configuration loaded:")
-        print(f"Vehicle wheelbase: {config_manager.vehicle.wheelbase}m")
-        print(f"Max steering angle: {config_manager.vehicle.max_steering_angle}°")
-        print(f"Pure pursuit min lookahead: {config_manager.pure_pursuit.min_lookahead}m")
-        print(f"Velocity controller max forward velocity: {config_manager.velocity_controller.max_forward_velocity}m/s")
+        print("Custom configuration loaded from file:")
+        print(f"Vehicle wheelbase: {config.vehicle.wheelbase}m")
+        print(f"Pure pursuit min lookahead: {config.pure_pursuit.min_lookahead}m")
         print()
         
-        # Create components with this configuration
-        vehicle = VehicleModel()
-        print(f"Vehicle model using custom wheelbase: {vehicle.kinematics.wheelbase}m")
+        # Create a component with this custom configuration
+        vehicle = VehicleModel(config=config.vehicle)
+        print(f"Vehicle model using custom wheelbase: {vehicle.kinematic_model.wheelbase}m")
         print()
         
     finally:
-        # Clean up
+        # Clean up the created file
         if os.path.exists(config_file_path):
             os.remove(config_file_path)
 
 
-def demonstrate_preset_configs():
-    """Demonstrate using preset configurations"""
-    print("=== Preset Configurations ===")
+def demonstrate_customizing_config():
+    """Demonstrate customizing a configuration object in code"""
+    print("=== Customizing Configuration in Code ===")
     
-    presets = ['forward', 'reverse', 'parking', 'high_speed']
+    # Load the default configuration
+    config = load_config()
     
-    for preset_name in presets:
-        print(f"\n--- {preset_name.upper()} Preset ---")
-        
-        # Reset and load preset
-        reset_config_manager()
-        load_preset_config(preset_name)
-        
-        # Show configuration values
-        config = get_config_manager()
-        print(f"Velocity Controller:")
-        print(f"  Max Forward Velocity: {config.velocity_controller.max_forward_velocity}m/s")
-        print(f"  Max Backward Velocity: {config.velocity_controller.max_backward_velocity}m/s")
-        print(f"  Max Acceleration: {config.velocity_controller.max_acceleration}m/s²")
-        print(f"  Goal Tolerance: {config.velocity_controller.goal_tolerance}m")
-        
-        print(f"Pure Pursuit:")
-        print(f"  Min Lookahead: {config.pure_pursuit.min_lookahead}m")
-        print(f"  K Gain: {config.pure_pursuit.k_gain}")
-        print(f"  Max Steering Angle: {config.pure_pursuit.max_steering_angle}°")
-
-
-def demonstrate_mixed_config_usage():
-    """Demonstrate mixing configuration with custom parameters"""
-    print("\n=== Mixed Configuration Usage ===")
+    # Modify parameters directly on the config object
+    config.vehicle.wheelbase = 3.5
+    config.vehicle.max_velocity = 60.0
+    config.pure_pursuit.k_gain = 0.7
     
-    # Reset and use forward driving preset
-    reset_config_manager()
-    load_preset_config('forward')
+    print("Customized configuration:")
+    print(f"  Vehicle wheelbase: {config.vehicle.wheelbase}m (customized)")
+    print(f"  Max velocity: {config.vehicle.max_velocity}m/s (customized)")
+    print(f"  Pure pursuit k_gain: {config.pure_pursuit.k_gain} (customized)")
+    print()
     
-    # Create vehicle with default config parameters
-    vehicle_default = VehicleModel()
+    # Create components with the customized config
+    vehicle = VehicleModel(config=config.vehicle)
     
-    # Create vehicle with some custom parameters (others from config)
-    vehicle_custom = VehicleModel(
-        wheelbase=3.5,  # Custom wheelbase
-        max_velocity=60.0,  # Custom max velocity
-        # Other parameters will use config defaults
+    # For PurePursuitController, it needs the wheelbase, which is in vehicle config.
+    # We pass the specific part of the config it needs.
+    pp_controller = PurePursuitController(
+        wheelbase=vehicle.kinematic_model.wheelbase,
+        config=config.pure_pursuit
     )
-    
-    print("Default vehicle (from config):")
-    print(f"  Wheelbase: {vehicle_default.kinematics.wheelbase}m")
-    print(f"  Max velocity: {vehicle_default.kinematics.max_velocity}m/s")
-    print(f"  Steering delay: {vehicle_default.steering_delay_buffer.delay}s")
-    
-    print("Custom vehicle (mixed parameters):")
-    print(f"  Wheelbase: {vehicle_custom.kinematics.wheelbase}m (custom)")
-    print(f"  Max velocity: {vehicle_custom.kinematics.max_velocity}m/s (custom)")
-    print(f"  Steering delay: {vehicle_custom.steering_delay_buffer.delay}s (from config)")
+
+    print(f"Vehicle wheelbase from model: {vehicle.kinematic_model.wheelbase}m")
+    print(f"Pure pursuit controller k_gain: {pp_controller.k_gain}")
     print()
 
 
-def demonstrate_environment_variables():
-    """Demonstrate environment variable configuration"""
-    print("=== Environment Variable Configuration ===")
-    
-    # Set some environment variables
-    os.environ['PT_VEHICLE_WHEELBASE'] = '3.8'
-    os.environ['PT_PUREPURSUIT_MIN_LOOKAHEAD'] = '3.0'
-    os.environ['PT_VELOCITY_MAX_FORWARD_VELOCITY'] = '12.0'
-    
-    try:
-        # Reset and create new config manager (will pick up env vars)
-        reset_config_manager()
-        config_manager = get_config_manager()
-        
-        print("Configuration with environment variables:")
-        print(f"Vehicle wheelbase: {config_manager.vehicle.wheelbase}m (from PT_VEHICLE_WHEELBASE)")
-        print(f"Pure pursuit min lookahead: {config_manager.pure_pursuit.min_lookahead}m (from PT_PUREPURSUIT_MIN_LOOKAHEAD)")
-        print(f"Velocity controller max forward velocity: {config_manager.velocity_controller.max_forward_velocity}m/s (from PT_VELOCITY_MAX_FORWARD_VELOCITY)")
-        print()
-        
-    finally:
-        # Clean up environment variables
-        for var in ['PT_VEHICLE_WHEELBASE', 'PT_PUREPURSUIT_MIN_LOOKAHEAD', 'PT_VELOCITY_MAX_FORWARD_VELOCITY']:
-            if var in os.environ:
-                del os.environ[var]
-
-
-def demonstrate_save_and_load_config():
-    """Demonstrate saving and loading configuration"""
-    print("=== Save and Load Configuration ===")
-    
-    # Reset and set up custom configuration
-    reset_config_manager()
-    config_manager = get_config_manager()
-    
-    # Modify some values
-    config_manager.vehicle.wheelbase = 3.1
-    config_manager.vehicle.max_steering_angle = 40.0
-    config_manager.pure_pursuit.min_lookahead = 1.8
-    config_manager.velocity_controller.max_forward_velocity = 7.5
-    
-    # Save configuration
-    saved_config_path = "saved_config.yaml"
-    config_manager.save_to_file(saved_config_path)
-    print(f"Configuration saved to {saved_config_path}")
-    
-    try:
-        # Reset and load the saved configuration
-        reset_config_manager()
-        new_config_manager = ConfigManager(saved_config_path)
-        
-        print("Loaded configuration:")
-        print(f"Vehicle wheelbase: {new_config_manager.vehicle.wheelbase}m")
-        print(f"Max steering angle: {new_config_manager.vehicle.max_steering_angle}°")
-        print(f"Pure pursuit min lookahead: {new_config_manager.pure_pursuit.min_lookahead}m")
-        print(f"Velocity controller max forward velocity: {new_config_manager.velocity_controller.max_forward_velocity}m/s")
-        print()
-        
-    finally:
-        # Clean up
-        if os.path.exists(saved_config_path):
-            os.remove(saved_config_path)
-
-
 def demonstrate_trajectory_configuration():
-    """Demonstrate trajectory configuration usage"""
+    """Demonstrate providing configuration to the Trajectory class"""
     print("=== Trajectory Configuration ===")
     
-    # Reset and modify trajectory config
-    reset_config_manager()
-    config_manager = get_config_manager()
+    # Load config and customize trajectory parameters
+    config = load_config()
+    config.trajectory.discretization_distance = 0.05
     
-    print("Default trajectory configuration:")
-    print(f"Discretization distance: {config_manager.trajectory.discretization_distance}m")
-    print(f"Default sample count: {config_manager.trajectory.default_sample_count}")
+    print("Custom trajectory configuration:")
+    print(f"Discretization distance: {config.trajectory.discretization_distance}m")
     
-    # Create trajectory with default config
-    trajectory_default = Trajectory()
+    # Create a trajectory with the custom config
+    # The Trajectory class now requires its config object.
+    trajectory = Trajectory(config=config.trajectory)
     
-    # Create trajectory with custom discretization distance
-    trajectory_custom = Trajectory(discretization_distance=0.05)
+    # You can still add waypoints as before
+    trajectory.add_waypoint(0, 0, 0)
+    trajectory.add_waypoint(10, 5, 0.4)
     
-    print(f"Default trajectory discretization: {trajectory_default._discretization_distance}m")
-    print(f"Custom trajectory discretization: {trajectory_custom._discretization_distance}m")
+    print(f"Created a trajectory with {len(trajectory.waypoints)} waypoints.")
+    print(f"Internal discretization distance: {trajectory._discretization_distance}m")
     print()
 
 
 def main():
-    """Run all configuration examples"""
-    print("PathTracking Configuration Management Examples")
-    print("=" * 50)
-    print()
-    
-    try:
-        demonstrate_basic_config_usage()
-        demonstrate_config_from_file()
-        demonstrate_preset_configs()
-        demonstrate_mixed_config_usage()
-        demonstrate_environment_variables()
-        demonstrate_save_and_load_config()
-        demonstrate_trajectory_configuration()
-        
-        print("=" * 50)
-        print("All configuration examples completed successfully!")
-        
-    except Exception as e:
-        print(f"Error in configuration examples: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    finally:
-        # Reset config manager
-        reset_config_manager()
+    """Run all demonstration functions"""
+    demonstrate_basic_config_usage()
+    demonstrate_config_from_file()
+    demonstrate_customizing_config()
+    demonstrate_trajectory_configuration()
 
 
 if __name__ == "__main__":

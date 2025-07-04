@@ -35,13 +35,6 @@ from PathTracking.vehicle_model import VehicleState
 if TYPE_CHECKING:
     from PathTracking.config import PurePursuitConfig
 
-try:
-    from PathTracking.config import get_pure_pursuit_config
-except ImportError:
-    # Fallback for standalone usage
-    get_pure_pursuit_config = None
-
-
 
 class PurePursuitController:
     """
@@ -55,53 +48,31 @@ class PurePursuitController:
     def __init__(
         self,
         wheelbase: float,
+        config: 'PurePursuitConfig',
         trajectory: Optional[Trajectory] = None,
-        min_lookahead: Optional[float] = None,
-        k_gain: Optional[float] = None,
-        max_steering_angle: Optional[float] = None,
         velocity_controller: Optional[VelocityController] = None,
-        goal_tolerance: Optional[float] = None,
-        velocity_tolerance: Optional[float] = None,
-        config: Optional['PurePursuitConfig'] = None,
     ) -> None:
         """
         Initialize the Pure Pursuit controller.
 
         Args:
             wheelbase (float): Vehicle wheelbase [m]
-            trajectory (Optional[Trajectory]): Reference trajectory to follow
-            min_lookahead (float, optional): Minimum lookahead distance [m]. If None, uses config default
-            k_gain (float, optional): Lookahead distance gain (lookahead = k_gain * velocity + min_lookahead). If None, uses config default
-            max_steering_angle (float, optional): Maximum steering angle [rad]. If None, uses config default
-            velocity_controller (Optional[VelocityController]): Velocity controller instance. If None, creates default one
-            goal_tolerance (float, optional): Distance tolerance to consider goal reached [m]. If None, uses config default
-            velocity_tolerance (float, optional): Velocity tolerance to consider vehicle stopped [m/s]. If None, uses config default
-            config (PurePursuitConfig, optional): Configuration object. If None, uses global config
+            config (PurePursuitConfig): Configuration object for the controller.
+            trajectory (Optional[Trajectory]): Reference trajectory to follow.
+            velocity_controller (Optional[VelocityController]): Velocity controller instance.
         """
-        # Get configuration
-        if config is None and get_pure_pursuit_config is not None:
-            config = get_pure_pursuit_config()
-        
-        # Set parameters with fallback to defaults
-        if config is not None:
-            self.min_lookahead = min_lookahead if min_lookahead is not None else config.min_lookahead
-            self.k_gain = k_gain if k_gain is not None else config.k_gain
-            self.max_steering_angle = max_steering_angle if max_steering_angle is not None else config.get_max_steering_angle_rad()
-            _goal_tolerance = goal_tolerance if goal_tolerance is not None else config.goal_tolerance
-            _velocity_tolerance = velocity_tolerance if velocity_tolerance is not None else config.velocity_tolerance
-        else:
-            # Fallback defaults for standalone usage
-            self.min_lookahead = min_lookahead if min_lookahead is not None else 1.0
-            self.k_gain = k_gain if k_gain is not None else 10.0
-            self.max_steering_angle = max_steering_angle if max_steering_angle is not None else np.deg2rad(45.0)
-            _goal_tolerance = goal_tolerance if goal_tolerance is not None else 0.5
-            _velocity_tolerance = velocity_tolerance if velocity_tolerance is not None else 0.1
-
         self.wheelbase = wheelbase
+        self.config = config
         self.trajectory = trajectory
-        
+
+        self.min_lookahead = self.config.min_lookahead
+        self.k_gain = self.config.k_gain
+        self.max_steering_angle = self.config.get_max_steering_angle_rad()
+
         # Create velocity controller if not provided
         if velocity_controller is None:
+            # Note: This creates a default VelocityController. For customized behavior,
+            # a pre-configured instance should be passed.
             self.velocity_controller = VelocityController()
         else:
             self.velocity_controller = velocity_controller

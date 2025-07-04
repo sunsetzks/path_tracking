@@ -13,7 +13,8 @@ Author: Assistant
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from vehicle_model import VehicleModel, VehicleState, simulate_vehicle_motion
+from PathTracking.vehicle_model import VehicleModel, VehicleState, simulate_vehicle_motion
+from PathTracking.config import load_config, VehicleConfig, SimulationConfig
 
 
 def run_forward_driving_test():
@@ -25,17 +26,35 @@ def run_forward_driving_test():
     """
     print("=== Forward Driving Test ===")
     
+    # Load configuration and create variants for different tests
+    config = load_config()
+    
+    # Configuration for vehicle without delay
+    config_no_delay = VehicleConfig()
+    config_no_delay.steering_delay = 0.0
+    config_no_delay.acceleration_delay = 0.0
+    
+    # Configuration for vehicle with delay
+    config_with_delay = VehicleConfig()
+    config_with_delay.steering_delay = 0.3
+    config_with_delay.acceleration_delay = 0.2
+    
+    # Simulation configuration
+    sim_config = SimulationConfig()
+    sim_config.time_step = 0.1
+    
     # Create vehicle models for comparison
-    vehicle_no_delay = VehicleModel()
-    vehicle_with_delay = VehicleModel(steering_delay=0.3, acceleration_delay=0.2)
-    vehicle_direct_control = VehicleModel(steering_delay=0.3, acceleration_delay=0.2)
-    vehicle_direct_no_delay = VehicleModel()
+    vehicle_no_delay = VehicleModel(config=config_no_delay)
+    vehicle_with_delay = VehicleModel(config=config_with_delay)
+    vehicle_direct_control = VehicleModel(config=config_with_delay)
+    vehicle_direct_no_delay = VehicleModel(config=config_no_delay)
 
     # Set initial state [position_x, position_y, yaw_angle, velocity, steering_angle]
-    initial_state = [0.0, 0.0, 0.0, 10.0, 0.0]
+    initial_state_array = [0.0, 0.0, 0.0, 10.0, 0.0]
+    initial_state = VehicleState.from_array(initial_state_array)
 
     # Simulation parameters
-    time_step = 0.1
+    time_step = sim_config.time_step
     simulation_time = 10.0
     time_steps = int(simulation_time / time_step)
 
@@ -59,19 +78,19 @@ def run_forward_driving_test():
 
     # Simulate vehicle motion for rate-based control
     trajectory_no_delay = simulate_vehicle_motion(
-        initial_state, control_sequence, time_step
+        initial_state, control_sequence, config_no_delay, sim_config
     )
     trajectory_with_delay = simulate_vehicle_motion(
-        initial_state,
-        control_sequence,
-        time_step,
-        steering_delay=0.3,
-        acceleration_delay=0.2,
+        initial_state, control_sequence, config_with_delay, sim_config
     )
 
+    # Convert VehicleState objects to arrays for backward compatibility with plotting
+    trajectory_no_delay = np.array([state.to_array() for state in trajectory_no_delay])
+    trajectory_with_delay = np.array([state.to_array() for state in trajectory_with_delay])
+
     # Demonstrate direct control methods
-    vehicle_direct_control.set_state(initial_state)
-    vehicle_direct_no_delay.set_state(initial_state)
+    vehicle_direct_control.set_state(initial_state_array)
+    vehicle_direct_no_delay.set_state(initial_state_array)
     trajectory_direct_control = [vehicle_direct_control.get_state_array()]
     trajectory_direct_no_delay = [vehicle_direct_no_delay.get_state_array()]
 
@@ -122,19 +141,34 @@ def run_reverse_driving_test():
     """
     print("=== Reverse Driving Test ===")
     
+    # Create vehicle configurations for reverse driving comparison
+    config_reverse_no_delay = VehicleConfig()
+    config_reverse_no_delay.min_velocity = -15.0
+    config_reverse_no_delay.max_velocity = 50.0
+    config_reverse_no_delay.steering_delay = 0.0
+    config_reverse_no_delay.acceleration_delay = 0.0
+    
+    config_reverse_with_delay = VehicleConfig()
+    config_reverse_with_delay.min_velocity = -15.0
+    config_reverse_with_delay.max_velocity = 50.0
+    config_reverse_with_delay.steering_delay = 0.2
+    config_reverse_with_delay.acceleration_delay = 0.15
+    
+    # Simulation configuration
+    sim_config = SimulationConfig()
+    sim_config.time_step = 0.1
+    
     # Create vehicle models for reverse driving comparison
-    vehicle_reverse_no_delay = VehicleModel(min_velocity=-15.0, max_velocity=50.0)
-    vehicle_reverse_with_delay = VehicleModel(
-        min_velocity=-15.0, max_velocity=50.0,
-        steering_delay=0.2, acceleration_delay=0.15
-    )
+    vehicle_reverse_no_delay = VehicleModel(config=config_reverse_no_delay)
+    vehicle_reverse_with_delay = VehicleModel(config=config_reverse_with_delay)
 
     # Set initial state for reverse driving [x, y, yaw, velocity, steering]
     # Start facing forward but will reverse
-    initial_state_reverse = [0.0, 0.0, 0.0, 0.0, 0.0]
+    initial_state_reverse_array = [0.0, 0.0, 0.0, 0.0, 0.0]
+    initial_state_reverse = VehicleState.from_array(initial_state_reverse_array)
 
     # Simulation parameters
-    time_step = 0.1
+    time_step = sim_config.time_step
     simulation_time = 15.0  # Longer simulation for complex maneuver
     time_steps = int(simulation_time / time_step)
 
@@ -166,21 +200,19 @@ def run_reverse_driving_test():
 
     # Simulate reverse motion
     trajectory_reverse_no_delay = simulate_vehicle_motion(
-        initial_state_reverse, reverse_control_sequence, time_step,
-        min_velocity=-15.0, max_velocity=50.0
+        initial_state_reverse, reverse_control_sequence, config_reverse_no_delay, sim_config
     )
     trajectory_reverse_with_delay = simulate_vehicle_motion(
-        initial_state_reverse, reverse_control_sequence, time_step,
-        min_velocity=-15.0, max_velocity=50.0,
-        steering_delay=0.2, acceleration_delay=0.15
+        initial_state_reverse, reverse_control_sequence, config_reverse_with_delay, sim_config
     )
 
+    # Convert VehicleState objects to arrays for backward compatibility with plotting
+    trajectory_reverse_no_delay = np.array([state.to_array() for state in trajectory_reverse_no_delay])
+    trajectory_reverse_with_delay = np.array([state.to_array() for state in trajectory_reverse_with_delay])
+
     # Test direct control in reverse using VehicleModel
-    vehicle_reverse_direct = VehicleModel(
-        min_velocity=-15.0, max_velocity=50.0,
-        steering_delay=0.2, acceleration_delay=0.15
-    )
-    vehicle_reverse_direct.set_state(initial_state_reverse)
+    vehicle_reverse_direct = VehicleModel(config=config_reverse_with_delay)
+    vehicle_reverse_direct.set_state(initial_state_reverse_array)
     trajectory_reverse_direct = [vehicle_reverse_direct.get_state_array()]
 
     for step_index in range(time_steps):
@@ -227,10 +259,14 @@ def run_combined_forward_reverse_test():
     """
     print("=== Combined Forward/Reverse Test ===")
     
-    vehicle = VehicleModel(
-        min_velocity=-12.0, max_velocity=30.0,
-        steering_delay=0.1, acceleration_delay=0.1
-    )
+    # Create vehicle configuration for combined maneuver
+    config_combined = VehicleConfig()
+    config_combined.min_velocity = -12.0
+    config_combined.max_velocity = 30.0
+    config_combined.steering_delay = 0.1
+    config_combined.acceleration_delay = 0.1
+    
+    vehicle = VehicleModel(config=config_combined)
     
     # Initial state
     initial_state = [0.0, 0.0, 0.0, 0.0, 0.0]
