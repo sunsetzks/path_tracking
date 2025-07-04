@@ -12,12 +12,22 @@ Author: Assistant
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Optional, TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
+
+# Import configuration management
+if TYPE_CHECKING:
+    from .config import TrajectoryConfig
+
+try:
+    from .config import get_trajectory_config
+except ImportError:
+    # Fallback for standalone usage
+    get_trajectory_config = None
 
 
 @dataclass
@@ -58,7 +68,10 @@ class Trajectory:
     """
 
     def __init__(
-        self, waypoints: List[Waypoint] = [], discretization_distance: float = 0.1
+        self, 
+        waypoints: List[Waypoint] = [], 
+        discretization_distance: Optional[float] = None,
+        config: Optional['TrajectoryConfig'] = None
     ):
         """
         Initialize the trajectory.
@@ -66,8 +79,23 @@ class Trajectory:
         Args:
             waypoints: List of Waypoint objects defining the trajectory
             discretization_distance: Default distance between discretized points (in meters)
-                                   Used for internal trajectory discretization and sampling
+                                   Used for internal trajectory discretization and sampling.
+                                   If None, uses config default
+            config: Configuration object. If None, uses global config
         """
+        # Get configuration
+        if config is None and get_trajectory_config is not None:
+            config = get_trajectory_config()
+        
+        # Set parameters with fallback to defaults
+        if config is not None:
+            self._discretization_distance = discretization_distance if discretization_distance is not None else config.discretization_distance
+            self._sample_count = config.default_sample_count
+        else:
+            # Fallback defaults for standalone usage
+            self._discretization_distance = discretization_distance if discretization_distance is not None else 0.1
+            self._sample_count = 100  # Initial default, will be updated based on path length
+        
         self.waypoints = (
             waypoints.copy()
         )  # Make a copy to avoid modifying the input list
@@ -77,10 +105,6 @@ class Trajectory:
         # For discrete point sampling
         self._sampled_s: List[float] = []
         self._sampled_waypoints: List[Waypoint] = []
-        self._discretization_distance = discretization_distance
-        self._sample_count = (
-            100  # Initial default, will be updated based on path length
-        )
 
         self._update_path_parameters()
 

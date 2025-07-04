@@ -17,9 +17,31 @@ Author: Assistant
 import math
 from collections import deque
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional, TYPE_CHECKING
 
 import numpy as np
+
+# Import configuration management
+if TYPE_CHECKING:
+    from .config import VehicleConfig
+
+# Try multiple import strategies for robustness
+get_vehicle_config = None
+try:
+    from .config import get_vehicle_config
+except ImportError:
+    try:
+        # Fallback for direct execution or when run as a script
+        import sys
+        import os
+        current_dir = os.path.dirname(__file__)
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        import config  # type: ignore
+        get_vehicle_config = getattr(config, 'get_vehicle_config', None)
+    except ImportError:
+        # Final fallback for standalone usage
+        get_vehicle_config = None
 
 
 @dataclass
@@ -196,26 +218,45 @@ class BicycleKinematicModel:
     """
 
     def __init__(
-        self, wheelbase=2.9, max_steering_angle=np.deg2rad(45.0), max_velocity=50.0, min_velocity=-10.0
+        self, 
+        wheelbase: Optional[float] = None, 
+        max_steering_angle: Optional[float] = None, 
+        max_velocity: Optional[float] = None, 
+        min_velocity: Optional[float] = None,
+        config: Optional['VehicleConfig'] = None
     ):
         """
         Initialize bicycle model parameters
 
         Args:
-            wheelbase (float): Distance between front and rear axles [m]
-            max_steering_angle (float): Maximum steering angle [rad]
-            max_velocity (float): Maximum forward velocity [m/s]
-            min_velocity (float): Maximum reverse velocity [m/s] (negative value)
+            wheelbase (float, optional): Distance between front and rear axles [m]
+            max_steering_angle (float, optional): Maximum steering angle [rad]
+            max_velocity (float, optional): Maximum forward velocity [m/s]
+            min_velocity (float, optional): Maximum reverse velocity [m/s] (negative value)
+            config (VehicleConfig, optional): Configuration object. If None, uses global config
         """
-        self.wheelbase = wheelbase
-        self.max_steering_angle = max_steering_angle
-        self.max_velocity = max_velocity
-        self.min_velocity = min_velocity
-
-        # Control limits
-        self.max_steering_rate = np.deg2rad(30)  # rad/s
-        self.max_acceleration = 3.0  # m/s²
-        self.max_deceleration = -5.0  # m/s²
+        # Get configuration
+        if config is None and get_vehicle_config is not None:
+            config = get_vehicle_config()
+        
+        # Set parameters with fallback to defaults
+        if config is not None:
+            self.wheelbase = wheelbase if wheelbase is not None else config.wheelbase
+            self.max_steering_angle = max_steering_angle if max_steering_angle is not None else config.get_max_steering_angle_rad()
+            self.max_velocity = max_velocity if max_velocity is not None else config.max_velocity
+            self.min_velocity = min_velocity if min_velocity is not None else config.min_velocity
+            self.max_steering_rate = config.get_max_steering_rate_rad()
+            self.max_acceleration = config.max_acceleration
+            self.max_deceleration = -config.max_deceleration  # Convert to negative value
+        else:
+            # Fallback defaults for standalone usage
+            self.wheelbase = wheelbase if wheelbase is not None else 2.9
+            self.max_steering_angle = max_steering_angle if max_steering_angle is not None else np.deg2rad(45.0)
+            self.max_velocity = max_velocity if max_velocity is not None else 50.0
+            self.min_velocity = min_velocity if min_velocity is not None else -10.0
+            self.max_steering_rate = np.deg2rad(30)  # rad/s
+            self.max_acceleration = 3.0  # m/s²
+            self.max_deceleration = -5.0  # m/s²
 
         # Vehicle state using structured representation
         self.state = VehicleState()
@@ -339,40 +380,67 @@ class VehicleModel:
 
     def __init__(
         self,
-        wheelbase=2.9,
-        max_steering_angle=np.deg2rad(45.0),
-        max_velocity=50.0,
-        min_velocity=-10.0,
-        steering_delay=0.0,
-        acceleration_delay=0.0,
-        steering_rate_gain=5.0,
-        acceleration_gain=2.0,
+        wheelbase: Optional[float] = None,
+        max_steering_angle: Optional[float] = None,
+        max_velocity: Optional[float] = None,
+        min_velocity: Optional[float] = None,
+        steering_delay: Optional[float] = None,
+        acceleration_delay: Optional[float] = None,
+        steering_rate_gain: Optional[float] = None,
+        acceleration_gain: Optional[float] = None,
+        config: Optional['VehicleConfig'] = None,
     ):
         """
         Initialize vehicle model
 
         Args:
-            wheelbase (float): Distance between front and rear axles [m]
-            max_steering_angle (float): Maximum steering angle [rad]
-            max_velocity (float): Maximum forward velocity [m/s]
-            min_velocity (float): Maximum reverse velocity [m/s] (negative value)
-            steering_delay (float): Time delay for steering commands [s]
-            acceleration_delay (float): Time delay for acceleration commands [s]
-            steering_rate_gain (float): Gain for converting steering error to steering rate [rad/s per rad]
-            acceleration_gain (float): Gain for converting velocity error to acceleration [(m/s²) per (m/s)]
+            wheelbase (float, optional): Distance between front and rear axles [m]
+            max_steering_angle (float, optional): Maximum steering angle [rad]
+            max_velocity (float, optional): Maximum forward velocity [m/s]
+            min_velocity (float, optional): Maximum reverse velocity [m/s] (negative value)
+            steering_delay (float, optional): Time delay for steering commands [s]
+            acceleration_delay (float, optional): Time delay for acceleration commands [s]
+            steering_rate_gain (float, optional): Gain for converting steering error to steering rate [rad/s per rad]
+            acceleration_gain (float, optional): Gain for converting velocity error to acceleration [(m/s²) per (m/s)]
+            config (VehicleConfig, optional): Configuration object. If None, uses global config
         """
+        # Get configuration
+        if config is None and get_vehicle_config is not None:
+            config = get_vehicle_config()
+        
+        # Set parameters with fallback to defaults
+        if config is not None:
+            _wheelbase = wheelbase if wheelbase is not None else config.wheelbase
+            _max_steering_angle = max_steering_angle if max_steering_angle is not None else config.get_max_steering_angle_rad()
+            _max_velocity = max_velocity if max_velocity is not None else config.max_velocity
+            _min_velocity = min_velocity if min_velocity is not None else config.min_velocity
+            _steering_delay = steering_delay if steering_delay is not None else config.steering_delay
+            _acceleration_delay = acceleration_delay if acceleration_delay is not None else config.acceleration_delay
+            _steering_rate_gain = steering_rate_gain if steering_rate_gain is not None else config.steering_rate_gain
+            _acceleration_gain = acceleration_gain if acceleration_gain is not None else config.acceleration_gain
+        else:
+            # Fallback defaults for standalone usage
+            _wheelbase = wheelbase if wheelbase is not None else 2.9
+            _max_steering_angle = max_steering_angle if max_steering_angle is not None else np.deg2rad(45.0)
+            _max_velocity = max_velocity if max_velocity is not None else 50.0
+            _min_velocity = min_velocity if min_velocity is not None else -10.0
+            _steering_delay = steering_delay if steering_delay is not None else 0.0
+            _acceleration_delay = acceleration_delay if acceleration_delay is not None else 0.0
+            _steering_rate_gain = steering_rate_gain if steering_rate_gain is not None else 5.0
+            _acceleration_gain = acceleration_gain if acceleration_gain is not None else 2.0
+
         # Core kinematic model
         self.kinematics = BicycleKinematicModel(
-            wheelbase, max_steering_angle, max_velocity, min_velocity
+            _wheelbase, _max_steering_angle, _max_velocity, _min_velocity, config
         )
 
         # Delay buffers
-        self.steering_delay_buffer = DelayBuffer(steering_delay)
-        self.acceleration_delay_buffer = DelayBuffer(acceleration_delay)
+        self.steering_delay_buffer = DelayBuffer(_steering_delay)
+        self.acceleration_delay_buffer = DelayBuffer(_acceleration_delay)
 
         # Control gains for direct control method
-        self.steering_rate_gain = steering_rate_gain
-        self.acceleration_gain = acceleration_gain
+        self.steering_rate_gain = _steering_rate_gain
+        self.acceleration_gain = _acceleration_gain
 
         # Time tracking
         self.current_time = 0.0
@@ -579,12 +647,13 @@ VehicleKinematicModel = VehicleModel
 def simulate_vehicle_motion(
     initial_state,
     control_sequence,
-    time_step=0.1,
-    wheelbase=2.9,
-    min_velocity=-10.0,
-    max_velocity=50.0,
-    steering_delay=0.0,
-    acceleration_delay=0.0,
+    time_step: Optional[float] = None,
+    wheelbase: Optional[float] = None,
+    min_velocity: Optional[float] = None,
+    max_velocity: Optional[float] = None,
+    steering_delay: Optional[float] = None,
+    acceleration_delay: Optional[float] = None,
+    config: Optional['VehicleConfig'] = None,
 ):
     """
     Simulate vehicle motion with given control sequence and actuator delays
@@ -593,22 +662,33 @@ def simulate_vehicle_motion(
         initial_state (Union[VehicleState, array, list]): Initial state as VehicleState object or
                      array [position_x, position_y, yaw_angle, velocity, steering_angle]
         control_sequence (array): Control inputs [[steering_rate1, acceleration1], [steering_rate2, acceleration2], ...]
-        time_step (float): Time step [s]
-        wheelbase (float): Vehicle wheelbase [m]
-        min_velocity (float): Maximum reverse velocity [m/s] (negative value)
-        max_velocity (float): Maximum forward velocity [m/s]
-        steering_delay (float): Time delay for steering commands [s]
-        acceleration_delay (float): Time delay for acceleration commands [s]
+        time_step (float, optional): Time step [s]. If None, uses config default
+        wheelbase (float, optional): Vehicle wheelbase [m]. If None, uses config default
+        min_velocity (float, optional): Maximum reverse velocity [m/s] (negative value). If None, uses config default
+        max_velocity (float, optional): Maximum forward velocity [m/s]. If None, uses config default
+        steering_delay (float, optional): Time delay for steering commands [s]. If None, uses config default
+        acceleration_delay (float, optional): Time delay for acceleration commands [s]. If None, uses config default
+        config (VehicleConfig, optional): Configuration object. If None, uses global config
 
     Returns:
         np.array: State trajectory as array for backward compatibility
     """
+    # Get configuration for time_step if not provided
+    if time_step is None:
+        try:
+            from .config import get_simulation_config
+            sim_config = get_simulation_config()
+            time_step = sim_config.time_step
+        except ImportError:
+            time_step = 0.1  # Fallback default
+
     vehicle = VehicleModel(
         wheelbase=wheelbase,
         min_velocity=min_velocity,
         max_velocity=max_velocity,
         steering_delay=steering_delay,
         acceleration_delay=acceleration_delay,
+        config=config,
     )
     vehicle.set_state(initial_state)
 

@@ -1,0 +1,65 @@
+# PathTracking Configuration File
+# This file contains all configuration parameters for the PathTracking project
+# All parameters have default values that can be overridden here
+
+# Vehicle model configuration
+vehicle:
+  # Physical parameters [m]
+  wheelbase: 2.9                    # Distance between front and rear axles
+  vehicle_length: 4.5               # Total vehicle length
+  vehicle_width: 2.0                # Total vehicle width
+  wheel_length: 0.4                 # Wheel length
+  wheel_width: 0.2                  # Wheel width
+  wheel_track: 1.6                  # Distance between left and right wheels
+  
+  # Kinematic limits
+  max_steering_angle: 45.0          # Maximum steering angle [degrees]
+  max_velocity: 50.0                # Maximum forward velocity [m/s]
+  min_velocity: -10.0               # Maximum reverse velocity [m/s]
+  max_steering_rate: 30.0           # Maximum steering rate [degrees/s]
+  max_acceleration: 3.0             # Maximum acceleration [m/s²]
+  max_deceleration: 5.0             # Maximum deceleration [m/s²]
+  
+  # Delay parameters [s]
+  steering_delay: 0.0               # Time delay for steering commands
+  acceleration_delay: 0.0           # Time delay for acceleration commands
+  
+  # Control gains
+  steering_rate_gain: 5.0           # Gain for converting steering error to steering rate
+  acceleration_gain: 2.0            # Gain for converting velocity error to acceleration
+
+# Pure Pursuit controller configuration
+pure_pursuit:
+  min_lookahead: 1.0                # Minimum lookahead distance [m]
+  k_gain: 10.0                      # Lookahead distance gain
+  max_steering_angle: 45.0          # Maximum steering angle [degrees]
+  goal_tolerance: 0.5               # Distance tolerance to consider goal reached [m]
+  velocity_tolerance: 0.1           # Velocity tolerance to consider vehicle stopped [m/s]
+
+# Velocity controller configuration
+velocity_controller:
+  max_forward_velocity: 5.0         # Maximum forward velocity [m/s]
+  max_backward_velocity: 2.0        # Maximum backward velocity [m/s]
+  max_acceleration: 1.0             # Maximum acceleration magnitude [m/s²]
+  max_deceleration: 2.0             # Maximum deceleration magnitude [m/s²]
+  goal_tolerance: 0.5               # Distance tolerance to consider goal reached [m]
+  velocity_tolerance: 0.1           # Velocity tolerance to consider vehicle stopped [m/s]
+  conservative_braking_factor: 1.2  # Safety factor for deceleration distance
+  min_velocity: 0.1                 # Minimum velocity magnitude [m/s]
+
+# Trajectory configuration
+trajectory:
+  discretization_distance: 0.1      # Default distance between discretized points [m]
+  default_sample_count: 100         # Initial default sample count
+
+# Simulation configuration
+simulation:
+  time_step: 0.1                    # Default simulation time step [s]
+  max_time: 60.0                    # Default maximum simulation time [s]
+  
+  # Visualization parameters
+  plot_margin: 5.0                  # Margin around trajectory for plot view [m]
+  figure_size: [16, 8]              # Default figure size [width, height]
+  
+  # Animation parameters
+  animation_interval: 50            # Matplotlib animation interval [ms] 
