@@ -45,7 +45,6 @@ class VehicleConfig:
     # Noise parameters
     noise_enabled: bool = False  # Enable/disable noise simulation
     control_input_noise_enabled: bool = True  # Enable/disable control input noise (master switch)
-    noise_model: str = "odometry"  # Noise model type: "odometry" or "global_localization"
     position_noise_std: float = 0.01  # Standard deviation for position noise [m]
     yaw_noise_std: float = 0.005  # Standard deviation for yaw angle noise [rad]
     velocity_noise_std: float = 0.02  # Standard deviation for velocity noise [m/s]
@@ -54,11 +53,19 @@ class VehicleConfig:
     measurement_noise_std: float = 0.005  # Standard deviation for measurement noise [various units]
     noise_seed: Optional[int] = None  # Random seed for reproducible noise (None for random)
     
-    # Global localization noise parameters
+    # Odometry noise parameters (for dead reckoning estimation)
+    odometry_position_noise_std: float = 0.01  # Standard deviation for odometry position noise [m]
+    odometry_yaw_noise_std: float = 0.005  # Standard deviation for odometry yaw angle noise [rad]
+    odometry_velocity_noise_std: float = 0.02  # Standard deviation for odometry velocity noise [m/s]
+    
+    # Global localization noise parameters (for GPS-like positioning)
     global_position_noise_std: float = 0.5  # Standard deviation for global position noise [m]
     global_yaw_noise_std: float = 0.02  # Standard deviation for global yaw angle noise [rad]
     global_measurement_frequency: float = 1.0  # Frequency of global measurements [Hz]
     global_measurement_delay: float = 0.1  # Delay of global measurements [s]
+    
+    # Default state type to return when get_state() is called
+    default_state_type: str = "true"  # Options: "true", "odometry", "global"
 
     def get_max_steering_angle_rad(self) -> float:
         """Get maximum steering angle in radians"""
