@@ -61,21 +61,36 @@ def demonstrate_control_input_noise_switch():
     print("Creating vehicle models:")
     
     # 1. No noise at all
-    vehicle_clean = VehicleModel(config.vehicle, initial_state)
-    vehicle_clean.set_noise_enabled(False)
+    config_clean = load_config()
+    config_clean.vehicle.noise_enabled = False
+    vehicle_clean = VehicleModel(config_clean.vehicle, initial_state)
     print(f"  Clean vehicle - All noise: {vehicle_clean.get_noise_enabled()}")
     
     # 2. All noise enabled (including control input noise)
-    vehicle_full_noise = VehicleModel(config.vehicle, initial_state)
-    vehicle_full_noise.set_noise_enabled(True)
-    vehicle_full_noise.set_control_input_noise_enabled(True)
+    config_full = load_config()
+    config_full.vehicle.noise_enabled = True
+    config_full.vehicle.control_input_noise_enabled = True
+    config_full.vehicle.process_noise_std = 0.05
+    config_full.vehicle.position_noise_std = 0.01
+    config_full.vehicle.yaw_noise_std = 0.005
+    config_full.vehicle.velocity_noise_std = 0.02
+    config_full.vehicle.steering_noise_std = 0.01
+    config_full.vehicle.noise_seed = 42
+    vehicle_full_noise = VehicleModel(config_full.vehicle, initial_state)
     print(f"  Full noise vehicle - All noise: {vehicle_full_noise.get_noise_enabled()}, "
           f"Control input noise: {vehicle_full_noise.get_control_input_noise_enabled()}")
     
     # 3. State noise only (no control input noise)
-    vehicle_state_noise_only = VehicleModel(config.vehicle, initial_state)
-    vehicle_state_noise_only.set_noise_enabled(True)
-    vehicle_state_noise_only.set_control_input_noise_enabled(False)
+    config_state = load_config()
+    config_state.vehicle.noise_enabled = True
+    config_state.vehicle.control_input_noise_enabled = False
+    config_state.vehicle.process_noise_std = 0.05
+    config_state.vehicle.position_noise_std = 0.01
+    config_state.vehicle.yaw_noise_std = 0.005
+    config_state.vehicle.velocity_noise_std = 0.02
+    config_state.vehicle.steering_noise_std = 0.01
+    config_state.vehicle.noise_seed = 123  # Different seed for different behavior
+    vehicle_state_noise_only = VehicleModel(config_state.vehicle, initial_state)
     print(f"  State noise only vehicle - All noise: {vehicle_state_noise_only.get_noise_enabled()}, "
           f"Control input noise: {vehicle_state_noise_only.get_control_input_noise_enabled()}")
     print()
@@ -122,10 +137,20 @@ def demonstrate_control_input_noise_switch():
     # Run simulation
     for control in control_sequence:
         for name, vehicle in vehicles.items():
-            state = vehicle.update_with_rates(control, time_step)
-            trajectories[name].append(state.copy())
+            updated_state = vehicle.update_with_rates(control, time_step)
+            trajectories[name].append(updated_state.copy())
 
     print("Simulation completed.\n")
+
+    # Debug: Check trajectory lengths and some sample points
+    print("=== Trajectory Debug Info ===")
+    for name, trajectory in trajectories.items():
+        print(f"{name}: {len(trajectory)} points")
+        if len(trajectory) > 0:
+            print(f"  Start: ({trajectory[0].position_x:.3f}, {trajectory[0].position_y:.3f})")
+            if len(trajectory) > 1:
+                print(f"  End: ({trajectory[-1].position_x:.3f}, {trajectory[-1].position_y:.3f})")
+    print()
 
     # Analyze results
     print("=== Analysis ===")
@@ -160,8 +185,7 @@ def demonstrate_control_input_noise_switch():
     from PathTracking.vehicle_model import NoiseGenerator
     
     # With control input noise enabled
-    config.vehicle.control_input_noise_enabled = True
-    noise_gen_enabled = NoiseGenerator(config.vehicle)
+    noise_gen_enabled = NoiseGenerator(config_full.vehicle)
     noise_gen_enabled.set_noise_enabled(True)
     
     steering_noise, accel_noise = noise_gen_enabled.generate_process_noise()
@@ -170,8 +194,7 @@ def demonstrate_control_input_noise_switch():
     print(f"  Acceleration noise: {accel_noise:.4f} m/s²")
     
     # With control input noise disabled
-    config.vehicle.control_input_noise_enabled = False
-    noise_gen_disabled = NoiseGenerator(config.vehicle)
+    noise_gen_disabled = NoiseGenerator(config_state.vehicle)
     noise_gen_disabled.set_noise_enabled(True)
     
     steering_noise, accel_noise = noise_gen_disabled.generate_process_noise()
@@ -207,16 +230,24 @@ def plot_trajectories(trajectories):
         'state_noise_only': 'State Noise Only'
     }
     
+    print("=== Plotting Debug Info ===")
     for name, trajectory in trajectories.items():
         x_coords = [state.position_x for state in trajectory]
         y_coords = [state.position_y for state in trajectory]
+        
+        print(f"{name}: {len(x_coords)} points")
+        if len(x_coords) > 0:
+            print(f"  X range: [{min(x_coords):.3f}, {max(x_coords):.3f}]")
+            print(f"  Y range: [{min(y_coords):.3f}, {max(y_coords):.3f}]")
         
         plt.plot(x_coords, y_coords, color=colors[name], linewidth=2, 
                 label=labels[name], alpha=0.8)
         
         # Mark start and end points
-        plt.plot(x_coords[0], y_coords[0], 'o', color=colors[name], markersize=8)
-        plt.plot(x_coords[-1], y_coords[-1], 's', color=colors[name], markersize=8)
+        if len(x_coords) > 0:
+            plt.plot(x_coords[0], y_coords[0], 'o', color=colors[name], markersize=8)
+            plt.plot(x_coords[-1], y_coords[-1], 's', color=colors[name], markersize=8)
+    print()
     
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
