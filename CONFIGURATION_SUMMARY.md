@@ -170,4 +170,151 @@ config = get_vehicle_config()
 print(f"当前最大速度: {config.max_velocity}m/s")  # 输出: 5.0m/s
 ```
 
-配置系统已经完全集成到所有核心组件中，提供了现代化、灵活且易用的参数管理解决方案。 
+配置系统已经完全集成到所有核心组件中，提供了现代化、灵活且易用的参数管理解决方案。
+
+# Path Tracking Configuration Summary
+
+This document summarizes the configuration and setup of the path tracking system.
+
+## Project Structure
+
+```
+path_tracking/
+├── PathTracking/                    # Main package
+│   ├── performance_diagnostics.py  # Performance analysis and CSV export
+│   ├── csv_loader_example.py       # Enhanced CSV loader with file selection
+│   ├── pure_pursuit.py             # Pure pursuit controller
+│   ├── trajectory.py               # Trajectory management
+│   ├── vehicle_model.py            # Vehicle dynamics
+│   └── utils/                      # Utility functions
+├── experiments/                     # Experimental controllers
+├── log/                            # Log directory (NEW)
+│   └── csv/                        # CSV diagnostic files (NEW)
+│       ├── README.md               # CSV logging documentation
+│       ├── *.csv                   # Diagnostic data files
+│       └── *_charts.png            # Generated diagnostic charts
+└── README.md                       # Project documentation
+```
+
+## New CSV Logging System
+
+### Overview
+The performance diagnostics system now automatically saves CSV files to the `log/csv/` directory, providing organized storage and easy access to diagnostic data.
+
+### Key Features
+
+1. **Automatic Directory Creation**: The `log/csv/` directory is created automatically when exporting CSV files
+2. **Enhanced CSV Loader**: Interactive file selection from available CSV files
+3. **File Information Display**: Shows file size, data points, duration, and modification time
+4. **Chart Export**: Diagnostic charts can be saved as PNG files alongside CSV data
+
+### Usage
+
+#### Running the Enhanced CSV Loader
+```bash
+cd PathTracking
+python csv_loader_example.py
+```
+
+The enhanced CSV loader will:
+- List all available CSV files in `log/csv/`
+- Display file information in a formatted table
+- Allow interactive selection of files for analysis
+- Generate diagnostic charts and summaries
+- Optionally save charts to PNG files
+
+#### Example Output
+```
+🔍 Enhanced Performance Diagnostics CSV Loader
+============================================================
+📁 Looking for CSV files in: /path/to/project/log/csv
+
+✅ Found 4 CSV files
+
+📋 Available CSV Files:
+================================================================================
+#   Filename                            Size       Points   Duration   Modified            
+--------------------------------------------------------------------------------
+1   final_diagnostic_data_328.csv       107.5 KB   328      32.7s       2025-07-05 09:25    
+2   simple_diagnostic_demo.csv          57.7 KB    173      17.2s       2025-07-05 09:19    
+3   comprehensive_diagnostic_data.csv   66.7 KB    221      22.0s       2025-07-05 09:17    
+4   final_diagnostic_data_221.csv       66.7 KB    221      22.0s       2025-07-05 09:05    
+--------------------------------------------------------------------------------
+
+Enter file number (1-4) or 'q' to quit: 
+```
+
+### Automatic CSV Export Integration
+
+The performance diagnostics system has been enhanced to automatically save CSV files to the `log/csv/` directory:
+
+```python
+from PathTracking.performance_diagnostics import PerformanceDiagnostics
+
+# Create diagnostics instance
+diagnostics = PerformanceDiagnostics()
+
+# ... run simulation and collect data ...
+
+# Export to CSV (automatically saves to log/csv/)
+diagnostics.export_data_to_csv("my_simulation_data.csv")
+```
+
+### File Organization
+
+- **CSV Files**: Diagnostic data in structured format
+- **Chart Files**: PNG files with diagnostic visualizations (e.g., `filename_charts.png`)
+- **README**: Documentation of CSV format and usage instructions
+
+### Benefits
+
+1. **Organized Storage**: All diagnostic data centralized in `log/csv/`
+2. **Easy Access**: Interactive file selection and analysis
+3. **Data Persistence**: Historical data retained for comparison
+4. **Visual Analysis**: Charts saved alongside data for documentation
+5. **Automatic Cleanup**: Old files can be easily identified and archived
+
+## System Requirements
+
+- Python 3.7+
+- NumPy
+- Matplotlib
+- Standard library modules (csv, os, glob, datetime)
+
+## Configuration Files
+
+- `config.py`: Main configuration parameters
+- `config.yaml`: YAML configuration format
+- `config_example.py`: Example configuration setup
+
+## Performance Diagnostics
+
+The system includes comprehensive performance analysis:
+- Real-time data collection
+- Control tracking performance
+- Path tracking errors
+- Direction conflict analysis
+- Statistical summaries
+- Visual diagnostic charts
+
+## Testing
+
+Run the CSV loader example to test the system:
+```bash
+cd PathTracking
+python csv_loader_example.py
+```
+
+This will demonstrate:
+- CSV file discovery and listing
+- Interactive file selection
+- Data loading and analysis
+- Chart generation and export
+
+## Future Enhancements
+
+- Web-based dashboard for remote monitoring
+- Real-time data streaming
+- Machine learning-based performance prediction
+- Integration with ROS diagnostic tools
+- Automated performance regression testing 

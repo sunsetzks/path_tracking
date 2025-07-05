@@ -436,11 +436,18 @@ class PerformanceDiagnostics:
         Export diagnostic data to CSV file.
         
         Args:
-            filename (str): Output CSV filename
+            filename (str): Output CSV filename (can be just filename or full path)
         """
         if not self.history:
             print("No diagnostic data available for export")
             return
+        
+        # If filename doesn't contain path separator, save to log/csv directory
+        if not os.path.dirname(filename):
+            # Create log/csv directory if it doesn't exist
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'log', 'csv')
+            os.makedirs(log_dir, exist_ok=True)
+            filename = os.path.join(log_dir, filename)
         
         # Define CSV headers
         headers = [
