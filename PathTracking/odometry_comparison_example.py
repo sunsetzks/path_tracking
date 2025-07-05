@@ -234,7 +234,7 @@ if __name__ == "__main__":
     compare_trajectories()
     
     # Demonstrate correct state access
-    demonstrate_state_access()
+    # demonstrate_state_access()
     
     print("\n" + "=" * 60)
     print("示例完成！")

@@ -48,8 +48,8 @@ class VehicleConfig:
     noise_seed: Optional[int] = None  # Random seed for reproducible noise (None for random)
     
     # Odometry noise parameters (for dead reckoning estimation)
-    odometry_position_noise_std: float = 0.01  # Standard deviation for odometry position noise [m]
-    odometry_yaw_noise_std: float = 0.005  # Standard deviation for odometry yaw angle noise [rad]
+    odometry_position_noise_std: float = 0.1  # Standard deviation for odometry position noise [m]
+    odometry_yaw_noise_std: float = 0.05  # Standard deviation for odometry yaw angle noise [rad]
     odometry_velocity_noise_std: float = 0.02  # Standard deviation for odometry velocity noise [m/s]
     
     # Global localization noise parameters (for GPS-like positioning)
