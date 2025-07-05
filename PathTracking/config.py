@@ -97,11 +97,19 @@ class VelocityControllerConfig:
     max_forward_velocity: float = 5.0  # Maximum forward velocity [m/s]
     max_backward_velocity: float = 2.0  # Maximum backward velocity [m/s]
     max_acceleration: float = 1.0  # Maximum acceleration magnitude [m/s²]
-    max_deceleration: float = 2.0  # Maximum deceleration magnitude [m/s²]
+    max_deceleration: float = 1.0  # Maximum deceleration magnitude [m/s²]
     goal_tolerance: float = 0.5  # Distance tolerance to consider goal reached [m]
     velocity_tolerance: float = 0.1  # Velocity tolerance to consider vehicle stopped [m/s]
     conservative_braking_factor: float = 1.2  # Safety factor for deceleration distance
     min_velocity: float = 0.1  # Minimum velocity magnitude [m/s]
+    
+    # Segmented ramp down control parameters
+    enable_segmented_ramp_down: bool = True  # Enable segmented ramp down control
+    fine_adjustment_distance: float = 0.5  # Distance for fine adjustment phase [m]
+    transition_zone_distance: float = 0.1  # Distance for smooth transition between phases [m]
+    creep_speed_factor: float = 0.8  # Factor for calculating creep speed (0.8 means 80% of calculated safe speed)
+    final_braking_distance: float = 0.1  # Distance for final braking phase [m]
+    smooth_transition_enabled: bool = True  # Enable smooth transitions between phases
 
 
 @dataclass
