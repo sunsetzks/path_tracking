@@ -41,6 +41,16 @@ class VehicleConfig:
     steering_rate_gain: float = 5.0  # Gain for converting steering error to steering rate
     acceleration_gain: float = 2.0  # Gain for converting velocity error to acceleration
     
+    # Noise parameters
+    noise_enabled: bool = False  # Enable/disable noise simulation
+    position_noise_std: float = 0.01  # Standard deviation for position noise [m]
+    yaw_noise_std: float = 0.005  # Standard deviation for yaw angle noise [rad]
+    velocity_noise_std: float = 0.02  # Standard deviation for velocity noise [m/s]
+    steering_noise_std: float = 0.01  # Standard deviation for steering angle noise [rad]
+    process_noise_std: float = 0.001  # Standard deviation for process noise [various units]
+    measurement_noise_std: float = 0.005  # Standard deviation for measurement noise [various units]
+    noise_seed: Optional[int] = None  # Random seed for reproducible noise (None for random)
+    
     def get_max_steering_angle_rad(self) -> float:
         """Get maximum steering angle in radians"""
         return np.deg2rad(self.max_steering_angle)

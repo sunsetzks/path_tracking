@@ -26,6 +26,116 @@ if TYPE_CHECKING:
     from .config import VehicleConfig, SimulationConfig
 
 
+class NoiseGenerator:
+    """
+    Noise generator for realistic vehicle simulation
+    
+    Generates various types of noise including:
+    - Gaussian white noise for sensor measurements
+    - Process noise for model uncertainties
+    - Correlated noise for realistic disturbances
+    """
+    
+    def __init__(self, config: 'VehicleConfig'):
+        """
+        Initialize noise generator
+        
+        Args:
+            config (VehicleConfig): Vehicle configuration containing noise parameters
+        """
+        self.config = config
+        self.noise_enabled = config.noise_enabled
+        
+        # Initialize random number generator with seed for reproducibility
+        if config.noise_seed is not None:
+            self.rng = np.random.RandomState(config.noise_seed)
+        else:
+            self.rng = np.random.RandomState()
+    
+    def generate_state_noise(self, state: 'VehicleState') -> 'VehicleState':
+        """
+        Generate noise for vehicle state components
+        
+        Args:
+            state (VehicleState): Current vehicle state
+            
+        Returns:
+            VehicleState: Noisy state with added noise
+        """
+        if not self.noise_enabled:
+            return state
+            
+        # Generate noise for each state component
+        position_noise_x = self.rng.normal(0, self.config.position_noise_std)
+        position_noise_y = self.rng.normal(0, self.config.position_noise_std)
+        yaw_noise = self.rng.normal(0, self.config.yaw_noise_std)
+        velocity_noise = self.rng.normal(0, self.config.velocity_noise_std)
+        steering_noise = self.rng.normal(0, self.config.steering_noise_std)
+        
+        # Create noisy state
+        noisy_state = VehicleState(
+            position_x=state.position_x + position_noise_x,
+            position_y=state.position_y + position_noise_y,
+            yaw_angle=state.yaw_angle + yaw_noise,
+            velocity=state.velocity + velocity_noise,
+            steering_angle=state.steering_angle + steering_noise
+        )
+        
+        return noisy_state
+    
+    def generate_process_noise(self) -> Tuple[float, float]:
+        """
+        Generate process noise for control inputs
+        
+        Returns:
+            Tuple[float, float]: (steering_rate_noise, acceleration_noise)
+        """
+        if not self.noise_enabled:
+            return 0.0, 0.0
+            
+        steering_rate_noise = self.rng.normal(0, self.config.process_noise_std)
+        acceleration_noise = self.rng.normal(0, self.config.process_noise_std)
+        
+        return steering_rate_noise, acceleration_noise
+    
+    def generate_measurement_noise(self, measurement: float) -> float:
+        """
+        Generate measurement noise for sensor readings
+        
+        Args:
+            measurement (float): Original measurement value
+            
+        Returns:
+            float: Noisy measurement
+        """
+        if not self.noise_enabled:
+            return measurement
+            
+        noise = self.rng.normal(0, self.config.measurement_noise_std)
+        return measurement + noise
+    
+    def set_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable noise generation
+        
+        Args:
+            enabled (bool): Whether to enable noise
+        """
+        self.noise_enabled = enabled
+    
+    def reset_seed(self, seed: Optional[int] = None):
+        """
+        Reset the random number generator with a new seed
+        
+        Args:
+            seed (Optional[int]): New seed value, None for random seed
+        """
+        if seed is not None:
+            self.rng = np.random.RandomState(seed)
+        else:
+            self.rng = np.random.RandomState()
+
+
 @dataclass
 class VehicleState:
     """
@@ -220,6 +330,9 @@ class BicycleKinematicModel:
         self.max_acceleration = self.config.max_acceleration
         self.max_deceleration = -self.config.max_deceleration  # Convert to negative value
 
+        # Initialize noise generator
+        self.noise_generator = NoiseGenerator(config)
+
         if initial_state:
             self.state = initial_state.copy()
         else:
@@ -237,6 +350,11 @@ class BicycleKinematicModel:
         Returns:
             VehicleState: Updated vehicle state
         """
+        # Add process noise to control inputs
+        steering_rate_noise, acceleration_noise = self.noise_generator.generate_process_noise()
+        steering_rate += steering_rate_noise
+        acceleration += acceleration_noise
+        
         # Apply control limits
         steering_rate = np.clip(
             steering_rate, -self.max_steering_rate, self.max_steering_rate
@@ -273,14 +391,17 @@ class BicycleKinematicModel:
             + (new_velocity / self.wheelbase) * math.tan(new_steering_angle) * time_step
         )
 
-        # Update state using VehicleState structure
-        self.state = VehicleState(
+        # Create clean state first
+        clean_state = VehicleState(
             position_x=new_position_x,
             position_y=new_position_y,
             yaw_angle=new_yaw_angle,
             velocity=new_velocity,
             steering_angle=new_steering_angle,
         )
+        
+        # Apply state noise for realistic vehicle behavior
+        self.state = self.noise_generator.generate_state_noise(clean_state)
 
         return self.state.copy()
 
@@ -314,6 +435,54 @@ class BicycleKinematicModel:
             np.array: Current state [position_x, position_y, yaw_angle, velocity, steering_angle]
         """
         return self.state.to_array()
+
+    def set_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable noise generation
+        
+        Args:
+            enabled (bool): Whether to enable noise
+        """
+        self.noise_generator.set_noise_enabled(enabled)
+    
+    def get_noise_enabled(self) -> bool:
+        """
+        Get current noise enabled status
+        
+        Returns:
+            bool: Whether noise is enabled
+        """
+        return self.noise_generator.noise_enabled
+    
+    def reset_noise_seed(self, seed: Optional[int] = None):
+        """
+        Reset noise random seed for reproducibility
+        
+        Args:
+            seed (Optional[int]): New seed value, None for random seed
+        """
+        self.noise_generator.reset_seed(seed)
+    
+    def get_clean_state(self) -> VehicleState:
+        """
+        Get current vehicle state without noise (for debugging/analysis)
+        
+        Returns:
+            VehicleState: Clean vehicle state without noise
+        """
+        return self.state.copy()
+    
+    def get_noisy_measurement(self, measurement: float) -> float:
+        """
+        Apply measurement noise to a sensor reading
+        
+        Args:
+            measurement (float): Original measurement value
+            
+        Returns:
+            float: Noisy measurement
+        """
+        return self.noise_generator.generate_measurement_noise(measurement)
 
     @staticmethod
     def normalize_angle(angle):
@@ -568,6 +737,54 @@ class VehicleModel:
             tuple: (steering_delay, acceleration_delay) in seconds
         """
         return self.steering_delay_buffer.delay, self.acceleration_delay_buffer.delay
+    
+    def set_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable noise generation
+        
+        Args:
+            enabled (bool): Whether to enable noise
+        """
+        self.kinematic_model.set_noise_enabled(enabled)
+    
+    def get_noise_enabled(self) -> bool:
+        """
+        Get current noise enabled status
+        
+        Returns:
+            bool: Whether noise is enabled
+        """
+        return self.kinematic_model.get_noise_enabled()
+    
+    def reset_noise_seed(self, seed: Optional[int] = None):
+        """
+        Reset noise random seed for reproducibility
+        
+        Args:
+            seed (Optional[int]): New seed value, None for random seed
+        """
+        self.kinematic_model.reset_noise_seed(seed)
+    
+    def get_clean_state(self) -> VehicleState:
+        """
+        Get current vehicle state without noise (for debugging/analysis)
+        
+        Returns:
+            VehicleState: Clean vehicle state without noise
+        """
+        return self.kinematic_model.get_clean_state()
+    
+    def get_noisy_measurement(self, measurement: float) -> float:
+        """
+        Apply measurement noise to a sensor reading
+        
+        Args:
+            measurement (float): Original measurement value
+            
+        Returns:
+            float: Noisy measurement
+        """
+        return self.kinematic_model.get_noisy_measurement(measurement)
 
 
 # Legacy compatibility - keep original class name as alias

@@ -191,40 +191,46 @@ class VelocityController:
         Returns:
             float: Target velocity [m/s] (positive for forward, negative for backward).
         """
+        # Step 1: Check if goal is reached - return 0 velocity if true
         if self.is_goal_reached(vehicle_state, trajectory):
             return 0.0  # Stop the vehicle when goal is reached
 
-        # Calculate distance to goal using the new method
+        # Step 2: Calculate distance remaining to the goal position
         distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
 
-        # Calculate maximum velocity that allows stopping at goal
+        # Step 3: Determine if we're moving forward or backward
         is_forward = target_direction > 0
+        
+        # Step 4: Calculate maximum safe velocity that allows stopping at goal
         max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
 
-        # Rest of the logic remains the same...
+        # Step 5: Get configured max velocity for current direction
         max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
+        
+        # Step 6: Calculate desired velocity within safe limits
         desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
         desired_velocity = desired_velocity_magnitude * target_direction
 
-        # Apply acceleration constraints
+        # Step 7: Apply acceleration/deceleration constraints
         current_velocity = vehicle_state.velocity
         velocity_difference = desired_velocity - current_velocity
 
+        # Step 8: Determine maximum allowed velocity change based on acceleration/deceleration limits
         if velocity_difference > 0:
-            max_velocity_change = self.max_acceleration * dt
+            max_velocity_change = self.max_acceleration * dt  # Acceleration limit
         else:
-            max_velocity_change = self.max_deceleration * dt
+            max_velocity_change = self.max_deceleration * dt  # Deceleration limit
 
+        # Step 9: Apply velocity change with constraints
         if abs(velocity_difference) > max_velocity_change:
             if velocity_difference > 0:
-                target_velocity = current_velocity + max_velocity_change
+                target_velocity = current_velocity + max_velocity_change  # Accelerate
             else:
-                target_velocity = current_velocity - max_velocity_change
+                target_velocity = current_velocity - max_velocity_change  # Decelerate
         else:
-            target_velocity = desired_velocity
+            target_velocity = desired_velocity  # Within allowed change limits
 
         return target_velocity
-    
     def calculate_current_acceleration(
         self, current_velocity: float, target_velocity: float, dt: float = 0.1
     ) -> float:
