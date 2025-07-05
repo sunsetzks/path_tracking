@@ -198,8 +198,12 @@ class OdometryEstimator:
     """
     Odometry-based state estimator for dead reckoning
     
-    This estimator simulates odometry sensors (wheel encoders, IMU) that accumulate
-    small errors over time, leading to drift in position estimation.
+    This estimator simulates odometry sensors (wheel encoders, IMU) that compute
+    motion increments and accumulate small errors over time, leading to drift in 
+    position estimation. This is the correct implementation of odometry that:
+    1. Calculates motion deltas from the previous state
+    2. Adds noise to these deltas
+    3. Integrates the noisy deltas to get the new odometry state
     """
 
     def __init__(self, config: "VehicleConfig"):
@@ -221,13 +225,12 @@ class OdometryEstimator:
         # Odometry state (accumulates errors over time)
         self.odometry_state = VehicleState()
         
-        # Accumulated error for drift simulation
-        self.position_drift = np.array([0.0, 0.0])
-        self.yaw_drift = 0.0
+        # Previous true state for delta calculation
+        self.previous_true_state = VehicleState()
 
     def update_odometry_state(self, true_state: "VehicleState", time_step: float) -> "VehicleState":
         """
-        Update odometry state based on true state with accumulated errors
+        Update odometry state based on motion deltas with noise
 
         Args:
             true_state (VehicleState): True vehicle state (without noise)
@@ -237,28 +240,59 @@ class OdometryEstimator:
             VehicleState: Updated odometry state
         """
         if not self.noise_enabled:
+            self.previous_true_state = true_state.copy()
             return true_state.copy()
 
-        # Generate incremental noise for this time step
-        position_noise = self.rng.normal(0, self.config.odometry_position_noise_std, 2) * time_step
-        yaw_noise = self.rng.normal(0, self.config.odometry_yaw_noise_std) * time_step
-        velocity_noise = self.rng.normal(0, self.config.odometry_velocity_noise_std)
-
-        # Accumulate drift over time
-        self.position_drift += position_noise
-        self.yaw_drift += yaw_noise
-
-        # Create odometry state with accumulated errors
-        odometry_state = VehicleState(
-            position_x=true_state.position_x + self.position_drift[0],
-            position_y=true_state.position_y + self.position_drift[1],
-            yaw_angle=true_state.yaw_angle + self.yaw_drift,
-            velocity=true_state.velocity + velocity_noise,
-            steering_angle=true_state.steering_angle,  # Assume steering angle is directly measured
+        # Calculate motion deltas from previous true state
+        delta_x = true_state.position_x - self.previous_true_state.position_x
+        delta_y = true_state.position_y - self.previous_true_state.position_y
+        delta_yaw = self._normalize_angle(true_state.yaw_angle - self.previous_true_state.yaw_angle)
+        
+        # Add noise to motion deltas (this is how odometry errors accumulate)
+        # Position noise proportional to distance traveled
+        distance_traveled = math.sqrt(delta_x**2 + delta_y**2)
+        position_noise_std = self.config.odometry_position_noise_std * max(distance_traveled, time_step)
+        
+        delta_x_noise = self.rng.normal(0, position_noise_std)
+        delta_y_noise = self.rng.normal(0, position_noise_std)
+        
+        # Yaw noise proportional to angular change
+        yaw_noise_std = self.config.odometry_yaw_noise_std * max(abs(delta_yaw), time_step)
+        delta_yaw_noise = self.rng.normal(0, yaw_noise_std)
+        
+        # Apply noisy deltas to odometry state
+        self.odometry_state.position_x += delta_x + delta_x_noise
+        self.odometry_state.position_y += delta_y + delta_y_noise
+        self.odometry_state.yaw_angle = self._normalize_angle(
+            self.odometry_state.yaw_angle + delta_yaw + delta_yaw_noise
         )
+        
+        # Velocity and steering angle with direct noise (measured locally)
+        velocity_noise = self.rng.normal(0, self.config.odometry_velocity_noise_std)
+        self.odometry_state.velocity = true_state.velocity + velocity_noise
+        self.odometry_state.steering_angle = true_state.steering_angle  # Assume directly measured
+        
+        # Update previous state for next iteration
+        self.previous_true_state = true_state.copy()
+        
+        return self.odometry_state.copy()
 
-        self.odometry_state = odometry_state
-        return odometry_state.copy()
+    @staticmethod
+    def _normalize_angle(angle):
+        """
+        Normalize angle to [-pi, pi]
+
+        Args:
+            angle (float): angle in radians
+
+        Returns:
+            float: normalized angle
+        """
+        while angle > math.pi:
+            angle -= 2.0 * math.pi
+        while angle < -math.pi:
+            angle += 2.0 * math.pi
+        return angle
 
     def reset_state(self, initial_state: "VehicleState"):
         """
@@ -268,8 +302,7 @@ class OdometryEstimator:
             initial_state (VehicleState): Initial state to reset to
         """
         self.odometry_state = initial_state.copy()
-        self.position_drift = np.array([0.0, 0.0])
-        self.yaw_drift = 0.0
+        self.previous_true_state = initial_state.copy()
 
     def set_noise_enabled(self, enabled: bool):
         """
