@@ -206,5 +206,13 @@ Desktop.ini
 # *.gif
 # *.svg
 # *.pdf 
-/*.png
-/*.mp4
+*.png
+*.mp4
+*.csv
+*.txt
+*.json
+*.yaml
+*.yml
+*.jsonl
+*.jsonl.gz
+*.jsonl.bz2

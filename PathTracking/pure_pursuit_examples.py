@@ -9,20 +9,23 @@ Examples included:
 - Reverse driving simulation with backing maneuvers
 - Direction conflict test scenarios
 - Acceleration planning demonstrations
+- Performance diagnostics with historical data analysis
 """
 
 import argparse
 import math
 import os
 import sys
-from typing import List
+from typing import List, Optional
+# from dataclasses import dataclass, field
+# from collections import deque
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Add the parent directory to the path so we can import the modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PathTracking.config import load_config, VelocityControllerConfig
 from PathTracking.pure_pursuit import PurePursuitController
@@ -30,6 +33,7 @@ from PathTracking.trajectory import Trajectory
 from PathTracking.utils.vehicle_display import VehicleDisplay
 from PathTracking.velocity_planning import VelocityController
 from PathTracking.vehicle_model import VehicleModel, VehicleState
+from PathTracking.performance_diagnostics import DiagnosticData, PerformanceDiagnostics
 
 
 def create_test_trajectory() -> Trajectory:
@@ -302,7 +306,7 @@ def run_reverse_simulation() -> None:
     pure_pursuit_config.min_lookahead = 1.5  # Smaller lookahead for reverse driving
     pure_pursuit_config.k_gain = 0.8  # Reduced gain for more careful control
     pure_pursuit_config.max_steering_angle = 35.0  # degrees, slightly reduced max steering
-    
+     
     controller = PurePursuitController(
         wheelbase=wheelbase,
         config=pure_pursuit_config,
@@ -374,24 +378,35 @@ def run_simulation(
     controller: PurePursuitController,
     time_step: float = 0.1,
     max_time: float = 60.0,
-) -> None:
+    enable_diagnostics: bool = True,
+) -> Optional[PerformanceDiagnostics]:
     """
-    Run simulation of pure pursuit controller.
+    Run simulation of pure pursuit controller with performance diagnostics.
 
     Args:
         vehicle_model (VehicleModel): Vehicle model
         controller (PurePursuitController): Pure pursuit controller
         time_step (float): Simulation time step [s]
         max_time (float): Maximum simulation time [s]
+        enable_diagnostics (bool): Whether to enable performance diagnostics
+
+    Returns:
+        Optional[PerformanceDiagnostics]: Diagnostics object if enabled, None otherwise
 
     Controls:
         Space: Pause/Resume simulation
         Q/ESC: Quit simulation
+        D: Show/Hide diagnostic charts (when diagnostics enabled)
+        S: Save diagnostic data to CSV
     """
     # Get trajectory from controller
     trajectory = controller.get_trajectory()
     if trajectory is None:
         raise ValueError("Controller has no trajectory set")
+    
+    # Initialize performance diagnostics
+    diagnostics = PerformanceDiagnostics() if enable_diagnostics else None
+    diagnostic_charts_visible = False
     
     # Initialize vehicle state at trajectory start
     nearest_point = trajectory.find_nearest_point(0, 0)
@@ -428,7 +443,7 @@ def run_simulation(
     margin = 5.0  # Reduced margin since we have separate info panel
 
     def on_key(event) -> None:
-        nonlocal paused
+        nonlocal paused, diagnostic_charts_visible
         if event.key == " ":  # Space key
             paused = not paused
             if paused:
@@ -438,10 +453,25 @@ def run_simulation(
         elif event.key in ["q", "escape"]:  # Q key or ESC key
             print("Quitting simulation...")
             plt.close(fig)
+        elif event.key == "d" and diagnostics is not None:  # D key for diagnostics
+            if not diagnostic_charts_visible:
+                print("Displaying diagnostic charts...")
+                diagnostics.plot_diagnostic_charts()
+                diagnostic_charts_visible = True
+            else:
+                print("Diagnostic charts already visible")
+        elif event.key == "s" and diagnostics is not None:  # S key to save data
+            timestamp = int(time * 10)  # Convert to deciseconds for filename
+            csv_filename = f"diagnostic_data_{timestamp}.csv"
+            diagnostics.export_data_to_csv(csv_filename)
+            print(f"Diagnostic data saved to {csv_filename}")
 
     # Connect the key event handler
     fig.canvas.mpl_connect("key_press_event", on_key)
-    print("Controls: Space = Pause/Resume, Q/ESC = Quit")
+    controls_text = "Controls: Space = Pause/Resume, Q/ESC = Quit"
+    if enable_diagnostics:
+        controls_text += ", D = Show Diagnostics, S = Save Data"
+    print(controls_text)
 
     try:
         while time < max_time and plt.fignum_exists(fig.number):
@@ -503,6 +533,13 @@ def run_simulation(
 
                 # Calculate and apply control with time step for acceleration planning
                 steering, target_velocity = controller.compute_control(vehicle_state, time_step)
+                
+                # Collect diagnostic data before updating vehicle state
+                if diagnostics is not None:
+                    diagnostics.add_data_point(
+                        time, vehicle_state, target_velocity, steering, controller, time_step
+                    )
+                
                 vehicle_model.update_with_direct_control(
                     [steering, target_velocity], time_step
                 )
@@ -586,7 +623,9 @@ def run_simulation(
                 status_text += f"  Direction: {velocity_dir}\n"
                 status_text += f"Target Vel: {target_velocity:.2f} m/s\n"
                 status_text += f"  Direction: {target_dir}\n"
-                status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n\n"
+                status_text += f"Acceleration: {current_acceleration:.2f} m/s²\n"
+                status_text += f"Steering: {math.degrees(vehicle_state.steering_angle):.1f}°\n"
+                status_text += f"Target Steer: {math.degrees(steering):.1f}°\n\n"
                 
                 status_text += f"3. Control Info\n"
                 status_text += f"Lookahead: {lookahead_distance:.2f} m\n"
@@ -605,6 +644,15 @@ def run_simulation(
                 status_text += f"  Longitudinal: {longitudinal_error:.3f}m\n"
                 status_text += f"  Lateral: {lateral_error:.3f}m\n"
                 status_text += f"  Angular: {angle_error_deg:.1f}°\n"
+                
+                # Add diagnostic information if available
+                if diagnostics is not None and len(diagnostics.history) > 0:
+                    status_text += f"\n6. Diagnostics\n"
+                    status_text += f"Data Points: {len(diagnostics.history)}\n"
+                    status_text += f"Avg Velocity: {diagnostics.stats['average_velocity']:.2f} m/s\n"
+                    status_text += f"Vel Error: {diagnostics.stats['velocity_tracking_error']['mean']:.3f} m/s\n"
+                    status_text += f"Steer Error: {math.degrees(diagnostics.stats['steering_tracking_error']['mean']):.2f}°\n"
+                    status_text += f"Conflicts: {diagnostics.stats['direction_conflicts']}\n"
                 
                 if goal_reached:
                     status_text += f"\nVehicle STOPPED at goal!"
@@ -651,6 +699,206 @@ def run_simulation(
         print("\nSimulation interrupted by user")
     finally:
         plt.close(fig)  # Ensure figure is closed properly
+        
+        # Display final diagnostic summary
+        if diagnostics is not None:
+            print("\n" + "="*60)
+            print("FINAL PERFORMANCE SUMMARY")
+            print("="*60)
+            print(diagnostics.get_diagnostic_summary())
+            
+            # Offer to save final diagnostic data
+            save_final = input("Save final diagnostic data to CSV? (y/n): ").lower().strip()
+            if save_final == 'y':
+                final_filename = f"final_diagnostic_data_{int(time*10)}.csv"
+                diagnostics.export_data_to_csv(final_filename)
+    
+    return diagnostics
+
+
+def run_diagnostic_simulation() -> None:
+    """
+    Run a comprehensive diagnostic simulation with detailed performance analysis.
+    """
+    print("\n" + "=" * 60)
+    print("🔍 DIAGNOSTIC SIMULATION WITH PERFORMANCE ANALYSIS")
+    print("=" * 60)
+    print("This simulation provides comprehensive performance diagnostics:")
+    print("- Real-time commanded vs actual velocity/steering tracking")
+    print("- Path tracking error analysis")
+    print("- Control performance metrics")
+    print("- Direction conflict detection and statistics")
+    print("- Comprehensive data export capabilities")
+    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    print("          D = Show Diagnostic Charts, S = Save Data")
+    print("Starting diagnostic simulation...")
+
+    # Create a forward trajectory for cleaner diagnostic testing
+    trajectory = create_forward_test_trajectory()
+
+    # Load configuration
+    config = load_config()
+    
+    # Create vehicle model with realistic delays for diagnostic testing
+    wheelbase = 2.9
+    config.vehicle.steering_delay = 0.1  # Add some delay for realistic diagnostics
+    config.vehicle.acceleration_delay = 0.05
+    vehicle_model = VehicleModel(config.vehicle)
+    
+    # Create velocity controller with moderate settings
+    velocity_config = VelocityControllerConfig(
+        max_forward_velocity=8.0,
+        max_backward_velocity=3.0,
+        max_acceleration=2.5,
+        max_deceleration=3.0,
+        goal_tolerance=1.0,
+        velocity_tolerance=0.1,
+        conservative_braking_factor=1.2,
+        min_velocity=0.3,
+    )
+    velocity_controller = VelocityController(velocity_config)
+    
+    # Create pure pursuit controller
+    pure_pursuit_config = config.pure_pursuit
+    pure_pursuit_config.min_lookahead = 2.5
+    pure_pursuit_config.k_gain = 1.2
+    pure_pursuit_config.max_steering_angle = 45.0  # degrees
+    
+    controller = PurePursuitController(
+        wheelbase=wheelbase,
+        config=pure_pursuit_config,
+        trajectory=trajectory,
+        velocity_controller=velocity_controller,
+    )
+
+    # Run simulation with diagnostics enabled
+    diagnostics = run_simulation(
+        vehicle_model, 
+        controller, 
+        max_time=120.0, 
+        enable_diagnostics=True
+    )
+    
+    # Generate and display final diagnostic charts
+    if diagnostics is not None:
+        print("\nGenerating final diagnostic charts...")
+        diagnostics.plot_diagnostic_charts()
+        
+        # Export comprehensive data
+        print("\nExporting comprehensive diagnostic data...")
+        diagnostics.export_data_to_csv("comprehensive_diagnostic_data.csv")
+        
+        print("\n" + "🎯 DIAGNOSTIC SIMULATION COMPLETED" + "\n")
+        print("Key findings and recommendations:")
+        
+        # Analyze performance and provide recommendations
+        if diagnostics.stats['velocity_tracking_error']['mean'] > 0.5:
+            print("⚠️  High velocity tracking error detected - consider tuning acceleration gains")
+        
+        if diagnostics.stats['steering_tracking_error']['mean'] > math.radians(5):
+            print("⚠️  High steering tracking error detected - consider tuning steering gains")
+        
+        if diagnostics.stats['lateral_error']['mean'] > 0.3:
+            print("⚠️  High lateral error detected - consider adjusting lookahead parameters")
+        
+        if diagnostics.stats['direction_conflicts'] > len(diagnostics.history) * 0.1:
+            print("⚠️  High direction conflict rate - review trajectory design")
+        
+        if (diagnostics.stats['velocity_tracking_error']['mean'] < 0.2 and 
+            diagnostics.stats['steering_tracking_error']['mean'] < math.radians(3) and
+            diagnostics.stats['lateral_error']['mean'] < 0.2):
+            print("✅ Excellent tracking performance - system is well-tuned")
+
+
+def run_diagnostic_demo_simple() -> None:
+    """
+    Run a simple diagnostic demonstration without GUI for testing purposes.
+    """
+    print("\n" + "=" * 60)
+    print("🔧 SIMPLE DIAGNOSTIC DEMO (NO GUI)")
+    print("=" * 60)
+    
+    # Create a simple straight line trajectory
+    config = load_config()
+    trajectory = Trajectory(config.trajectory)
+    
+    # Simple straight line with a gentle curve
+    for i in range(50):
+        x = i * 1.0
+        y = 2.0 * math.sin(i * 0.1)  # Gentle sine wave
+        yaw = math.atan2(2.0 * 0.1 * math.cos(i * 0.1), 1.0)  # Tangent direction
+        trajectory.add_waypoint(x, y, yaw, direction=1)
+    
+    # Create vehicle model with delays
+    wheelbase = 2.9
+    config.vehicle.steering_delay = 0.05
+    config.vehicle.acceleration_delay = 0.03
+    vehicle_model = VehicleModel(config.vehicle)
+    
+    # Create controller
+    velocity_config = VelocityControllerConfig(
+        max_forward_velocity=5.0,
+        max_acceleration=2.0,
+        max_deceleration=2.5,
+        goal_tolerance=1.0,
+    )
+    velocity_controller = VelocityController(velocity_config)
+    
+    controller = PurePursuitController(
+        wheelbase=wheelbase,
+        config=config.pure_pursuit,
+        trajectory=trajectory,
+        velocity_controller=velocity_controller,
+    )
+    
+    # Initialize diagnostics
+    diagnostics = PerformanceDiagnostics()
+    
+    # Initialize vehicle
+    vehicle_model.set_state(VehicleState(0, 0, 0, 0, 0))
+    
+    # Run simulation loop
+    time = 0.0
+    dt = 0.1
+    max_time = 30.0
+    
+    print("Running simulation...")
+    while time < max_time:
+        vehicle_state = vehicle_model.get_state()
+        
+        # Check if goal reached
+        if controller.is_goal_reached(vehicle_state):
+            print(f"Goal reached at time {time:.1f}s")
+            break
+        
+        # Compute control
+        steering, target_velocity = controller.compute_control(vehicle_state, dt)
+        
+        # Collect diagnostic data
+        diagnostics.add_data_point(
+            time, vehicle_state, target_velocity, steering, controller, dt
+        )
+        
+        # Update vehicle
+        vehicle_model.update_with_direct_control([steering, target_velocity], dt)
+        
+        time += dt
+        
+        # Print status every 5 seconds
+        if int(time * 10) % 50 == 0:
+            print(f"Time: {time:.1f}s, Pos: ({vehicle_state.position_x:.1f}, {vehicle_state.position_y:.1f}), "
+                  f"Vel: {vehicle_state.velocity:.2f} m/s")
+    
+    # Display results
+    print("\n" + diagnostics.get_diagnostic_summary())
+    
+    # Generate charts
+    print("Generating diagnostic charts...")
+    diagnostics.plot_diagnostic_charts()
+    
+    # Export data
+    diagnostics.export_data_to_csv("simple_diagnostic_demo.csv")
+    print("Demo completed!")
 
 
 def demo_acceleration_planning() -> None:
@@ -753,6 +1001,8 @@ Simulation Options:
   2 - Reverse Driving Simulation (Backing and parking maneuvers) [DEFAULT]
   3 - Run Both Simulations
   4 - Direction Conflict Test (Demonstrates robot-based direction detection)
+  5 - Diagnostic Analysis (Comprehensive performance analysis with charts and data export)
+  6 - Simple Diagnostic Demo (Command-line diagnostic demo without GUI)
         """
     )
     
@@ -761,8 +1011,8 @@ Simulation Options:
         type=int,
         nargs='?',  # Make argument optional
         default=2,  # Default to option 2 (Reverse Driving)
-        choices=[1, 2, 3, 4],
-        help='Simulation choice: 1=Forward, 2=Reverse (default), 3=Both, 4=Direction Conflict Test'
+        choices=[1, 2, 3, 4, 5, 6],
+        help='Simulation choice: 1=Forward, 2=Reverse (default), 3=Both, 4=Direction Conflict Test, 5=Diagnostic Analysis, 6=Simple Diagnostic Demo'
     )
     
     args = parser.parse_args()
@@ -792,6 +1042,12 @@ Simulation Options:
     elif choice == 4:
         print("Running Direction Conflict Test...")
         run_direction_conflict_test()
+    elif choice == 5:
+        print("Running Diagnostic Analysis...")
+        run_diagnostic_simulation()
+    elif choice == 6:
+        print("Running Simple Diagnostic Demo...")
+        run_diagnostic_demo_simple()
     
     print("\nSimulation completed successfully!")
 
