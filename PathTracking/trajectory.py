@@ -63,7 +63,7 @@ class Trajectory:
 
     def __init__(
         self,
-        config: 'TrajectoryConfig',
+        config: "TrajectoryConfig",
         waypoints: List[Waypoint] = [],
     ):
         """
@@ -77,9 +77,7 @@ class Trajectory:
         self._discretization_distance = self.config.discretization_distance
         self._sample_count = self.config.default_sample_count
 
-        self.waypoints = (
-            waypoints.copy()
-        )  # Make a copy to avoid modifying the input list
+        self.waypoints = waypoints.copy()  # Make a copy to avoid modifying the input list
         self._s_values: List[float] = []
         self._interpolators: Dict[str, interp1d] = {}
 
@@ -142,9 +140,7 @@ class Trajectory:
         for i in range(1, len(self.waypoints)):
             prev_wp = self.waypoints[i - 1]
             curr_wp = self.waypoints[i]
-            distance = math.sqrt(
-                (curr_wp.x - prev_wp.x) ** 2 + (curr_wp.y - prev_wp.y) ** 2
-            )
+            distance = math.sqrt((curr_wp.x - prev_wp.x) ** 2 + (curr_wp.y - prev_wp.y) ** 2)
             self._s_values.append(self._s_values[-1] + distance)
 
         # Create interpolation functions
@@ -191,14 +187,10 @@ class Trajectory:
 
             # Calculate number of samples based on path length and discretization distance
             path_length = self._s_values[-1]
-            self._sample_count = max(
-                1, int(path_length / self._discretization_distance)
-            )
+            self._sample_count = max(1, int(path_length / self._discretization_distance))
 
             # Create discrete samples for nearest point search
-            self._sampled_s = list(
-                np.linspace(0, self._s_values[-1], self._sample_count)
-            )
+            self._sampled_s = list(np.linspace(0, self._s_values[-1], self._sample_count))
 
             # Pre-compute sampled points
             self._sampled_waypoints = []
@@ -234,9 +226,7 @@ class Trajectory:
             Waypoint containing interpolated position, heading and direction
         """
         if not self._interpolators:
-            raise ValueError(
-                "Trajectory must have at least 2 waypoints for interpolation"
-            )
+            raise ValueError("Trajectory must have at least 2 waypoints for interpolation")
 
         x = float(self._interpolators["x"](s))
         y = float(self._interpolators["y"](s))
@@ -297,9 +287,7 @@ class Trajectory:
 
         return (left + right) / 2
 
-    def find_nearest_discrete_point(
-        self, pose_x: float, pose_y: float
-    ) -> Tuple[float, int]:
+    def find_nearest_discrete_point(self, pose_x: float, pose_y: float) -> Tuple[float, int]:
         """
         Find the nearest point among discretely sampled points on trajectory.
         This is the first step in finding the exact nearest point.
@@ -314,11 +302,7 @@ class Trajectory:
         Raises:
             ValueError: If trajectory is not properly initialized
         """
-        if (
-            not self._interpolators
-            or not self._sampled_waypoints
-            or not self._sampled_s
-        ):
+        if not self._interpolators or not self._sampled_waypoints or not self._sampled_s:
             raise ValueError("Trajectory must have at least 2 waypoints")
 
         # Convert waypoints to numpy array for efficient distance calculation
@@ -376,9 +360,7 @@ class Trajectory:
         refined_s = max(0.0, min(refined_s, total_length))
 
         point = self.interpolate_at_distance(refined_s)
-        return ProjectedPoint(
-            x=point.x, y=point.y, yaw=point.yaw, direction=point.direction, s=refined_s
-        )
+        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, direction=point.direction, s=refined_s)
 
     def get_frenet_coordinates(self, pose_x: float, pose_y: float) -> FrenetCoordinates:
         """
@@ -520,9 +502,7 @@ class Trajectory:
 
         return [self.interpolate_at_distance(s) for s in s_values]
 
-    def find_lookahead_point(
-        self, pose_x: float, pose_y: float, lookahead_distance: float
-    ) -> ProjectedPoint:
+    def find_lookahead_point(self, pose_x: float, pose_y: float, lookahead_distance: float) -> ProjectedPoint:
         """
         Find a point on the trajectory that is a specified distance ahead of the nearest point to the given pose.
 
@@ -554,9 +534,7 @@ class Trajectory:
 
         # Get the look-ahead point
         point = self.interpolate_at_distance(target_s)
-        return ProjectedPoint(
-            x=point.x, y=point.y, yaw=point.yaw, direction=point.direction, s=target_s
-        )
+        return ProjectedPoint(x=point.x, y=point.y, yaw=point.yaw, direction=point.direction, s=target_s)
 
     def __len__(self) -> int:
         """Return the number of waypoints in the trajectory."""
@@ -589,8 +567,7 @@ class Trajectory:
         # For a smoother plot, sample the trajectory
         if len(self.waypoints) > 2:
             sampled_trajectory = Trajectory(
-                config=self.config,
-                waypoints=self.sample_by_distance(self.get_trajectory_length() / 20)
+                config=self.config, waypoints=self.sample_by_distance(self.get_trajectory_length() / 20)
             )
             x_coords = [wp.x for wp in sampled_trajectory.waypoints]
             y_coords = [wp.y for wp in sampled_trajectory.waypoints]

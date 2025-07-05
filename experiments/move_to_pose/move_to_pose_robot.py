@@ -59,9 +59,7 @@ class Robot:
         linear and angular velocities.
     """
 
-    def __init__(
-        self, name, color, max_linear_speed, max_angular_speed, path_finder_controller
-    ):
+    def __init__(self, name, color, max_linear_speed, max_angular_speed, path_finder_controller):
         self.name = name
         self.color = color
         self.MAX_LINEAR_SPEED = max_linear_speed
@@ -101,13 +99,11 @@ class Robot:
         self.x_traj.append(self.pose.x)
         self.y_traj.append(self.pose.y)
 
-        rho, linear_velocity, angular_velocity = (
-            self.path_finder_controller.calc_control_command(
-                self.pose_target.x - self.pose.x,
-                self.pose_target.y - self.pose.y,
-                self.pose.theta,
-                self.pose_target.theta,
-            )
+        rho, linear_velocity, angular_velocity = self.path_finder_controller.calc_control_command(
+            self.pose_target.x - self.pose.x,
+            self.pose_target.y - self.pose.y,
+            self.pose.theta,
+            self.pose_target.theta,
         )
 
         if rho < AT_TARGET_ACCEPTANCE_THRESHOLD:

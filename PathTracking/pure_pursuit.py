@@ -48,7 +48,7 @@ class PurePursuitController:
     def __init__(
         self,
         wheelbase: float,
-        config: 'PurePursuitConfig',
+        config: "PurePursuitConfig",
         trajectory: Optional[Trajectory] = None,
         velocity_controller: Optional[VelocityController] = None,
     ) -> None:
@@ -76,7 +76,7 @@ class PurePursuitController:
             self.velocity_controller = VelocityController()
         else:
             self.velocity_controller = velocity_controller
-            
+
         self.goal_reached = False
 
     def set_trajectory(self, trajectory: Trajectory) -> None:
@@ -101,9 +101,9 @@ class PurePursuitController:
     def compute_control(self, vehicle_state: VehicleState, dt: float = 0.1) -> Tuple[float, float]:
         """
         Compute control input using the internal trajectory.
-        
+
         This is a convenience method that uses the internally stored trajectory.
-        
+
         Args:
             vehicle_state (VehicleState): Current vehicle state
             dt (float): Time step for acceleration calculation [s]
@@ -114,7 +114,7 @@ class PurePursuitController:
         """
         if self.trajectory is None:
             return 0.0, 0.0
-        
+
         return self.compute_control_input(vehicle_state, dt)
 
     def calculate_lookahead_distance(self, velocity: float) -> float:
@@ -148,27 +148,27 @@ class PurePursuitController:
         # Calculate position errors
         dx = vehicle_state.position_x - goal_waypoint.x
         dy = vehicle_state.position_y - goal_waypoint.y
-        
+
         # Calculate longitudinal and lateral errors relative to goal orientation
         cos_goal_yaw = math.cos(goal_waypoint.yaw)
         sin_goal_yaw = math.sin(goal_waypoint.yaw)
-        
+
         # Transform position error to goal frame
         # Longitudinal error: along the goal direction (positive = ahead of goal)
         longitudinal_error = dx * cos_goal_yaw + dy * sin_goal_yaw
-        
+
         # Lateral error: perpendicular to goal direction (positive = left of goal)
         lateral_error = -dx * sin_goal_yaw + dy * cos_goal_yaw
-        
+
         # Calculate angular error
         angle_error = vehicle_state.yaw_angle - goal_waypoint.yaw
-        
+
         # Normalize angle error to [-pi, pi]
         while angle_error > math.pi:
             angle_error -= 2 * math.pi
         while angle_error < -math.pi:
             angle_error += 2 * math.pi
-            
+
         return longitudinal_error, lateral_error, angle_error
 
     def is_goal_reached(self, vehicle_state: VehicleState) -> bool:
@@ -183,37 +183,41 @@ class PurePursuitController:
         """
         if self.trajectory is None:
             raise ValueError("No trajectory set")
-        
+
         # Use velocity controller's goal checking
         goal_reached = self.velocity_controller.is_goal_reached(vehicle_state, self.trajectory)
-        
+
         # Update internal goal reached state and print message with detailed errors
         if goal_reached and not self.goal_reached:
             goal_waypoint = self.trajectory.waypoints[-1]
-            
+
             # Calculate position errors in goal frame
             longitudinal_error, lateral_error, angle_error = self.calculate_goal_errors(vehicle_state, goal_waypoint)
-            
+
             # Calculate total distance error
             distance_to_goal = math.sqrt(longitudinal_error**2 + lateral_error**2)
-            
+
             angle_error_deg = math.degrees(angle_error)
-            
+
             print(f"🎯 Goal reached! Final position errors:")
             print(f"   Total distance error: {distance_to_goal:.3f}m")
-            print(f"   Longitudinal error: {longitudinal_error:.3f}m ({'ahead' if longitudinal_error > 0 else 'behind'} goal)")
+            print(
+                f"   Longitudinal error: {longitudinal_error:.3f}m ({'ahead' if longitudinal_error > 0 else 'behind'} goal)"
+            )
             print(f"   Lateral error: {lateral_error:.3f}m ({'left' if lateral_error > 0 else 'right'} of goal)")
-            print(f"   Angular error: {angle_error_deg:.2f}° ({'counterclockwise' if angle_error > 0 else 'clockwise'} from goal)")
+            print(
+                f"   Angular error: {angle_error_deg:.2f}° ({'counterclockwise' if angle_error > 0 else 'clockwise'} from goal)"
+            )
             print(f"   Final velocity: {abs(vehicle_state.velocity):.2f}m/s")
-            
+
             self.goal_reached = True
-            
+
         return goal_reached
 
     def reset_goal_state(self) -> None:
         """
         Reset the goal reached state.
-        
+
         This method can be called when restarting trajectory tracking
         or when switching to a new trajectory.
         """
@@ -232,7 +236,7 @@ class PurePursuitController:
         """
         if self.trajectory is None:
             raise ValueError("No trajectory set")
-        
+
         # Get current position and velocity
         current_x = vehicle_state.position_x
         current_y = vehicle_state.position_y
@@ -259,9 +263,7 @@ class PurePursuitController:
         point = self.trajectory.interpolate_at_distance(target_s)
         return point.x, point.y, point.direction
 
-    def compute_steering_angle(
-        self, vehicle_state: VehicleState, target_x: float, target_y: float
-    ) -> float:
+    def compute_steering_angle(self, vehicle_state: VehicleState, target_x: float, target_y: float) -> float:
         """
         Compute steering angle using pure pursuit geometry.
 
@@ -300,9 +302,7 @@ class PurePursuitController:
             )
 
         # Limit steering angle
-        steering_angle = np.clip(
-            steering_angle, -self.max_steering_angle, self.max_steering_angle
-        )
+        steering_angle = np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle)
 
         return steering_angle
 
@@ -320,7 +320,7 @@ class PurePursuitController:
         """
         if self.trajectory is None:
             raise ValueError("No trajectory set")
-        
+
         # Check if goal is reached first
         if self.is_goal_reached(vehicle_state):
             return 0.0, 0.0  # Stop the vehicle when goal is reached
@@ -351,7 +351,7 @@ class PurePursuitController:
     ) -> float:
         """
         Determine the driving direction based on robot orientation and target point position.
-        
+
         This method considers the vehicle's current heading and the relative position of the target point
         to determine whether the vehicle should move forward or backward. It issues warnings when
         the determined direction conflicts with the path's intended direction.
@@ -359,7 +359,7 @@ class PurePursuitController:
         Args:
             vehicle_state (VehicleState): Current vehicle state
             target_x (float): Target point x-coordinate
-            target_y (float): Target point y-coordinate  
+            target_y (float): Target point y-coordinate
             path_direction (float): Intended direction from path (1.0 for forward, -1.0 for backward)
 
         Returns:
@@ -368,24 +368,24 @@ class PurePursuitController:
         # Calculate vector from vehicle to target point
         dx = target_x - vehicle_state.position_x
         dy = target_y - vehicle_state.position_y
-        
+
         # Handle case where target is at current position
         if abs(dx) < 1e-6 and abs(dy) < 1e-6:
             # Use path direction when target is at current position
             return path_direction
-        
+
         # Calculate angle from vehicle to target point in global frame
         target_angle = math.atan2(dy, dx)
-        
+
         # Calculate angle difference between vehicle heading and target direction
         angle_diff = target_angle - vehicle_state.yaw_angle
-        
+
         # Normalize angle difference to [-pi, pi]
         while angle_diff > math.pi:
             angle_diff -= 2 * math.pi
         while angle_diff < -math.pi:
             angle_diff += 2 * math.pi
-        
+
         # Determine driving direction based on angle difference
         # If target is within [-pi/2, pi/2] relative to vehicle heading: forward
         # If target is outside this range: backward
@@ -393,12 +393,12 @@ class PurePursuitController:
             robot_based_direction = 1.0  # Forward
         else:
             robot_based_direction = -1.0  # Backward
-        
+
         # Check for conflict between path direction and robot-based direction
         if abs(path_direction - robot_based_direction) > 0.1:  # Threshold for floating point comparison
             path_dir_str = "forward" if path_direction > 0 else "backward"
             robot_dir_str = "forward" if robot_based_direction > 0 else "backward"
-            
+
             print(f"⚠️  WARNING: Direction conflict detected!")
             print(f"   Path direction: {path_dir_str} ({path_direction:.1f})")
             print(f"   Robot-based direction: {robot_dir_str} ({robot_based_direction:.1f})")
@@ -408,13 +408,5 @@ class PurePursuitController:
             print(f"   Angle to target: {math.degrees(target_angle):.1f}°")
             print(f"   Angle difference: {math.degrees(angle_diff):.1f}°")
             print(f"   Using robot-based direction: {robot_dir_str}")
-        
+
         return robot_based_direction
-
-
-
-
-
-
-
-

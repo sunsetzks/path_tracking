@@ -233,12 +233,7 @@ def do_simulation(cx, cy, cyaw, ck, speed_profile, goal):
             plt.plot(cx[target_ind], cy[target_ind], "xg", label="target")
             plt.axis("equal")
             plt.grid(True)
-            plt.title(
-                "speed[km/h]:"
-                + str(round(state.v * 3.6, 2))
-                + ",target index:"
-                + str(target_ind)
-            )
+            plt.title("speed[km/h]:" + str(round(state.v * 3.6, 2)) + ",target index:" + str(target_ind))
             plt.pause(0.0001)
 
     return t, x, y, yaw, v

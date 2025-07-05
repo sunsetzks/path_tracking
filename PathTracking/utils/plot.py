@@ -129,9 +129,7 @@ def plot_arrow(
             plt.plot(x, y, origin_point_plot_style)
 
 
-def plot_curvature(
-    x_list, y_list, heading_list, curvature, k=0.01, c="-c", label="Curvature"
-):
+def plot_curvature(x_list, y_list, heading_list, curvature, k=0.01, c="-c", label="Curvature"):
     """
     Plot curvature on 2D path. This plot is a line from the original path,
     the lateral distance from the original path shows curvature magnitude.
@@ -156,14 +154,8 @@ def plot_curvature(
     label : string
         label of the plot
     """
-    cx = [
-        x + d * k * np.cos(yaw - np.pi / 2.0)
-        for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)
-    ]
-    cy = [
-        y + d * k * np.sin(yaw - np.pi / 2.0)
-        for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)
-    ]
+    cx = [x + d * k * np.cos(yaw - np.pi / 2.0) for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)]
+    cy = [y + d * k * np.sin(yaw - np.pi / 2.0) for x, y, yaw, d in zip(x_list, y_list, heading_list, curvature)]
 
     plt.plot(cx, cy, c, label=label)
     for ix, iy, icx, icy in zip(x_list, y_list, cx, cy):

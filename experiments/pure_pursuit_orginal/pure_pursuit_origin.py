@@ -43,9 +43,7 @@ class VehicleConfig:
 class VehicleState:
     """Vehicle state class"""
 
-    def __init__(
-        self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0, v: float = 0.0
-    ) -> None:
+    def __init__(self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0, v: float = 0.0) -> None:
         self.x: float = x  # x position (rear)
         self.y: float = y  # y position (rear)
         self.yaw: float = yaw  # heading angle
@@ -171,9 +169,7 @@ class TargetCourse:
             while True:
                 if (ind + 1) >= len(self.cx):
                     break
-                distance_next_index = state.calc_distance(
-                    self.cx[ind + 1], self.cy[ind + 1]
-                )
+                distance_next_index = state.calc_distance(self.cx[ind + 1], self.cy[ind + 1])
                 if distance_this_index < distance_next_index:
                     break
                 ind = ind + 1
@@ -200,9 +196,7 @@ class PurePursuitController:
     def __init__(self, config: VehicleConfig) -> None:
         self.config: VehicleConfig = config
 
-    def speed_control(
-        self, target_speed: float, current_speed: float, is_reverse: bool = False
-    ) -> float:
+    def speed_control(self, target_speed: float, current_speed: float, is_reverse: bool = False) -> float:
         """Proportional speed control"""
         # Negate target speed if in reverse mode
         actual_target = -abs(target_speed) if is_reverse else abs(target_speed)
@@ -212,9 +206,7 @@ class PurePursuitController:
         """Calculate look-ahead distance based on velocity"""
         return self.config.k * abs(state.v) + self.config.look_ahead_dist
 
-    def steering_control(
-        self, state: VehicleState, trajectory: TargetCourse, prev_index: int
-    ) -> Tuple[float, int]:
+    def steering_control(self, state: VehicleState, trajectory: TargetCourse, prev_index: int) -> Tuple[float, int]:
         """Pure pursuit steering control"""
         look_ahead = self.calc_look_ahead_distance(state)
         ind, _ = trajectory.search_target_index(state, self.config, look_ahead)
@@ -233,9 +225,7 @@ class PurePursuitController:
         alpha = math.atan2(ty - state.y, tx - state.x) - state.yaw
 
         # Calculate steering angle
-        delta = math.atan2(
-            2.0 * self.config.wheelbase * math.sin(alpha) / look_ahead, 1.0
-        )
+        delta = math.atan2(2.0 * self.config.wheelbase * math.sin(alpha) / look_ahead, 1.0)
 
         # Limit steering angle to max value
         delta = np.clip(delta, -self.config.max_steer, self.config.max_steer)
@@ -262,9 +252,7 @@ class Visualization:
         elif event.key == "escape":
             plt.close()
 
-    def plot_vehicle(
-        self, state: VehicleState, steer: float, config: VehicleConfig
-    ) -> None:
+    def plot_vehicle(self, state: VehicleState, steer: float, config: VehicleConfig) -> None:
         """Plot vehicle with wheels"""
         x, y, yaw = state.x, state.y, state.yaw
 
@@ -419,9 +407,7 @@ class Visualization:
                 bbox=dict(facecolor="red", alpha=0.5),
             )
 
-    def show_result_plots(
-        self, course: TargetCourse, states: VehicleStateHistory
-    ) -> None:
+    def show_result_plots(self, course: TargetCourse, states: VehicleStateHistory) -> None:
         """Show result plots after simulation"""
         plt.figure(figsize=(10, 8))
 
@@ -480,12 +466,8 @@ class Simulation:
             # Calculate control inputs
             # Check if we're in reverse mode based on target speed
             is_reverse = target_speed < 0
-            acceleration = self.controller.speed_control(
-                target_speed, state.v, is_reverse
-            )
-            steer, target_ind = self.controller.steering_control(
-                state, course, target_ind
-            )
+            acceleration = self.controller.speed_control(target_speed, state.v, is_reverse)
+            steer, target_ind = self.controller.steering_control(state, course, target_ind)
 
             # Update state
             state.update(acceleration, steer, self.config)

@@ -46,14 +46,10 @@ def run_comparison():
     continuous_lqr.show_animation = False
 
     print("Running Discrete LQR controller...")
-    t_d, x_d, y_d, yaw_d, v_d = discrete_lqr.closed_loop_prediction(
-        cx, cy, cyaw, ck, sp_discrete, goal
-    )
+    t_d, x_d, y_d, yaw_d, v_d = discrete_lqr.closed_loop_prediction(cx, cy, cyaw, ck, sp_discrete, goal)
 
     print("Running Continuous LQR controller...")
-    t_c, x_c, y_c, yaw_c, v_c = continuous_lqr.closed_loop_prediction(
-        cx, cy, cyaw, ck, sp_continuous, goal
-    )
+    t_c, x_c, y_c, yaw_c, v_c = continuous_lqr.closed_loop_prediction(cx, cy, cyaw, ck, sp_continuous, goal)
 
     # Calculate tracking errors
     error_d = calculate_tracking_error(x_d, y_d, cx, cy)
@@ -163,9 +159,7 @@ def plot_comparison(
 
     # Yaw angle comparison
     plt.subplot(2, 3, 4)
-    plt.plot(
-        s, [np.rad2deg(iyaw) for iyaw in cyaw], "-r", label="reference", linewidth=2
-    )
+    plt.plot(s, [np.rad2deg(iyaw) for iyaw in cyaw], "-r", label="reference", linewidth=2)
     if len(yaw_d) > len(s):
         plt.plot(
             t_d[: len(s)],
@@ -184,9 +178,7 @@ def plot_comparison(
             label="continuous LQR",
         )
     else:
-        plt.plot(
-            t_c, [np.rad2deg(iyaw) for iyaw in yaw_c], "-g", label="continuous LQR"
-        )
+        plt.plot(t_c, [np.rad2deg(iyaw) for iyaw in yaw_c], "-g", label="continuous LQR")
 
     plt.grid(True)
     plt.xlabel("time [s]")
@@ -265,10 +257,7 @@ def print_statistics(error_d, error_c, t_d, t_c):
     mean_improvement = (np.mean(error_d) - np.mean(error_c)) / np.mean(error_d) * 100
     max_improvement = (np.max(error_d) - np.max(error_c)) / np.max(error_d) * 100
     rms_improvement = (
-        (
-            np.sqrt(np.mean(np.array(error_d) ** 2))
-            - np.sqrt(np.mean(np.array(error_c) ** 2))
-        )
+        (np.sqrt(np.mean(np.array(error_d) ** 2)) - np.sqrt(np.mean(np.array(error_c) ** 2)))
         / np.sqrt(np.mean(np.array(error_d) ** 2))
         * 100
     )

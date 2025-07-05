@@ -46,9 +46,7 @@ class State:
 class CubicSplinePath:
     def __init__(self, x, y):
         x, y = map(np.asarray, (x, y))
-        s = np.append(
-            [0], (np.cumsum(np.diff(x) ** 2) + np.cumsum(np.diff(y) ** 2)) ** 0.5
-        )
+        s = np.append([0], (np.cumsum(np.diff(x) ** 2) + np.cumsum(np.diff(y) ** 2)) ** 0.5)
 
         self.X = interpolate.CubicSpline(s, x)
         self.Y = interpolate.CubicSpline(s, y)
@@ -121,11 +119,7 @@ def rear_wheel_feedback_control(state, e, k, yaw_ref):
     v = state.v
     th_e = pi_2_pi(state.yaw - yaw_ref)
 
-    omega = (
-        v * k * math.cos(th_e) / (1.0 - k * e)
-        - KTH * abs(v) * th_e
-        - KE * v * math.sin(th_e) * e / th_e
-    )
+    omega = v * k * math.cos(th_e) / (1.0 - k * e) - KTH * abs(v) * th_e - KE * v * math.sin(th_e) * e / th_e
 
     if th_e == 0.0 or omega == 0.0:
         return 0.0
@@ -188,9 +182,7 @@ def simulate(path_ref, goal):
             plt.plot(path_ref.X(s0), path_ref.Y(s0), "xg", label="target")
             plt.axis("equal")
             plt.grid(True)
-            plt.title(
-                f"speed[km/h]:{round(state.v * 3.6, 2):.2f}, target s-param:{s0:.2f}"
-            )
+            plt.title(f"speed[km/h]:{round(state.v * 3.6, 2):.2f}, target s-param:{s0:.2f}")
             plt.pause(0.0001)
 
     return t, x, y, yaw, v, goal_flag

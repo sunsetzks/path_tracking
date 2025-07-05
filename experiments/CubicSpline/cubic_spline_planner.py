@@ -67,9 +67,7 @@ class CubicSpline1D:
         # calc spline coefficient b and d
         for i in range(self.nx - 1):
             d = (self.c[i + 1] - self.c[i]) / (3.0 * h[i])
-            b = 1.0 / h[i] * (self.a[i + 1] - self.a[i]) - h[i] / 3.0 * (
-                2.0 * self.c[i] + self.c[i + 1]
-            )
+            b = 1.0 / h[i] * (self.a[i + 1] - self.a[i]) - h[i] / 3.0 * (2.0 * self.c[i] + self.c[i + 1])
             self.d.append(d)
             self.b.append(b)
 
@@ -96,9 +94,7 @@ class CubicSpline1D:
 
         i = self.__search_index(x)
         dx = x - self.x[i]
-        position = (
-            self.a[i] + self.b[i] * dx + self.c[i] * dx**2.0 + self.d[i] * dx**3.0
-        )
+        position = self.a[i] + self.b[i] * dx + self.c[i] * dx**2.0 + self.d[i] * dx**3.0
 
         return position
 
@@ -210,9 +206,7 @@ class CubicSpline1D:
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
-            B[i + 1] = (
-                3.0 * (a[i + 2] - a[i + 1]) / h[i + 1] - 3.0 * (a[i + 1] - a[i]) / h[i]
-            )
+            B[i + 1] = 3.0 * (a[i + 2] - a[i + 1]) / h[i + 1] - 3.0 * (a[i + 1] - a[i]) / h[i]
         return B
 
 
@@ -405,9 +399,7 @@ def main_1d():
     xi = np.linspace(0.0, 5.0)
 
     plt.plot(x, y, "xb", label="Data points")
-    plt.plot(
-        xi, [sp.calc_position(x) for x in xi], "r", label="Cubic spline interpolation"
-    )
+    plt.plot(xi, [sp.calc_position(x) for x in xi], "r", label="Cubic spline interpolation")
     plt.grid(True)
     plt.legend()
     plt.show()

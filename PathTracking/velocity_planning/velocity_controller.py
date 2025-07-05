@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class VelocityController:
     """
     Velocity controller for path tracking with physics-based velocity planning.
-    
+
     This controller manages target velocity based on:
     - Maximum velocity constraints (forward/backward)
     - Maximum acceleration/deceleration physics
@@ -32,7 +32,7 @@ class VelocityController:
 
     def __init__(
         self,
-        config: Optional['VelocityControllerConfig'] = None,
+        config: Optional["VelocityControllerConfig"] = None,
     ) -> None:
         """
         Initialize the velocity controller with physics-based acceleration/deceleration.
@@ -44,8 +44,9 @@ class VelocityController:
             # This allows creating a default controller when no config is passed.
             # In a real application, it's recommended to always pass a config.
             from ..config import VelocityControllerConfig
+
             config = VelocityControllerConfig()
-        
+
         self.config = config
 
         self.max_forward_velocity = self.config.max_forward_velocity
@@ -60,60 +61,58 @@ class VelocityController:
     def calculate_stopping_distance(self, current_velocity: float) -> float:
         """
         Calculate the minimum distance required to stop from current velocity.
-        
+
         Uses physics equation: d = v²/(2*a) where v is velocity, a is deceleration
-        
+
         Args:
             current_velocity (float): Current velocity magnitude [m/s]
-            
+
         Returns:
             float: Stopping distance [m]
         """
         velocity_magnitude = abs(current_velocity)
         if velocity_magnitude < self.velocity_tolerance:
             return 0.0
-        
+
         # Physics-based stopping distance: d = v²/(2*a)
-        stopping_distance = (velocity_magnitude ** 2) / (2 * self.max_deceleration)
-        
+        stopping_distance = (velocity_magnitude**2) / (2 * self.max_deceleration)
+
         # Apply safety margin
         return stopping_distance * self.conservative_braking_factor
 
     def calculate_max_velocity_for_distance(self, distance_to_goal: float, is_forward: bool) -> float:
         """
         Calculate maximum velocity that allows stopping within the given distance.
-        
+
         Uses physics equation: v = sqrt(2*a*d) where a is deceleration, d is distance
-         
+
         Args:
             distance_to_goal (float): Distance to goal [m]
             is_forward (bool): Whether motion is forward direction
-            
+
         Returns:
             float: Maximum velocity magnitude [m/s]
         """
         if distance_to_goal <= self.goal_tolerance:
             return 0.0
-        
+
         # Account for goal tolerance in available stopping distance
         available_distance = max(0.0, distance_to_goal - self.goal_tolerance)
-        
+
         # Remove safety margin to get actual usable distance
         usable_distance = available_distance / self.conservative_braking_factor
-        
+
         if usable_distance <= 0.0:
             return 0.0
-        
+
         # Physics-based maximum velocity: v = sqrt(2*a*d)
         max_velocity_for_distance = math.sqrt(2 * self.max_deceleration * usable_distance)
-        
+
         # Apply velocity constraints based on direction
         max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
         return max(min(max_velocity_for_distance, max_velocity), self.min_velocity)
 
-    def is_goal_reached(
-        self, vehicle_state: "VehicleState", trajectory: "Trajectory"
-    ) -> bool:
+    def is_goal_reached(self, vehicle_state: "VehicleState", trajectory: "Trajectory") -> bool:
         """
         Check if the vehicle has reached the goal (end of trajectory).
         The goal is considered reached if either:
@@ -129,23 +128,23 @@ class VelocityController:
         """
         if len(trajectory.waypoints) == 0:
             return True
-        
+
         # Get the last waypoint (goal position)
         goal_waypoint = trajectory.waypoints[-1]
-        
+
         # Calculate distance to goal
         dx = vehicle_state.position_x - goal_waypoint.x
         dy = vehicle_state.position_y - goal_waypoint.y
         distance_to_goal = math.sqrt(dx * dx + dy * dy)
-        
+
         # Check if within distance tolerance
         position_reached = distance_to_goal <= self.goal_tolerance
-        
+
         # Check if current longitudinal position s equals goal's s
         nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
         trajectory_length = trajectory.get_trajectory_length()
         s_reached = abs(nearest_point.s - trajectory_length) <= self.goal_tolerance
-        
+
         return position_reached or s_reached
 
     def calculate_distance_to_goal(self, vehicle_state: "VehicleState", trajectory: "Trajectory") -> float:
@@ -200,13 +199,13 @@ class VelocityController:
 
         # Step 3: Determine if we're moving forward or backward
         is_forward = target_direction > 0
-        
+
         # Step 4: Calculate maximum safe velocity that allows stopping at goal
         max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
 
         # Step 5: Get configured max velocity for current direction
         max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
-        
+
         # Step 6: Calculate desired velocity within safe limits
         desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
         desired_velocity = desired_velocity_magnitude * target_direction
@@ -231,22 +230,21 @@ class VelocityController:
             target_velocity = desired_velocity  # Within allowed change limits
 
         return target_velocity
-    def calculate_current_acceleration(
-        self, current_velocity: float, target_velocity: float, dt: float = 0.1
-    ) -> float:
+
+    def calculate_current_acceleration(self, current_velocity: float, target_velocity: float, dt: float = 0.1) -> float:
         """
         Calculate the current acceleration based on velocity change.
-        
+
         Args:
             current_velocity (float): Current velocity [m/s]
-            target_velocity (float): Target velocity [m/s] 
+            target_velocity (float): Target velocity [m/s]
             dt (float): Time step [s]
-            
+
         Returns:
             float: Current acceleration [m/s²]
         """
         if dt <= 0:
             return 0.0
-        
+
         acceleration = (target_velocity - current_velocity) / dt
-        return acceleration 
+        return acceleration

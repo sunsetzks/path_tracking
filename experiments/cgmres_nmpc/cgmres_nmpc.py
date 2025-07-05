@@ -65,13 +65,9 @@ class NMPCSimulatorSystem:
 
     def calc_predict_and_adjoint_state(self, x, y, yaw, v, u_1s, u_2s, N, dt):
         # by using state equation
-        x_s, y_s, yaw_s, v_s = self._calc_predict_states(
-            x, y, yaw, v, u_1s, u_2s, N, dt
-        )
+        x_s, y_s, yaw_s, v_s = self._calc_predict_states(x, y, yaw, v, u_1s, u_2s, N, dt)
         # by using adjoint equation
-        lam_1s, lam_2s, lam_3s, lam_4s = self._calc_adjoint_states(
-            x_s, y_s, yaw_s, v_s, u_2s, N, dt
-        )
+        lam_1s, lam_2s, lam_3s, lam_4s = self._calc_adjoint_states(x_s, y_s, yaw_s, v_s, u_2s, N, dt)
 
         return x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s
 
@@ -100,17 +96,15 @@ class NMPCSimulatorSystem:
 
         # backward adjoint state calc
         for i in range(N - 1, 0, -1):
-            temp_lam_1, temp_lam_2, temp_lam_3, temp_lam_4 = (
-                self._adjoint_state_with_oylar(
-                    yaw_s[i],
-                    v_s[i],
-                    lam_1s[0],
-                    lam_2s[0],
-                    lam_3s[0],
-                    lam_4s[0],
-                    u_2s[i],
-                    dt,
-                )
+            temp_lam_1, temp_lam_2, temp_lam_3, temp_lam_4 = self._adjoint_state_with_oylar(
+                yaw_s[i],
+                v_s[i],
+                lam_1s[0],
+                lam_2s[0],
+                lam_3s[0],
+                lam_4s[0],
+                u_2s[i],
+                dt,
             )
             lam_1s.insert(0, temp_lam_1)
             lam_2s.insert(0, temp_lam_2)
@@ -230,26 +224,22 @@ class NMPCControllerCGMRES:
         dt = self.tf * (1.0 - np.exp(-self.alpha * time)) / float(self.N)
 
         # x_dot
-        x_1_dot, x_2_dot, x_3_dot, x_4_dot = differential_model(
-            v, yaw, self.u_1s[0], self.u_2s[0]
-        )
+        x_1_dot, x_2_dot, x_3_dot, x_4_dot = differential_model(v, yaw, self.u_1s[0], self.u_2s[0])
 
         dx_1 = x_1_dot * self.ht
         dx_2 = x_2_dot * self.ht
         dx_3 = x_3_dot * self.ht
         dx_4 = x_4_dot * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
-            self.simulator.calc_predict_and_adjoint_state(
-                x + dx_1,
-                y + dx_2,
-                yaw + dx_3,
-                v + dx_4,
-                self.u_1s,
-                self.u_2s,
-                self.N,
-                dt,
-            )
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
+            x + dx_1,
+            y + dx_2,
+            yaw + dx_3,
+            v + dx_4,
+            self.u_1s,
+            self.u_2s,
+            self.N,
+            dt,
         )
 
         # Fxt:F(U,x+hx˙,t+h)
@@ -267,10 +257,8 @@ class NMPCControllerCGMRES:
         )
 
         # F:F(U,x,t)
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
-            self.simulator.calc_predict_and_adjoint_state(
-                x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
-            )
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
+            x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
         )
 
         F = self._calc_f(
@@ -295,17 +283,15 @@ class NMPCControllerCGMRES:
         draw_1 = self.raw_1s * self.ht
         draw_2 = self.raw_2s * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
-            self.simulator.calc_predict_and_adjoint_state(
-                x + dx_1,
-                y + dx_2,
-                yaw + dx_3,
-                v + dx_4,
-                self.u_1s + du_1,
-                self.u_2s + du_2,
-                self.N,
-                dt,
-            )
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
+            x + dx_1,
+            y + dx_2,
+            yaw + dx_3,
+            v + dx_4,
+            self.u_1s + du_1,
+            self.u_2s + du_2,
+            self.N,
+            dt,
         )
 
         # Fuxt:F(U+hdU(0),x+hx˙,t+h)
@@ -350,17 +336,15 @@ class NMPCControllerCGMRES:
             draw_1 = vs[4 :: self.input_num, i] * self.ht
             draw_2 = vs[5 :: self.input_num, i] * self.ht
 
-            x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
-                self.simulator.calc_predict_and_adjoint_state(
-                    x + dx_1,
-                    y + dx_2,
-                    yaw + dx_3,
-                    v + dx_4,
-                    self.u_1s + du_1,
-                    self.u_2s + du_2,
-                    self.N,
-                    dt,
-                )
+            x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
+                x + dx_1,
+                y + dx_2,
+                yaw + dx_3,
+                v + dx_4,
+                self.u_1s + du_1,
+                self.u_2s + du_2,
+                self.N,
+                dt,
             )
 
             Fuxt = self._calc_f(
@@ -419,10 +403,8 @@ class NMPCControllerCGMRES:
         self.raw_1s += draw_1_new * self.ht
         self.raw_2s += draw_2_new * self.ht
 
-        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = (
-            self.simulator.calc_predict_and_adjoint_state(
-                x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
-            )
+        x_s, y_s, yaw_s, v_s, lam_1s, lam_2s, lam_3s, lam_4s = self.simulator.calc_predict_and_adjoint_state(
+            x, y, yaw, v, self.u_1s, self.u_2s, self.N, dt
         )
 
         F = self._calc_f(
@@ -452,19 +434,13 @@ class NMPCControllerCGMRES:
         return self.u_1s, self.u_2s
 
     @staticmethod
-    def _calc_f(
-        v_s, lam_3s, lam_4s, u_1s, u_2s, dummy_u_1s, dummy_u_2s, raw_1s, raw_2s, N
-    ):
+    def _calc_f(v_s, lam_3s, lam_4s, u_1s, u_2s, dummy_u_1s, dummy_u_2s, raw_1s, raw_2s, N):
 
         F = []
         for i in range(N):
             # ∂H/∂u(xi, ui, λi)
             F.append(u_1s[i] + lam_4s[i] + 2.0 * raw_1s[i] * u_1s[i])
-            F.append(
-                u_2s[i]
-                + lam_3s[i] * v_s[i] / WB * cos(u_2s[i]) ** 2
-                + 2.0 * raw_2s[i] * u_2s[i]
-            )
+            F.append(u_2s[i] + lam_3s[i] * v_s[i] / WB * cos(u_2s[i]) ** 2 + 2.0 * raw_2s[i] * u_2s[i])
             F.append(-PHI_V + 2.0 * raw_1s[i] * dummy_u_1s[i])
             F.append(-PHI_OMEGA + 2.0 * raw_2s[i] * dummy_u_2s[i])
 
@@ -720,9 +696,7 @@ def main():
     for i in range(1, iteration_num):
         time = float(i) * dt
         # make input
-        u_1s, u_2s = controller.calc_input(
-            plant_system.x, plant_system.y, plant_system.yaw, plant_system.v, time
-        )
+        u_1s, u_2s = controller.calc_input(plant_system.x, plant_system.y, plant_system.yaw, plant_system.v, time)
         # update state
         plant_system.update_state(u_1s[0], u_2s[0])
 

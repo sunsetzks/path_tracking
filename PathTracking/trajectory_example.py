@@ -121,8 +121,7 @@ def demonstrate_interpolation(trajectory: Trajectory):
         try:
             point = trajectory.interpolate_at_distance(s)
             print(
-                f"s={s:6.2f}: pos=({point.x:6.2f}, {point.y:6.2f}), "
-                f"yaw={point.yaw:6.2f}, dir={point.direction:2d}"
+                f"s={s:6.2f}: pos=({point.x:6.2f}, {point.y:6.2f}), " f"yaw={point.yaw:6.2f}, dir={point.direction:2d}"
             )
         except ValueError as e:
             print(f"s={s:6.2f}: Error - {e}")
@@ -150,9 +149,7 @@ def demonstrate_projection(trajectory: Trajectory):
             frenet = trajectory.get_frenet_coordinates(pose_x, pose_y)
 
             # Calculate actual distance to nearest point
-            actual_distance = math.sqrt(
-                (pose_x - nearest.x) ** 2 + (pose_y - nearest.y) ** 2
-            )
+            actual_distance = math.sqrt((pose_x - nearest.x) ** 2 + (pose_y - nearest.y) ** 2)
 
             print(
                 f"Query: ({pose_x:5.1f}, {pose_y:5.1f}) -> "
@@ -195,9 +192,7 @@ def plot_trajectory_with_projections(trajectory: Trajectory, test_points: list):
                 nearest = trajectory.find_nearest_point(px, py)
 
                 # Plot query point
-                plt.plot(
-                    px, py, "ro", markersize=8, label="Query Points" if i == 0 else ""
-                )
+                plt.plot(px, py, "ro", markersize=8, label="Query Points" if i == 0 else "")
 
                 # Plot projection line
                 plt.plot(

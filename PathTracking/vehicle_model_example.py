@@ -20,29 +20,29 @@ from PathTracking.config import load_config, VehicleConfig, SimulationConfig
 def run_forward_driving_test():
     """
     Test forward driving scenarios with different control methods and delays
-    
+
     Returns:
         dict: Dictionary containing trajectory data for plotting
     """
     print("=== Forward Driving Test ===")
-    
+
     # Load configuration and create variants for different tests
     config = load_config()
-    
+
     # Configuration for vehicle without delay
     config_no_delay = VehicleConfig()
     config_no_delay.steering_delay = 0.0
     config_no_delay.acceleration_delay = 0.0
-    
+
     # Configuration for vehicle with delay
     config_with_delay = VehicleConfig()
     config_with_delay.steering_delay = 0.3
     config_with_delay.acceleration_delay = 0.2
-    
+
     # Simulation configuration
     sim_config = SimulationConfig()
     sim_config.time_step = 0.1
-    
+
     # Create vehicle models for comparison
     vehicle_no_delay = VehicleModel(config=config_no_delay)
     vehicle_with_delay = VehicleModel(config=config_with_delay)
@@ -77,12 +77,8 @@ def run_forward_driving_test():
         control_sequence.append([steering_rate, acceleration])
 
     # Simulate vehicle motion for rate-based control
-    trajectory_no_delay = simulate_vehicle_motion(
-        initial_state, control_sequence, config_no_delay, sim_config
-    )
-    trajectory_with_delay = simulate_vehicle_motion(
-        initial_state, control_sequence, config_with_delay, sim_config
-    )
+    trajectory_no_delay = simulate_vehicle_motion(initial_state, control_sequence, config_no_delay, sim_config)
+    trajectory_with_delay = simulate_vehicle_motion(initial_state, control_sequence, config_with_delay, sim_config)
 
     # Convert VehicleState objects to arrays for backward compatibility with plotting
     trajectory_no_delay = np.array([state.to_array() for state in trajectory_no_delay])
@@ -109,55 +105,51 @@ def run_forward_driving_test():
             target_steering = np.deg2rad(-20)
             target_velocity = 8.0
 
-        state = vehicle_direct_control.update_with_direct_control(
-            [target_steering, target_velocity], time_step
-        )
+        state = vehicle_direct_control.update_with_direct_control([target_steering, target_velocity], time_step)
         trajectory_direct_control.append(state.to_array())
 
-        state = vehicle_direct_no_delay.update_with_direct_control(
-            [target_steering, target_velocity], time_step
-        )
+        state = vehicle_direct_no_delay.update_with_direct_control([target_steering, target_velocity], time_step)
         trajectory_direct_no_delay.append(state.to_array())
 
     trajectory_direct_control = np.array(trajectory_direct_control)
     trajectory_direct_no_delay = np.array(trajectory_direct_no_delay)
-    
+
     return {
-        'time_step': time_step,
-        'time_steps': time_steps,
-        'trajectory_no_delay': trajectory_no_delay,
-        'trajectory_with_delay': trajectory_with_delay,
-        'trajectory_direct_control': trajectory_direct_control,
-        'trajectory_direct_no_delay': trajectory_direct_no_delay
+        "time_step": time_step,
+        "time_steps": time_steps,
+        "trajectory_no_delay": trajectory_no_delay,
+        "trajectory_with_delay": trajectory_with_delay,
+        "trajectory_direct_control": trajectory_direct_control,
+        "trajectory_direct_no_delay": trajectory_direct_no_delay,
     }
 
 
 def run_reverse_driving_test():
     """
     Test reverse driving scenarios including parking maneuvers
-    
+
     Returns:
         dict: Dictionary containing reverse trajectory data for plotting
     """
     print("=== Reverse Driving Test ===")
-    
+
     # Create vehicle configurations for reverse driving comparison
     config_reverse_no_delay = VehicleConfig()
     config_reverse_no_delay.min_velocity = -15.0
     config_reverse_no_delay.max_velocity = 50.0
     config_reverse_no_delay.steering_delay = 0.0
     config_reverse_no_delay.acceleration_delay = 0.0
-    
+
     config_reverse_with_delay = VehicleConfig()
     config_reverse_with_delay.min_velocity = -15.0
     config_reverse_with_delay.max_velocity = 50.0
     config_reverse_with_delay.steering_delay = 0.2
     config_reverse_with_delay.acceleration_delay = 0.15
-    
+
     # Simulation configuration
     sim_config = SimulationConfig()
     sim_config.time_step = 0.1
-    
+
     # Create vehicle models for reverse driving comparison
     vehicle_reverse_no_delay = VehicleModel(config=config_reverse_no_delay)
     vehicle_reverse_with_delay = VehicleModel(config=config_reverse_with_delay)
@@ -234,53 +226,51 @@ def run_reverse_driving_test():
             target_steering = np.deg2rad(0)
             target_velocity = 0.0  # stop
 
-        state = vehicle_reverse_direct.update_with_direct_control(
-            [target_steering, target_velocity], time_step
-        )
+        state = vehicle_reverse_direct.update_with_direct_control([target_steering, target_velocity], time_step)
         trajectory_reverse_direct.append(state.to_array())
 
     trajectory_reverse_direct = np.array(trajectory_reverse_direct)
-    
+
     return {
-        'time_step': time_step,
-        'time_steps': time_steps,
-        'trajectory_reverse_no_delay': trajectory_reverse_no_delay,
-        'trajectory_reverse_with_delay': trajectory_reverse_with_delay,
-        'trajectory_reverse_direct': trajectory_reverse_direct
+        "time_step": time_step,
+        "time_steps": time_steps,
+        "trajectory_reverse_no_delay": trajectory_reverse_no_delay,
+        "trajectory_reverse_with_delay": trajectory_reverse_with_delay,
+        "trajectory_reverse_direct": trajectory_reverse_direct,
     }
 
 
 def run_combined_forward_reverse_test():
     """
     Test combined forward and reverse driving in a single maneuver
-    
+
     Returns:
         dict: Dictionary containing combined trajectory data
     """
     print("=== Combined Forward/Reverse Test ===")
-    
+
     # Create vehicle configuration for combined maneuver
     config_combined = VehicleConfig()
     config_combined.min_velocity = -12.0
     config_combined.max_velocity = 30.0
     config_combined.steering_delay = 0.1
     config_combined.acceleration_delay = 0.1
-    
+
     vehicle = VehicleModel(config=config_combined)
-    
+
     # Initial state
     initial_state = [0.0, 0.0, 0.0, 0.0, 0.0]
     vehicle.set_state(initial_state)
-    
+
     time_step = 0.1
     simulation_time = 20.0
     time_steps = int(simulation_time / time_step)
-    
+
     trajectory_combined = [vehicle.get_state_array()]
-    
+
     for step_index in range(time_steps):
         progress = step_index / time_steps
-        
+
         if progress < 0.25:
             # Phase 1: Forward driving with turn
             target_steering = np.deg2rad(15) * math.sin(progress * 8 * math.pi)
@@ -301,29 +291,23 @@ def run_combined_forward_reverse_test():
             # Phase 5: Forward driving to finish
             target_steering = np.deg2rad(10)
             target_velocity = 12.0
-            
-        state = vehicle.update_with_direct_control(
-            [target_steering, target_velocity], time_step
-        )
+
+        state = vehicle.update_with_direct_control([target_steering, target_velocity], time_step)
         trajectory_combined.append(state.to_array())
-    
+
     trajectory_combined = np.array(trajectory_combined)
-    
-    return {
-        'time_step': time_step,
-        'time_steps': time_steps,
-        'trajectory_combined': trajectory_combined
-    }
+
+    return {"time_step": time_step, "time_steps": time_steps, "trajectory_combined": trajectory_combined}
 
 
 def plot_forward_driving_results(forward_data):
     """Plot results from forward driving test"""
-    trajectory_no_delay = forward_data['trajectory_no_delay']
-    trajectory_with_delay = forward_data['trajectory_with_delay']
-    trajectory_direct_control = forward_data['trajectory_direct_control']
-    trajectory_direct_no_delay = forward_data['trajectory_direct_no_delay']
-    time_step = forward_data['time_step']
-    
+    trajectory_no_delay = forward_data["trajectory_no_delay"]
+    trajectory_with_delay = forward_data["trajectory_with_delay"]
+    trajectory_direct_control = forward_data["trajectory_direct_control"]
+    trajectory_direct_no_delay = forward_data["trajectory_direct_no_delay"]
+    time_step = forward_data["time_step"]
+
     plt.figure(figsize=(15, 10))
 
     # Plot trajectory comparison
@@ -549,9 +533,7 @@ def plot_forward_driving_results(forward_data):
         transform=plt.gca().transAxes,
         fontsize=9,
     )
-    plt.text(
-        0.15, 0.02, "• Backward compatible", transform=plt.gca().transAxes, fontsize=9
-    )
+    plt.text(0.15, 0.02, "• Backward compatible", transform=plt.gca().transAxes, fontsize=9)
     plt.xlim(0, 1)
     plt.ylim(0, 1)
     plt.axis("off")
@@ -576,11 +558,11 @@ def plot_forward_driving_results(forward_data):
 
 def plot_reverse_driving_results(reverse_data):
     """Plot results from reverse driving test"""
-    trajectory_reverse_no_delay = reverse_data['trajectory_reverse_no_delay']
-    trajectory_reverse_with_delay = reverse_data['trajectory_reverse_with_delay']
-    trajectory_reverse_direct = reverse_data['trajectory_reverse_direct']
-    time_step = reverse_data['time_step']
-    
+    trajectory_reverse_no_delay = reverse_data["trajectory_reverse_no_delay"]
+    trajectory_reverse_with_delay = reverse_data["trajectory_reverse_with_delay"]
+    trajectory_reverse_direct = reverse_data["trajectory_reverse_direct"]
+    time_step = reverse_data["time_step"]
+
     plt.figure(figsize=(15, 10))
 
     # Plot reverse trajectory comparison
@@ -591,9 +573,9 @@ def plot_reverse_driving_results(reverse_data):
         "b-",
         linewidth=2,
         label="Rate Control (No Delay)",
-        marker='o',
+        marker="o",
         markersize=3,
-        markevery=10
+        markevery=10,
     )
     plt.plot(
         trajectory_reverse_with_delay[:, 0],
@@ -601,9 +583,9 @@ def plot_reverse_driving_results(reverse_data):
         "r--",
         linewidth=2,
         label="Rate Control (With Delay)",
-        marker='s',
+        marker="s",
         markersize=3,
-        markevery=10
+        markevery=10,
     )
     plt.plot(
         trajectory_reverse_direct[:, 0],
@@ -611,16 +593,21 @@ def plot_reverse_driving_results(reverse_data):
         "g-.",
         linewidth=2,
         label="Direct Control (With Delay)",
-        marker='^',
+        marker="^",
         markersize=3,
-        markevery=10
+        markevery=10,
     )
-    
+
     # Mark start and end points
-    plt.plot(0, 0, 'ko', markersize=8, label='Start')
-    plt.plot(trajectory_reverse_no_delay[-1, 0], trajectory_reverse_no_delay[-1, 1], 
-             'ks', markersize=8, label='End (No Delay)')
-    
+    plt.plot(0, 0, "ko", markersize=8, label="Start")
+    plt.plot(
+        trajectory_reverse_no_delay[-1, 0],
+        trajectory_reverse_no_delay[-1, 1],
+        "ks",
+        markersize=8,
+        label="End (No Delay)",
+    )
+
     plt.xlabel("X [m]")
     plt.ylabel("Y [m]")
     plt.title("Reverse Driving: Parking Maneuver Comparison")
@@ -652,7 +639,7 @@ def plot_reverse_driving_results(reverse_data):
         linewidth=2,
         label="Direct Control (With Delay)",
     )
-    plt.axhline(y=0, color='k', linestyle=':', alpha=0.5, label='Zero Velocity')
+    plt.axhline(y=0, color="k", linestyle=":", alpha=0.5, label="Zero Velocity")
     plt.xlabel("Time [s]")
     plt.ylabel("Velocity [m/s]")
     plt.title("Reverse Driving: Velocity Profile")
@@ -794,9 +781,7 @@ def plot_reverse_driving_results(reverse_data):
         transform=plt.gca().transAxes,
         fontsize=9,
     )
-    plt.text(
-        0.15, 0.02, "Phase 5: Stop", transform=plt.gca().transAxes, fontsize=11, weight="bold"
-    )
+    plt.text(0.15, 0.02, "Phase 5: Stop", transform=plt.gca().transAxes, fontsize=11, weight="bold")
     plt.xlim(0, 1)
     plt.ylim(0, 1)
     plt.axis("off")
@@ -821,45 +806,42 @@ def plot_reverse_driving_results(reverse_data):
 
 def plot_combined_results(combined_data):
     """Plot results from combined forward/reverse test"""
-    trajectory_combined = combined_data['trajectory_combined']
-    time_step = combined_data['time_step']
-    
+    trajectory_combined = combined_data["trajectory_combined"]
+    time_step = combined_data["time_step"]
+
     plt.figure(figsize=(15, 8))
 
     # Plot combined trajectory
     plt.subplot(2, 3, 1)
-    
+
     # Color code the trajectory by velocity (forward=blue, reverse=red, stop=green)
     for i in range(len(trajectory_combined) - 1):
         velocity = trajectory_combined[i, 3]
         if velocity > 0.5:
-            color = 'blue'
+            color = "blue"
             alpha = 0.8
         elif velocity < -0.5:
-            color = 'red'  
+            color = "red"
             alpha = 0.8
         else:
-            color = 'green'
+            color = "green"
             alpha = 0.6
-            
+
         plt.plot(
-            trajectory_combined[i:i+2, 0],
-            trajectory_combined[i:i+2, 1],
-            color=color,
-            alpha=alpha,
-            linewidth=2
+            trajectory_combined[i : i + 2, 0], trajectory_combined[i : i + 2, 1], color=color, alpha=alpha, linewidth=2
         )
-    
+
     # Mark key points
-    plt.plot(trajectory_combined[0, 0], trajectory_combined[0, 1], 'ko', markersize=8, label='Start')
-    plt.plot(trajectory_combined[-1, 0], trajectory_combined[-1, 1], 'ks', markersize=8, label='End')
-    
+    plt.plot(trajectory_combined[0, 0], trajectory_combined[0, 1], "ko", markersize=8, label="Start")
+    plt.plot(trajectory_combined[-1, 0], trajectory_combined[-1, 1], "ks", markersize=8, label="End")
+
     # Add custom legend
     import matplotlib.lines as mlines
-    forward_line = mlines.Line2D([], [], color='blue', linewidth=2, label='Forward Motion')
-    reverse_line = mlines.Line2D([], [], color='red', linewidth=2, label='Reverse Motion')
-    stop_line = mlines.Line2D([], [], color='green', linewidth=2, label='Near Stop')
-    
+
+    forward_line = mlines.Line2D([], [], color="blue", linewidth=2, label="Forward Motion")
+    reverse_line = mlines.Line2D([], [], color="red", linewidth=2, label="Reverse Motion")
+    stop_line = mlines.Line2D([], [], color="green", linewidth=2, label="Near Stop")
+
     plt.xlabel("X [m]")
     plt.ylabel("Y [m]")
     plt.title("Combined Forward/Reverse Maneuver")
@@ -871,7 +853,7 @@ def plot_combined_results(combined_data):
     plt.subplot(2, 3, 2)
     time_array = np.arange(len(trajectory_combined)) * time_step
     plt.plot(time_array, trajectory_combined[:, 3], "b-", linewidth=2)
-    plt.axhline(y=0, color='k', linestyle=':', alpha=0.5, label='Zero Velocity')
+    plt.axhline(y=0, color="k", linestyle=":", alpha=0.5, label="Zero Velocity")
     plt.xlabel("Time [s]")
     plt.ylabel("Velocity [m/s]")
     plt.title("Combined: Velocity Profile")
@@ -897,13 +879,13 @@ def plot_combined_results(combined_data):
     # Plot speed vs steering correlation
     plt.subplot(2, 3, 5)
     plt.scatter(
-        np.abs(trajectory_combined[:, 3]), 
+        np.abs(trajectory_combined[:, 3]),
         np.abs(np.rad2deg(trajectory_combined[:, 4])),
-        c=time_array, 
-        cmap='viridis',
-        alpha=0.6
+        c=time_array,
+        cmap="viridis",
+        alpha=0.6,
     )
-    plt.colorbar(label='Time [s]')
+    plt.colorbar(label="Time [s]")
     plt.xlabel("Speed [m/s]")
     plt.ylabel("Abs Steering Angle [deg]")
     plt.title("Speed vs Steering Correlation")
@@ -926,7 +908,7 @@ def plot_combined_results(combined_data):
         transform=plt.gca().transAxes,
         fontsize=10,
         weight="bold",
-        color='blue'
+        color="blue",
     )
     plt.text(
         0.15,
@@ -942,7 +924,7 @@ def plot_combined_results(combined_data):
         transform=plt.gca().transAxes,
         fontsize=10,
         weight="bold",
-        color='orange'
+        color="orange",
     )
     plt.text(
         0.15,
@@ -958,7 +940,7 @@ def plot_combined_results(combined_data):
         transform=plt.gca().transAxes,
         fontsize=10,
         weight="bold",
-        color='red'
+        color="red",
     )
     plt.text(
         0.15,
@@ -974,7 +956,7 @@ def plot_combined_results(combined_data):
         transform=plt.gca().transAxes,
         fontsize=10,
         weight="bold",
-        color='green'
+        color="green",
     )
     plt.text(
         0.15,
@@ -990,7 +972,7 @@ def plot_combined_results(combined_data):
         transform=plt.gca().transAxes,
         fontsize=10,
         weight="bold",
-        color='blue'
+        color="blue",
     )
     plt.xlim(0, 1)
     plt.ylim(0, 1)
@@ -1004,45 +986,49 @@ def plot_combined_results(combined_data):
 
 def print_summary_results(forward_data, reverse_data, combined_data):
     """Print summary of all test results"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("=== VEHICLE MODEL TEST SUMMARY ===")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Forward driving summary
-    trajectory_no_delay = forward_data['trajectory_no_delay']
-    trajectory_with_delay = forward_data['trajectory_with_delay']
+    trajectory_no_delay = forward_data["trajectory_no_delay"]
+    trajectory_with_delay = forward_data["trajectory_with_delay"]
     position_error = np.sqrt(
         (trajectory_no_delay[-1, 0] - trajectory_with_delay[-1, 0]) ** 2
         + (trajectory_no_delay[-1, 1] - trajectory_with_delay[-1, 1]) ** 2
     )
-    
+
     print("\n--- Forward Driving Test Results ---")
-    print(f"Rate Control (No delay) - Final Position: ({trajectory_no_delay[-1, 0]:.2f}, {trajectory_no_delay[-1, 1]:.2f}) m")
-    print(f"Rate Control (With delay) - Final Position: ({trajectory_with_delay[-1, 0]:.2f}, {trajectory_with_delay[-1, 1]:.2f}) m")
+    print(
+        f"Rate Control (No delay) - Final Position: ({trajectory_no_delay[-1, 0]:.2f}, {trajectory_no_delay[-1, 1]:.2f}) m"
+    )
+    print(
+        f"Rate Control (With delay) - Final Position: ({trajectory_with_delay[-1, 0]:.2f}, {trajectory_with_delay[-1, 1]:.2f}) m"
+    )
     print(f"Position error due to delays: {position_error:.2f} m")
     print(f"Final yaw angle difference: {np.rad2deg(trajectory_no_delay[-1, 2] - trajectory_with_delay[-1, 2]):.2f}°")
-    
+
     # Reverse driving summary
-    trajectory_reverse = reverse_data['trajectory_reverse_no_delay']
+    trajectory_reverse = reverse_data["trajectory_reverse_no_delay"]
     print(f"\n--- Reverse Driving Test Results ---")
     print(f"Total reverse distance: {np.sqrt(trajectory_reverse[-1, 0]**2 + trajectory_reverse[-1, 1]**2):.2f} m")
     print(f"Final reverse position: ({trajectory_reverse[-1, 0]:.2f}, {trajectory_reverse[-1, 1]:.2f}) m")
     print(f"Final reverse orientation: {np.rad2deg(trajectory_reverse[-1, 2]):.1f}°")
     print(f"Minimum velocity reached: {np.min(trajectory_reverse[:, 3]):.1f} m/s")
-    
+
     # Combined maneuver summary
-    trajectory_combined = combined_data['trajectory_combined']
+    trajectory_combined = combined_data["trajectory_combined"]
     forward_distance = 0
     reverse_distance = 0
     for i in range(len(trajectory_combined) - 1):
-        dx = trajectory_combined[i+1, 0] - trajectory_combined[i, 0]
-        dy = trajectory_combined[i+1, 1] - trajectory_combined[i, 1]
+        dx = trajectory_combined[i + 1, 0] - trajectory_combined[i, 0]
+        dy = trajectory_combined[i + 1, 1] - trajectory_combined[i, 1]
         distance = np.sqrt(dx**2 + dy**2)
         if trajectory_combined[i, 3] >= 0:
             forward_distance += distance
         else:
             reverse_distance += distance
-    
+
     print(f"\n--- Combined Maneuver Test Results ---")
     print(f"Total forward distance: {forward_distance:.2f} m")
     print(f"Total reverse distance: {reverse_distance:.2f} m")
@@ -1050,7 +1036,7 @@ def print_summary_results(forward_data, reverse_data, combined_data):
     print(f"Final combined position: ({trajectory_combined[-1, 0]:.2f}, {trajectory_combined[-1, 1]:.2f}) m")
     print(f"Maximum forward velocity: {np.max(trajectory_combined[:, 3]):.1f} m/s")
     print(f"Maximum reverse velocity: {np.min(trajectory_combined[:, 3]):.1f} m/s")
-    
+
     print(f"\n--- Vehicle Model Architecture Benefits ---")
     print("✓ VehicleState provides structured, type-safe state management")
     print("✓ DelayBuffer enables realistic actuator delay simulation")
@@ -1067,23 +1053,23 @@ def main():
     """
     print("Starting Vehicle Model Comprehensive Testing...")
     print("This will demonstrate forward driving, reverse driving, and combined maneuvers.")
-    
+
     # Run all tests
     forward_data = run_forward_driving_test()
     reverse_data = run_reverse_driving_test()
     combined_data = run_combined_forward_reverse_test()
-    
+
     # Plot all results
     plot_forward_driving_results(forward_data)
     plot_reverse_driving_results(reverse_data)
     plot_combined_results(combined_data)
-    
+
     # Print comprehensive summary
     print_summary_results(forward_data, reverse_data, combined_data)
-    
-    print("\n" + "="*60)
+
+    print("\n" + "=" * 60)
     print("Testing completed! Check the plots for detailed analysis.")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

@@ -184,9 +184,7 @@ def plot_vehicle(x, y, theta, x_traj, y_traj):  # pragma: no cover
     plt.plot(x_traj, y_traj, "b--")
 
     # for stopping simulation with the esc key.
-    plt.gcf().canvas.mpl_connect(
-        "key_release_event", lambda event: [exit(0) if event.key == "escape" else None]
-    )
+    plt.gcf().canvas.mpl_connect("key_release_event", lambda event: [exit(0) if event.key == "escape" else None])
 
     plt.xlim(0, 20)
     plt.ylim(0, 20)
@@ -215,9 +213,7 @@ def main():
         print(
             f"Initial x: {round(x_start, 2)} m\nInitial y: {round(y_start, 2)} m\nInitial theta: {round(theta_start, 2)} rad\n"
         )
-        print(
-            f"Goal x: {round(x_goal, 2)} m\nGoal y: {round(y_goal, 2)} m\nGoal theta: {round(theta_goal, 2)} rad\n"
-        )
+        print(f"Goal x: {round(x_goal, 2)} m\nGoal y: {round(y_goal, 2)} m\nGoal theta: {round(theta_goal, 2)} rad\n")
         move_to_pose(x_start, y_start, theta_start, x_goal, y_goal, theta_goal)
 
 

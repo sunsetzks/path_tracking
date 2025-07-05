@@ -257,10 +257,7 @@ def closed_loop_prediction(cx, cy, cyaw, ck, speed_profile, goal):
             plt.axis("equal")
             plt.grid(True)
             plt.title(
-                "Continuous LQR - speed[km/h]:"
-                + str(round(state.v * 3.6, 2))
-                + ",target index:"
-                + str(target_ind)
+                "Continuous LQR - speed[km/h]:" + str(round(state.v * 3.6, 2)) + ",target index:" + str(target_ind)
             )
             plt.pause(0.0001)
 

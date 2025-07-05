@@ -302,18 +302,12 @@ class VehicleDisplay:
                 # Apply steering rotation first, then vehicle rotation
                 rotated_wheel = wheel_shape @ steering_rotation.T @ vehicle_rotation.T
                 color = front_wheel_color
-                label = (
-                    "Front Wheels (Steerable)"
-                    if wheel_name == "front_left" and show_labels
-                    else None
-                )
+                label = "Front Wheels (Steerable)" if wheel_name == "front_left" and show_labels else None
             else:
                 # Only apply vehicle rotation for rear wheels
                 rotated_wheel = wheel_shape @ vehicle_rotation.T
                 color = wheel_color
-                label = (
-                    "Rear Wheels" if wheel_name == "rear_left" and show_labels else None
-                )
+                label = "Rear Wheels" if wheel_name == "rear_left" and show_labels else None
 
             # Transform wheel position to world coordinates
             world_wheel_pos = wheel_pos @ vehicle_rotation.T
@@ -397,9 +391,7 @@ def plot_vehicle_simple(
         **kwargs: Additional arguments passed to VehicleDisplay.plot_vehicle()
     """
     display = VehicleDisplay(vehicle_length=vehicle_length, vehicle_width=vehicle_width)
-    display.plot_vehicle(
-        x, y, yaw, steering_angle, ax=ax, body_color=body_color, alpha=alpha, **kwargs
-    )
+    display.plot_vehicle(x, y, yaw, steering_angle, ax=ax, body_color=body_color, alpha=alpha, **kwargs)
 
 
 def demo_vehicle_display():
