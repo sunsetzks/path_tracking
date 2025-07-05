@@ -53,7 +53,7 @@ class VehicleConfig:
     odometry_velocity_noise_std: float = 0.02  # Standard deviation for odometry velocity noise [m/s]
     
     # Global localization noise parameters (for GPS-like positioning)
-    global_position_noise_std: float = 0.5  # Standard deviation for global position noise [m]
+    global_position_noise_std: float = 0.05  # Standard deviation for global position noise [m]
     global_yaw_noise_std: float = 0.02  # Standard deviation for global yaw angle noise [rad]
     global_measurement_frequency: float = 1.0  # Frequency of global measurements [Hz]
     global_measurement_delay: float = 0.1  # Delay of global measurements [s]
