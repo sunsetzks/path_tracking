@@ -28,23 +28,24 @@ vehicle:
   steering_rate_gain: 5.0           # Gain for converting steering error to steering rate
   acceleration_gain: 2.0            # Gain for converting velocity error to acceleration
   
-  # Noise parameters
-  noise_enabled: false              # Enable/disable noise simulation
+  # Control noise parameters
   control_input_noise_enabled: true # Enable/disable control input noise (master switch)
-  noise_model: "odometry"           # Noise model type: "odometry" or "global_localization"
-  position_noise_std: 0.01          # Standard deviation for position noise [m]
-  yaw_noise_std: 0.005              # Standard deviation for yaw angle noise [rad]
-  velocity_noise_std: 0.02          # Standard deviation for velocity noise [m/s]
   steering_noise_std: 0.01          # Standard deviation for steering angle noise [rad]
-  process_noise_std: 0.001          # Standard deviation for process noise [various units]
-  measurement_noise_std: 0.005      # Standard deviation for measurement noise [various units]
   noise_seed: null                  # Random seed for reproducible noise (null for random)
+  
+  # Odometry noise parameters (for dead reckoning estimation)
+  odometry_position_noise_std: 0.01 # Standard deviation for odometry position noise [m]
+  odometry_yaw_noise_std: 0.005     # Standard deviation for odometry yaw angle noise [rad]
+  odometry_velocity_noise_std: 0.02 # Standard deviation for odometry velocity noise [m/s]
   
   # Global localization noise parameters (for GPS-like systems)
   global_position_noise_std: 0.5    # Standard deviation for global position noise [m]
   global_yaw_noise_std: 0.02        # Standard deviation for global yaw angle noise [rad]
   global_measurement_frequency: 1.0 # Frequency of global measurements [Hz]
   global_measurement_delay: 0.1     # Delay of global measurements [s]
+  
+  # Default state type to return when get_state() is called
+  default_state_type: "true"        # Options: "true", "odometry", "global"
 
 # Pure Pursuit controller configuration
 pure_pursuit:

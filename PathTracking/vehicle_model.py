@@ -214,7 +214,7 @@ class OdometryEstimator:
             config (VehicleConfig): Vehicle configuration containing noise parameters
         """
         self.config = config
-        self.noise_enabled = config.noise_enabled
+        self.noise_enabled = True  # Odometry noise is always enabled
 
         # Initialize random number generator with seed for reproducibility
         if config.noise_seed is not None:
@@ -345,7 +345,7 @@ class GlobalLocalizationEstimator:
             config (VehicleConfig): Vehicle configuration containing noise parameters
         """
         self.config = config
-        self.noise_enabled = config.noise_enabled
+        self.noise_enabled = True  # Global localization noise is always enabled
         
         # Initialize random number generator with seed for reproducibility
         if config.noise_seed is not None:
@@ -406,8 +406,8 @@ class GlobalLocalizationEstimator:
             self.global_state.yaw_angle = delayed_measurement[2]
 
         # Use current velocity and steering angle (assume these are measured locally)
-        velocity_noise = self.rng.normal(0, self.config.velocity_noise_std) if self.noise_enabled else 0.0
-        self.global_state.velocity = true_state.velocity + velocity_noise
+        # Note: Global localization doesn't typically provide velocity directly
+        self.global_state.velocity = true_state.velocity
         self.global_state.steering_angle = true_state.steering_angle
 
         return self.global_state.copy()
@@ -540,29 +540,29 @@ class VehicleStateManager:
         Returns:
             Tuple[float, float]: (steering_rate_noise, acceleration_noise)
         """
-        if not self.config.noise_enabled or not self.control_noise_enabled:
+        if not self.control_noise_enabled:
             return 0.0, 0.0
 
-        steering_rate_noise = self.control_rng.normal(0, self.config.process_noise_std)
-        acceleration_noise = self.control_rng.normal(0, self.config.process_noise_std)
+        # Use steering noise std as control input noise standard deviation
+        steering_rate_noise = self.control_rng.normal(0, self.config.steering_noise_std)
+        acceleration_noise = self.control_rng.normal(0, self.config.steering_noise_std)
 
         return steering_rate_noise, acceleration_noise
 
     def generate_measurement_noise(self, measurement: float) -> float:
         """
         Generate measurement noise for sensor readings
+        
+        Note: Measurement noise has been removed from the configuration.
+        This method now returns the original measurement without noise.
 
         Args:
             measurement (float): Original measurement value
 
         Returns:
-            float: Noisy measurement
+            float: Original measurement (no noise added)
         """
-        if not self.config.noise_enabled:
-            return measurement
-
-        noise = self.control_rng.normal(0, self.config.measurement_noise_std)
-        return measurement + noise
+        return measurement
 
     def reset_state(self, initial_state: "VehicleState"):
         """
@@ -579,11 +579,13 @@ class VehicleStateManager:
     def set_noise_enabled(self, enabled: bool):
         """
         Enable or disable noise generation for all estimators
+        
+        Note: Individual estimators now manage their own noise settings.
+        This method controls the estimator-level noise switches.
 
         Args:
             enabled (bool): Whether to enable noise
         """
-        self.config.noise_enabled = enabled
         self.odometry_estimator.set_noise_enabled(enabled)
         self.global_estimator.set_noise_enabled(enabled)
 
@@ -790,11 +792,14 @@ class BicycleKinematicModel:
     def get_noise_enabled(self) -> bool:
         """
         Get current noise enabled status
+        
+        Note: Since noise_enabled was removed from config, this method
+        now returns the odometry estimator's noise status as a representative.
 
         Returns:
             bool: Whether noise is enabled
         """
-        return self.config.noise_enabled
+        return self.state_manager.odometry_estimator.noise_enabled
 
     def reset_noise_seed(self, seed: Optional[int] = None):
         """

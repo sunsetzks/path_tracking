@@ -33,7 +33,6 @@ def compare_state_estimators():
 
     # Configure vehicle with all noise types enabled
     config = load_config()
-    config.vehicle.noise_enabled = True
     config.vehicle.noise_seed = 42  # For reproducible results
     
     # Odometry noise parameters (dead reckoning)
@@ -49,7 +48,7 @@ def compare_state_estimators():
     
     # Control input noise
     config.vehicle.control_input_noise_enabled = True
-    config.vehicle.process_noise_std = 0.01  # Small control noise
+    config.vehicle.steering_noise_std = 0.01  # Control input noise
     
     # Set default state type to "true" for clean comparison
     config.vehicle.default_state_type = "true"
@@ -347,10 +346,10 @@ def demonstrate_state_types():
     
     # Create a vehicle with noise enabled
     config = load_config()
-    config.vehicle.noise_enabled = True
     config.vehicle.noise_seed = 42
     config.vehicle.odometry_position_noise_std = 0.02
     config.vehicle.global_position_noise_std = 0.5
+    config.vehicle.control_input_noise_enabled = True
     
     vehicle = VehicleModel(config.vehicle)
     

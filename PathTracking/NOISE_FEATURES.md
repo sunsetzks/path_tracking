@@ -50,23 +50,24 @@ This model simulates GPS/GNSS-like positioning systems:
 ### YAML Configuration (config.yaml)
 ```yaml
 vehicle:
-  # Noise parameters
-  noise_enabled: true               # Enable/disable noise simulation
+  # Control noise parameters
   control_input_noise_enabled: true # Enable/disable control input noise (master switch)
-  noise_model: "odometry"           # Noise model: "odometry" or "global_localization"
-  position_noise_std: 0.01          # Standard deviation for position noise [m]
-  yaw_noise_std: 0.005              # Standard deviation for yaw angle noise [rad]
-  velocity_noise_std: 0.02          # Standard deviation for velocity noise [m/s]
   steering_noise_std: 0.01          # Standard deviation for steering angle noise [rad]
-  process_noise_std: 0.001          # Standard deviation for process noise [various units]
-  measurement_noise_std: 0.005      # Standard deviation for measurement noise [various units]
   noise_seed: 42                    # Random seed for reproducible noise (null for random)
+  
+  # Odometry noise parameters (for dead reckoning estimation)
+  odometry_position_noise_std: 0.01 # Standard deviation for odometry position noise [m]
+  odometry_yaw_noise_std: 0.005     # Standard deviation for odometry yaw angle noise [rad]
+  odometry_velocity_noise_std: 0.02 # Standard deviation for odometry velocity noise [m/s]
   
   # Global localization noise parameters (for GPS-like systems)
   global_position_noise_std: 0.5    # Standard deviation for global position noise [m]
   global_yaw_noise_std: 0.02        # Standard deviation for global yaw angle noise [rad]
   global_measurement_frequency: 1.0 # Frequency of global measurements [Hz]
   global_measurement_delay: 0.1     # Delay of global measurements [s]
+  
+  # Default state type to return when get_state() is called
+  default_state_type: "true"        # Options: "true", "odometry", "global"
 ```
 
 ### Programmatic Configuration
@@ -74,31 +75,33 @@ vehicle:
 from config import load_config
 from vehicle_model import VehicleModel
 
-# Configure odometry noise model
+# Configure noise parameters
 config = load_config()
-config.vehicle.noise_enabled = True
 config.vehicle.control_input_noise_enabled = True  # Enable control input noise
-config.vehicle.noise_model = "odometry"
-config.vehicle.position_noise_std = 0.05
-config.vehicle.noise_seed = 42
-
-# Create vehicle with odometry noise
-vehicle_odometry = VehicleModel(config.vehicle)
-
-# Configure global localization noise model
-config.vehicle.noise_model = "global_localization"
+config.vehicle.steering_noise_std = 0.02
+config.vehicle.odometry_position_noise_std = 0.05
+config.vehicle.odometry_yaw_noise_std = 0.01
 config.vehicle.global_position_noise_std = 0.5
 config.vehicle.global_measurement_frequency = 1.0
+config.vehicle.noise_seed = 42
 
-# Create vehicle with global localization noise
-vehicle_global = VehicleModel(config.vehicle)
+# Create vehicle with noise enabled
+vehicle = VehicleModel(config.vehicle)
+
+# Access different state types
+true_state = vehicle.get_true_state()        # Perfect state (no noise)
+odometry_state = vehicle.get_odometry_state()  # Dead reckoning with accumulated error
+global_state = vehicle.get_global_state()     # GPS-like with bounded error
+
+# Use default state type (configured in config.vehicle.default_state_type)
+default_state = vehicle.get_state()
 ```
 
 ## Usage Examples
 
 ### Basic Noise Control
 ```python
-# Enable/disable all noise
+# Enable/disable noise for all estimators
 vehicle.set_noise_enabled(True)
 print(f"Noise enabled: {vehicle.get_noise_enabled()}")
 
@@ -108,33 +111,45 @@ print(f"Control input noise enabled: {vehicle.get_control_input_noise_enabled()}
 
 # Reset random seed for reproducibility
 vehicle.reset_noise_seed(123)
+
+# Get different state types
+true_state = vehicle.get_state("true")        # Ground truth
+odometry_state = vehicle.get_state("odometry")  # Dead reckoning
+global_state = vehicle.get_state("global")     # GPS-like
 ```
 
-### Comparing Clean vs Noisy Behavior
+### Comparing Different State Types
 ```python
-# Create two vehicles - one clean, one noisy
-vehicle_clean = VehicleModel(config.vehicle)
-vehicle_clean.set_noise_enabled(False)
+# Create vehicle with noise enabled
+vehicle = VehicleModel(config.vehicle)
 
-vehicle_noisy = VehicleModel(config.vehicle)
-vehicle_noisy.set_noise_enabled(True)
-
-# Simulate with same control inputs
+# Simulate and compare different state types
 for control in control_sequence:
-    clean_state = vehicle_clean.update_with_rates(control, time_step)
-    noisy_state = vehicle_noisy.update_with_rates(control, time_step)
+    vehicle.update_with_rates(control, time_step)
     
-    # Compare results
-    position_error = np.sqrt((noisy_state.position_x - clean_state.position_x)**2 + 
-                            (noisy_state.position_y - clean_state.position_y)**2)
+    # Get all state types
+    true_state = vehicle.get_true_state()
+    odometry_state = vehicle.get_odometry_state()
+    global_state = vehicle.get_global_state()
+    
+    # Compare odometry error vs true state
+    odometry_error = np.sqrt((odometry_state.position_x - true_state.position_x)**2 + 
+                            (odometry_state.position_y - true_state.position_y)**2)
+    
+    # Compare global localization error vs true state
+    global_error = np.sqrt((global_state.position_x - true_state.position_x)**2 + 
+                          (global_state.position_y - true_state.position_y)**2)
 ```
 
 ### Sensor Measurement Noise
 ```python
-# Add noise to sensor readings
-gps_reading = 10.5  # Original GPS measurement
-noisy_gps = vehicle.get_noisy_measurement(gps_reading)
-print(f"GPS reading: {gps_reading:.3f} -> {noisy_gps:.3f}")
+# Note: Measurement noise has been simplified in the new design
+# The get_noisy_measurement method now returns the original measurement
+# Noise is applied at the state estimator level instead
+
+sensor_reading = 10.5  # Original sensor measurement
+processed_reading = vehicle.get_noisy_measurement(sensor_reading)
+print(f"Sensor reading: {sensor_reading:.3f} -> {processed_reading:.3f}")
 ```
 
 ## API Reference
@@ -166,43 +181,57 @@ Get current control input noise enabled status.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `noise_enabled` | bool | False | Enable/disable noise simulation |
 | `control_input_noise_enabled` | bool | True | Enable/disable control input noise (master switch) |
-| `position_noise_std` | float | 0.01 | Position noise standard deviation [m] |
-| `yaw_noise_std` | float | 0.005 | Yaw angle noise standard deviation [rad] |
-| `velocity_noise_std` | float | 0.02 | Velocity noise standard deviation [m/s] |
 | `steering_noise_std` | float | 0.01 | Steering angle noise standard deviation [rad] |
-| `process_noise_std` | float | 0.001 | Process noise standard deviation |
-| `measurement_noise_std` | float | 0.005 | Measurement noise standard deviation |
 | `noise_seed` | int/null | null | Random seed for reproducible noise |
+| `odometry_position_noise_std` | float | 0.01 | Odometry position noise standard deviation [m] |
+| `odometry_yaw_noise_std` | float | 0.005 | Odometry yaw angle noise standard deviation [rad] |
+| `odometry_velocity_noise_std` | float | 0.02 | Odometry velocity noise standard deviation [m/s] |
+| `global_position_noise_std` | float | 0.5 | Global position noise standard deviation [m] |
+| `global_yaw_noise_std` | float | 0.02 | Global yaw angle noise standard deviation [rad] |
+| `global_measurement_frequency` | float | 1.0 | Global measurement frequency [Hz] |
+| `global_measurement_delay` | float | 0.1 | Global measurement delay [s] |
+| `default_state_type` | str | "true" | Default state type ("true", "odometry", "global") |
 
 ## Typical Noise Levels
 
 ### Conservative (Low Noise)
 ```yaml
-position_noise_std: 0.01      # 1cm position uncertainty
-yaw_noise_std: 0.005          # ~0.3° heading uncertainty
-velocity_noise_std: 0.02      # 2cm/s velocity uncertainty
-steering_noise_std: 0.01      # ~0.6° steering uncertainty
-process_noise_std: 0.001      # Low process noise
+# Control noise
+steering_noise_std: 0.005             # ~0.3° steering uncertainty
+# Odometry noise
+odometry_position_noise_std: 0.005    # 0.5cm position uncertainty per meter
+odometry_yaw_noise_std: 0.002         # ~0.1° heading uncertainty per radian
+odometry_velocity_noise_std: 0.01     # 1cm/s velocity uncertainty
+# Global localization noise
+global_position_noise_std: 0.3        # 30cm GPS accuracy
+global_yaw_noise_std: 0.01            # ~0.6° GPS heading accuracy
 ```
 
 ### Realistic (Medium Noise)
 ```yaml
-position_noise_std: 0.05      # 5cm position uncertainty
-yaw_noise_std: 0.02           # ~1.1° heading uncertainty
-velocity_noise_std: 0.1       # 10cm/s velocity uncertainty
-steering_noise_std: 0.02      # ~1.1° steering uncertainty
-process_noise_std: 0.01       # Medium process noise
+# Control noise
+steering_noise_std: 0.01              # ~0.6° steering uncertainty
+# Odometry noise
+odometry_position_noise_std: 0.01     # 1cm position uncertainty per meter
+odometry_yaw_noise_std: 0.005         # ~0.3° heading uncertainty per radian
+odometry_velocity_noise_std: 0.02     # 2cm/s velocity uncertainty
+# Global localization noise
+global_position_noise_std: 0.5        # 50cm GPS accuracy
+global_yaw_noise_std: 0.02            # ~1.1° GPS heading accuracy
 ```
 
 ### Challenging (High Noise)
 ```yaml
-position_noise_std: 0.1       # 10cm position uncertainty
-yaw_noise_std: 0.05           # ~2.9° heading uncertainty
-velocity_noise_std: 0.2       # 20cm/s velocity uncertainty
-steering_noise_std: 0.05      # ~2.9° steering uncertainty
-process_noise_std: 0.02       # High process noise
+# Control noise
+steering_noise_std: 0.02              # ~1.1° steering uncertainty
+# Odometry noise
+odometry_position_noise_std: 0.02     # 2cm position uncertainty per meter
+odometry_yaw_noise_std: 0.01          # ~0.6° heading uncertainty per radian
+odometry_velocity_noise_std: 0.05     # 5cm/s velocity uncertainty
+# Global localization noise
+global_position_noise_std: 1.0        # 1m GPS accuracy
+global_yaw_noise_std: 0.05            # ~2.9° GPS heading accuracy
 ```
 
 ## Applications
@@ -222,10 +251,13 @@ Test multi-sensor fusion algorithms with realistic sensor noise.
 ## Notes
 
 - All noise is generated using Gaussian (normal) distributions
-- Noise can be disabled completely by setting `noise_enabled: false`
+- Control input noise can be disabled by setting `control_input_noise_enabled: false`
+- Individual estimators (odometry and global) have their own noise characteristics
 - Use `noise_seed` for reproducible results in testing
 - The noise generator uses numpy's RandomState for consistent behavior
-- Process noise is added to control inputs before applying vehicle limits
+- Control input noise is added to steering commands before applying vehicle limits
+- Odometry noise accumulates over time (unbounded drift)
+- Global localization noise is bounded and doesn't accumulate indefinitely
 
 ## Example Scripts
 

@@ -29,36 +29,34 @@ def demonstrate_noise_functionality():
 
     print("=== Vehicle Model Noise Demonstration ===\n")
 
-    # Load configuration and enable noise
+    # Load configuration and configure noise
     config = load_config()
-    config.vehicle.noise_enabled = True
-    config.vehicle.position_noise_std = 0.05  # Increase noise for visibility
-    config.vehicle.yaw_noise_std = 0.02
-    config.vehicle.velocity_noise_std = 0.1
-    config.vehicle.steering_noise_std = 0.02
-    config.vehicle.process_noise_std = 0.01
+    config.vehicle.control_input_noise_enabled = True
+    config.vehicle.steering_noise_std = 0.02  # Control input noise
+    config.vehicle.odometry_position_noise_std = 0.02  # Odometry position noise
+    config.vehicle.odometry_yaw_noise_std = 0.01  # Odometry yaw noise
+    config.vehicle.odometry_velocity_noise_std = 0.05  # Odometry velocity noise
+    config.vehicle.global_position_noise_std = 0.5  # Global position noise
+    config.vehicle.global_yaw_noise_std = 0.02  # Global yaw noise
     config.vehicle.noise_seed = 42  # For reproducible results
 
     print("Noise Configuration:")
-    print(f"  Noise enabled: {config.vehicle.noise_enabled}")
-    print(f"  Position noise std: {config.vehicle.position_noise_std} m")
-    print(f"  Yaw noise std: {config.vehicle.yaw_noise_std} rad")
-    print(f"  Velocity noise std: {config.vehicle.velocity_noise_std} m/s")
+    print(f"  Control input noise enabled: {config.vehicle.control_input_noise_enabled}")
     print(f"  Steering noise std: {config.vehicle.steering_noise_std} rad")
-    print(f"  Process noise std: {config.vehicle.process_noise_std}")
+    print(f"  Odometry position noise std: {config.vehicle.odometry_position_noise_std} m")
+    print(f"  Odometry yaw noise std: {config.vehicle.odometry_yaw_noise_std} rad")
+    print(f"  Odometry velocity noise std: {config.vehicle.odometry_velocity_noise_std} m/s")
+    print(f"  Global position noise std: {config.vehicle.global_position_noise_std} m")
+    print(f"  Global yaw noise std: {config.vehicle.global_yaw_noise_std} rad")
     print(f"  Noise seed: {config.vehicle.noise_seed}")
     print()
 
     # Create initial state
     initial_state = VehicleState(position_x=0.0, position_y=0.0, yaw_angle=0.0, velocity=0.0, steering_angle=0.0)
 
-    # Create two vehicle models - one with noise, one without
-    vehicle_clean = VehicleModel(config.vehicle, initial_state)
-    vehicle_clean.set_noise_enabled(False)
-
-    vehicle_noisy = VehicleModel(config.vehicle, initial_state)
-    vehicle_noisy.set_noise_enabled(True)
-    vehicle_noisy.reset_noise_seed(42)  # Same seed for reproducibility
+    # Create vehicle model with noise enabled
+    vehicle = VehicleModel(config.vehicle, initial_state)
+    vehicle.reset_noise_seed(42)  # For reproducible results
 
     # Simulation parameters
     time_step = 0.1
@@ -88,32 +86,41 @@ def demonstrate_noise_functionality():
 
         control_sequence.append((steering_rate, acceleration))
 
-    # Simulate both vehicles
+    # Simulate vehicle with different state types
     print("Running simulation...")
-    clean_trajectory = []
-    noisy_trajectory = []
+    true_trajectory = []
+    odometry_trajectory = []
+    global_trajectory = []
 
     for control in control_sequence:
-        # Update both vehicles with the same control input
-        clean_state = vehicle_clean.update_with_rates(control, time_step)
-        noisy_state = vehicle_noisy.update_with_rates(control, time_step)
+        # Update vehicle with control input
+        vehicle.update_with_rates(control, time_step)
+        
+        # Get different state types
+        true_state = vehicle.get_true_state()
+        odometry_state = vehicle.get_odometry_state()
+        global_state = vehicle.get_global_state()
 
-        clean_trajectory.append(clean_state.copy())
-        noisy_trajectory.append(noisy_state.copy())
+        true_trajectory.append(true_state.copy())
+        odometry_trajectory.append(odometry_state.copy())
+        global_trajectory.append(global_state.copy())
 
     # Extract trajectories for plotting
-    clean_x = [state.position_x for state in clean_trajectory]
-    clean_y = [state.position_y for state in clean_trajectory]
-    noisy_x = [state.position_x for state in noisy_trajectory]
-    noisy_y = [state.position_y for state in noisy_trajectory]
+    true_x = [state.position_x for state in true_trajectory]
+    true_y = [state.position_y for state in true_trajectory]
+    odometry_x = [state.position_x for state in odometry_trajectory]
+    odometry_y = [state.position_y for state in odometry_trajectory]
+    global_x = [state.position_x for state in global_trajectory]
+    global_y = [state.position_y for state in global_trajectory]
 
     # Plot results
     plt.figure(figsize=(12, 8))
 
     # Trajectory comparison
     plt.subplot(2, 2, 1)
-    plt.plot(clean_x, clean_y, "b-", linewidth=2, label="Clean (no noise)")
-    plt.plot(noisy_x, noisy_y, "r-", linewidth=1, alpha=0.7, label="Noisy")
+    plt.plot(true_x, true_y, "b-", linewidth=2, label="True State")
+    plt.plot(odometry_x, odometry_y, "r-", linewidth=1, alpha=0.7, label="Odometry")
+    plt.plot(global_x, global_y, "g-", linewidth=1, alpha=0.7, label="Global Localization")
     plt.xlabel("X Position [m]")
     plt.ylabel("Y Position [m]")
     plt.title("Vehicle Trajectory Comparison")
@@ -123,22 +130,29 @@ def demonstrate_noise_functionality():
 
     # Position error over time
     plt.subplot(2, 2, 2)
-    time_array = np.array(range(len(clean_trajectory))) * time_step
-    position_error = np.sqrt(
-        (np.array(noisy_x) - np.array(clean_x)) ** 2 + (np.array(noisy_y) - np.array(clean_y)) ** 2
+    time_array = np.array(range(len(true_trajectory))) * time_step
+    odometry_error = np.sqrt(
+        (np.array(odometry_x) - np.array(true_x)) ** 2 + (np.array(odometry_y) - np.array(true_y)) ** 2
     )
-    plt.plot(time_array, position_error, "g-", linewidth=2)
+    global_error = np.sqrt(
+        (np.array(global_x) - np.array(true_x)) ** 2 + (np.array(global_y) - np.array(true_y)) ** 2
+    )
+    plt.plot(time_array, odometry_error, "r-", linewidth=2, label="Odometry Error")
+    plt.plot(time_array, global_error, "g-", linewidth=2, label="Global Error")
     plt.xlabel("Time [s]")
     plt.ylabel("Position Error [m]")
     plt.title("Position Error Due to Noise")
+    plt.legend()
     plt.grid(True, alpha=0.3)
 
     # Velocity comparison
     plt.subplot(2, 2, 3)
-    clean_vel = [state.velocity for state in clean_trajectory]
-    noisy_vel = [state.velocity for state in noisy_trajectory]
-    plt.plot(time_array, clean_vel, "b-", linewidth=2, label="Clean")
-    plt.plot(time_array, noisy_vel, "r-", linewidth=1, alpha=0.7, label="Noisy")
+    true_vel = [state.velocity for state in true_trajectory]
+    odometry_vel = [state.velocity for state in odometry_trajectory]
+    global_vel = [state.velocity for state in global_trajectory]
+    plt.plot(time_array, true_vel, "b-", linewidth=2, label="True")
+    plt.plot(time_array, odometry_vel, "r-", linewidth=1, alpha=0.7, label="Odometry")
+    plt.plot(time_array, global_vel, "g-", linewidth=1, alpha=0.7, label="Global")
     plt.xlabel("Time [s]")
     plt.ylabel("Velocity [m/s]")
     plt.title("Velocity Comparison")
@@ -147,10 +161,12 @@ def demonstrate_noise_functionality():
 
     # Steering angle comparison
     plt.subplot(2, 2, 4)
-    clean_steer = [np.degrees(state.steering_angle) for state in clean_trajectory]
-    noisy_steer = [np.degrees(state.steering_angle) for state in noisy_trajectory]
-    plt.plot(time_array, clean_steer, "b-", linewidth=2, label="Clean")
-    plt.plot(time_array, noisy_steer, "r-", linewidth=1, alpha=0.7, label="Noisy")
+    true_steer = [np.degrees(state.steering_angle) for state in true_trajectory]
+    odometry_steer = [np.degrees(state.steering_angle) for state in odometry_trajectory]
+    global_steer = [np.degrees(state.steering_angle) for state in global_trajectory]
+    plt.plot(time_array, true_steer, "b-", linewidth=2, label="True")
+    plt.plot(time_array, odometry_steer, "r-", linewidth=1, alpha=0.7, label="Odometry")
+    plt.plot(time_array, global_steer, "g-", linewidth=1, alpha=0.7, label="Global")
     plt.xlabel("Time [s]")
     plt.ylabel("Steering Angle [deg]")
     plt.title("Steering Angle Comparison")
@@ -162,12 +178,17 @@ def demonstrate_noise_functionality():
 
     # Print statistics
     print("\nSimulation Results:")
-    print(f"Final position (clean): ({clean_x[-1]:.2f}, {clean_y[-1]:.2f})")
-    print(f"Final position (noisy): ({noisy_x[-1]:.2f}, {noisy_y[-1]:.2f})")
-    print(f"Final position error: {position_error[-1]:.3f} m")
-    print(f"Mean position error: {np.mean(position_error):.3f} m")
-    print(f"Max position error: {np.max(position_error):.3f} m")
-    print(f"RMS position error: {np.sqrt(np.mean(position_error**2)):.3f} m")
+    print(f"Final position (true): ({true_x[-1]:.2f}, {true_y[-1]:.2f})")
+    print(f"Final position (odometry): ({odometry_x[-1]:.2f}, {odometry_y[-1]:.2f})")
+    print(f"Final position (global): ({global_x[-1]:.2f}, {global_y[-1]:.2f})")
+    print(f"Final odometry error: {odometry_error[-1]:.3f} m")
+    print(f"Final global error: {global_error[-1]:.3f} m")
+    print(f"Mean odometry error: {np.mean(odometry_error):.3f} m")
+    print(f"Mean global error: {np.mean(global_error):.3f} m")
+    print(f"Max odometry error: {np.max(odometry_error):.3f} m")
+    print(f"Max global error: {np.max(global_error):.3f} m")
+    print(f"RMS odometry error: {np.sqrt(np.mean(odometry_error**2)):.3f} m")
+    print(f"RMS global error: {np.sqrt(np.mean(global_error**2)):.3f} m")
 
 
 def demonstrate_noise_control():
@@ -177,8 +198,8 @@ def demonstrate_noise_control():
 
     # Load configuration
     config = load_config()
-    config.vehicle.noise_enabled = True
-    config.vehicle.position_noise_std = 0.1
+    config.vehicle.control_input_noise_enabled = True
+    config.vehicle.odometry_position_noise_std = 0.1
 
     # Create vehicle model
     vehicle = VehicleModel(config.vehicle)

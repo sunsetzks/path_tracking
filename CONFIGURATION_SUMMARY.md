@@ -114,7 +114,7 @@ vehicle = VehicleModel(
 - **运动学限制**: max_steering_angle, max_velocity, max_acceleration  
 - **时延参数**: steering_delay, acceleration_delay
 - **控制增益**: steering_rate_gain, acceleration_gain
-- **噪声参数**: noise_enabled, control_input_noise_enabled, noise_model, process_noise_std
+- **噪声参数**: control_input_noise_enabled, steering_noise_std, odometry_*_noise_std, global_*_noise_std
 
 ### PurePursuitConfig - Pure Pursuit 控制器参数
 - **前瞻距离**: min_lookahead, k_gain
