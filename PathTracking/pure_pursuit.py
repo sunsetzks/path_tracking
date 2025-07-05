@@ -23,6 +23,7 @@ import sys
 from typing import Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
+from loguru import logger
 
 # Add the parent directory to the path so we can import the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -199,16 +200,16 @@ class PurePursuitController:
 
             angle_error_deg = math.degrees(angle_error)
 
-            print(f"🎯 Goal reached! Final position errors:")
-            print(f"   Total distance error: {distance_to_goal:.3f}m")
-            print(
+            logger.success("🎯 Goal reached! Final position errors:")
+            logger.info(f"   Total distance error: {distance_to_goal:.3f}m")
+            logger.info(
                 f"   Longitudinal error: {longitudinal_error:.3f}m ({'ahead' if longitudinal_error > 0 else 'behind'} goal)"
             )
-            print(f"   Lateral error: {lateral_error:.3f}m ({'left' if lateral_error > 0 else 'right'} of goal)")
-            print(
+            logger.info(f"   Lateral error: {lateral_error:.3f}m ({'left' if lateral_error > 0 else 'right'} of goal)")
+            logger.info(
                 f"   Angular error: {angle_error_deg:.2f}° ({'counterclockwise' if angle_error > 0 else 'clockwise'} from goal)"
             )
-            print(f"   Final velocity: {abs(vehicle_state.velocity):.2f}m/s")
+            logger.info(f"   Final velocity: {abs(vehicle_state.velocity):.2f}m/s")
 
             self.goal_reached = True
 
@@ -399,14 +400,14 @@ class PurePursuitController:
             path_dir_str = "forward" if path_direction > 0 else "backward"
             robot_dir_str = "forward" if robot_based_direction > 0 else "backward"
 
-            print(f"⚠️  WARNING: Direction conflict detected!")
-            print(f"   Path direction: {path_dir_str} ({path_direction:.1f})")
-            print(f"   Robot-based direction: {robot_dir_str} ({robot_based_direction:.1f})")
-            print(f"   Target point: ({target_x:.2f}, {target_y:.2f})")
-            print(f"   Vehicle position: ({vehicle_state.position_x:.2f}, {vehicle_state.position_y:.2f})")
-            print(f"   Vehicle heading: {math.degrees(vehicle_state.yaw_angle):.1f}°")
-            print(f"   Angle to target: {math.degrees(target_angle):.1f}°")
-            print(f"   Angle difference: {math.degrees(angle_diff):.1f}°")
-            print(f"   Using robot-based direction: {robot_dir_str}")
+            # logger.warning("⚠️  Direction conflict detected!")
+            # logger.warning(f"   Path direction: {path_dir_str} ({path_direction:.1f})")
+            # logger.warning(f"   Robot-based direction: {robot_dir_str} ({robot_based_direction:.1f})")
+            # logger.warning(f"   Target point: ({target_x:.2f}, {target_y:.2f})")
+            # logger.warning(f"   Vehicle position: ({vehicle_state.position_x:.2f}, {vehicle_state.position_y:.2f})")
+            # logger.warning(f"   Vehicle heading: {math.degrees(vehicle_state.yaw_angle):.1f}°")
+            # logger.warning(f"   Angle to target: {math.degrees(target_angle):.1f}°")
+            # logger.warning(f"   Angle difference: {math.degrees(angle_diff):.1f}°")
+            # logger.warning(f"   Using robot-based direction: {robot_dir_str}")
 
         return robot_based_direction

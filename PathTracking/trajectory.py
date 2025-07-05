@@ -18,6 +18,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
+from loguru import logger
 
 # Import configuration management
 if TYPE_CHECKING:
@@ -561,7 +562,7 @@ class Trajectory:
         import matplotlib.pyplot as plt
 
         if not self.waypoints:
-            print("Trajectory is empty, nothing to plot.")
+            logger.warning("Trajectory is empty, nothing to plot.")
             return
 
         # For a smoother plot, sample the trajectory
@@ -621,7 +622,9 @@ class Trajectory:
 # Example usage and testing
 if __name__ == "__main__":
     # Create a simple circular trajectory for testing
-    trajectory = Trajectory()
+    from .config import TrajectoryConfig
+    config = TrajectoryConfig()
+    trajectory = Trajectory(config=config)
 
     # Add waypoints for a quarter circle
     n_points = 20
@@ -633,18 +636,18 @@ if __name__ == "__main__":
         yaw = angle + math.pi / 2  # Tangent direction
         trajectory.add_waypoint(x, y, yaw, direction=1)
 
-    print(f"Created {trajectory}")
+    logger.info(f"Created {trajectory}")
 
     # Test interpolation
     test_s = trajectory.get_trajectory_length() / 2
     point = trajectory.interpolate_at_distance(test_s)
-    print(f"Interpolated point at s={test_s:.2f}: {point}")
+    logger.info(f"Interpolated point at s={test_s:.2f}: {point}")
 
     # Test nearest point finding
     query_x, query_y = 5.0, 8.0
     nearest = trajectory.find_nearest_point(query_x, query_y)
-    print(f"Nearest point to ({query_x}, {query_y}): {nearest}")
+    logger.info(f"Nearest point to ({query_x}, {query_y}): {nearest}")
 
     # Test Frenet coordinates
     frenet = trajectory.get_frenet_coordinates(query_x, query_y)
-    print(f"Frenet coordinates: {frenet}")
+    logger.info(f"Frenet coordinates: {frenet}")

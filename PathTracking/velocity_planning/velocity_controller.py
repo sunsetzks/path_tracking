@@ -11,6 +11,7 @@ This module contains the VelocityController class that manages target velocity b
 
 import math
 from typing import TYPE_CHECKING, Optional
+from loguru import logger
 
 if TYPE_CHECKING:
     from PathTracking.trajectory import Trajectory
@@ -524,17 +525,17 @@ class VelocityController:
         """
         diagnostics = self.get_control_diagnostics(vehicle_state, trajectory, target_direction)
         
-        print(f"=== Velocity Control Status ===")
-        print(f"Segmented Control: {'Enabled' if diagnostics['segmented_control_enabled'] else 'Disabled'}")
-        print(f"Control Phase: {diagnostics['control_phase']}")
-        print(f"Distance to Goal: {diagnostics['distance_to_goal']:.3f} m")
-        print(f"Current Velocity: {diagnostics['current_velocity']:.3f} m/s")
-        print(f"Direction: {'Forward' if diagnostics['is_forward'] else 'Backward'}")
+        logger.info("=== Velocity Control Status ===")
+        logger.info(f"Segmented Control: {'Enabled' if diagnostics['segmented_control_enabled'] else 'Disabled'}")
+        logger.info(f"Control Phase: {diagnostics['control_phase']}")
+        logger.info(f"Distance to Goal: {diagnostics['distance_to_goal']:.3f} m")
+        logger.info(f"Current Velocity: {diagnostics['current_velocity']:.3f} m/s")
+        logger.info(f"Direction: {'Forward' if diagnostics['is_forward'] else 'Backward'}")
         
         if diagnostics['segmented_control_enabled']:
-            print(f"Fine Adjustment Distance: {diagnostics['fine_adjustment_distance']:.3f} m")
-            print(f"Final Braking Distance: {diagnostics['final_braking_distance']:.3f} m")
-            print(f"Creep Speed: {diagnostics['creep_speed']:.3f} m/s")
-            print(f"Transition Factor: {diagnostics['transition_factor']:.3f}")
+            logger.info(f"Fine Adjustment Distance: {diagnostics['fine_adjustment_distance']:.3f} m")
+            logger.info(f"Final Braking Distance: {diagnostics['final_braking_distance']:.3f} m")
+            logger.info(f"Creep Speed: {diagnostics['creep_speed']:.3f} m/s")
+            logger.info(f"Transition Factor: {diagnostics['transition_factor']:.3f}")
         
-        print("=" * 30)
+        logger.info("=" * 30)

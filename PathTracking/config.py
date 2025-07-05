@@ -12,7 +12,10 @@ import yaml
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Dict, Any, Optional, Type
 import numpy as np
+from PathTracking.utils.logger_config import setup_logger
 
+# Setup logger with VSCode-clickable format
+setup_logger()
 
 @dataclass
 class VehicleConfig:

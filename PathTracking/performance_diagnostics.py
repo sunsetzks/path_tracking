@@ -21,6 +21,7 @@ from typing import List, Dict, Optional
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
+from loguru import logger
 
 # Add the parent directory to the path so we can import modules from PathTracking
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -322,7 +323,7 @@ class PerformanceDiagnostics:
             save_path (str, optional): Path to save the charts. If None, displays interactively.
         """
         if not self.history:
-            print("No diagnostic data available for plotting")
+            logger.warning("No diagnostic data available for plotting")
             return
 
         # Convert history to arrays for plotting
@@ -426,7 +427,7 @@ class PerformanceDiagnostics:
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            print(f"Diagnostic charts saved to: {save_path}")
+            logger.info(f"Diagnostic charts saved to: {save_path}")
         else:
             plt.show()
 
@@ -438,7 +439,7 @@ class PerformanceDiagnostics:
             filename (str): Output CSV filename (can be just filename or full path)
         """
         if not self.history:
-            print("No diagnostic data available for export")
+            logger.warning("No diagnostic data available for export")
             return
 
         # If filename doesn't contain path separator, save to log/csv directory
@@ -505,7 +506,7 @@ class PerformanceDiagnostics:
                 ]
                 writer.writerow(row)
 
-        print(f"Diagnostic data exported to: {filename}")
+        logger.success(f"Diagnostic data exported to: {filename}")
 
     def load_from_csv(self, filename: str) -> bool:
         """
@@ -518,7 +519,7 @@ class PerformanceDiagnostics:
             bool: True if loaded successfully, False otherwise
         """
         if not os.path.exists(filename):
-            print(f"Error: File '{filename}' not found")
+            logger.error(f"Error: File '{filename}' not found")
             return False
 
         try:
@@ -565,11 +566,11 @@ class PerformanceDiagnostics:
             # Update statistics after loading
             self._update_statistics()
 
-            print(f"Successfully loaded {len(self.history)} data points from: {filename}")
+            logger.success(f"Successfully loaded {len(self.history)} data points from: {filename}")
             return True
 
         except Exception as e:
-            print(f"Error loading CSV file: {e}")
+            logger.error(f"Error loading CSV file: {e}")
             return False
 
     def display_loaded_data(
@@ -584,20 +585,20 @@ class PerformanceDiagnostics:
             save_chart_path (str, optional): Path to save charts instead of displaying
         """
         if not self.history:
-            print("No diagnostic data available to display")
+            logger.warning("No diagnostic data available to display")
             return
 
-        print(f"\n📁 Loaded Diagnostic Data Display")
-        print("=" * 50)
-        print(f"Data Points: {len(self.history)}")
-        print(f"Time Range: {self.history[0].time:.2f}s - {self.history[-1].time:.2f}s")
-        print(f"Duration: {self.history[-1].time - self.history[0].time:.2f}s")
+        logger.info(f"\n📁 Loaded Diagnostic Data Display")
+        logger.info("=" * 50)
+        logger.info(f"Data Points: {len(self.history)}")
+        logger.info(f"Time Range: {self.history[0].time:.2f}s - {self.history[-1].time:.2f}s")
+        logger.info(f"Duration: {self.history[-1].time - self.history[0].time:.2f}s")
 
         if show_summary:
-            print("\n" + self.get_diagnostic_summary())
+            logger.info("\n" + self.get_diagnostic_summary())
 
         if show_charts:
-            print("\n📊 Generating diagnostic charts...")
+            logger.info("\n📊 Generating diagnostic charts...")
             self.plot_diagnostic_charts(save_path=save_chart_path)
 
     @classmethod

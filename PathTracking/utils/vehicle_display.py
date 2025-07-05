@@ -16,6 +16,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
+from loguru import logger
 
 
 class VehicleDisplay:
@@ -547,16 +548,16 @@ def demo_vehicle_trajectory(ax: Optional[Axes] = None):
 
 
 if __name__ == "__main__":
-    print("Vehicle Display Module")
-    print("======================")
-    print("Features:")
-    print("- Four wheel vehicle visualization")
-    print("- Steerable front wheels (red/colored)")
-    print("- Non-steerable rear wheels (black/gray)")
-    print("- Vehicle body with configurable colors")
-    print("- Direction arrow showing vehicle heading")
-    print("- Realistic vehicle proportions")
-    print("\nRunning demonstrations...")
+    logger.info("Vehicle Display Module")
+    logger.info("======================")
+    logger.info("Features:")
+    logger.info("- Four wheel vehicle visualization")
+    logger.info("- Steerable front wheels (red/colored)")
+    logger.info("- Non-steerable rear wheels (black/gray)")
+    logger.info("- Vehicle body with configurable colors")
+    logger.info("- Direction arrow showing vehicle heading")
+    logger.info("- Realistic vehicle proportions")
+    logger.info("\nRunning demonstrations...")
 
     # Run demonstrations
     demo_vehicle_display()
