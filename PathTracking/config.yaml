@@ -30,13 +30,13 @@ vehicle:
   
   # Control noise parameters
   control_input_noise_enabled: true # Enable/disable control input noise (master switch)
-  steering_noise_std: 0.01          # Standard deviation for steering angle noise [rad]
-  noise_seed: null                  # Random seed for reproducible noise (null for random)
+  steering_noise_std: 0.02          # Standard deviation for steering angle noise [rad]
+  noise_seed: 42                    # Random seed for reproducible noise
   
   # Odometry noise parameters (for dead reckoning estimation)
-  odometry_position_noise_std: 0.01 # Standard deviation for odometry position noise [m]
-  odometry_yaw_noise_std: 0.005     # Standard deviation for odometry yaw angle noise [rad]
-  odometry_velocity_noise_std: 0.02 # Standard deviation for odometry velocity noise [m/s]
+  odometry_position_noise_std: 0.05 # Standard deviation for odometry position noise [m]
+  odometry_yaw_noise_std: 0.2      # Standard deviation for odometry yaw angle noise [rad]
+  odometry_velocity_noise_std: 0.1  # Standard deviation for odometry velocity noise [m/s]
   
   # Global localization noise parameters (for GPS-like systems)
   global_position_noise_std: 0.5    # Standard deviation for global position noise [m]
