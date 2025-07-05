@@ -58,8 +58,13 @@ class VehicleConfig:
     global_measurement_frequency: float = 1.0  # Frequency of global measurements [Hz]
     global_measurement_delay: float = 0.1  # Delay of global measurements [s]
     
+    # Simple noise parameters (for basic Gaussian noise on true position)
+    simple_position_noise_std: float = 0.1  # Standard deviation for simple position noise [m]
+    simple_yaw_noise_std: float = 0.02  # Standard deviation for simple yaw angle noise [rad]
+    simple_velocity_noise_std: float = 0.05  # Standard deviation for simple velocity noise [m/s]
+    
     # Default state type to return when get_state() is called
-    default_state_type: str = "true"  # Options: "true", "odometry", "global"
+    default_state_type: str = "true"  # Options: "true", "odometry", "global", "simple"
 
     def get_max_steering_angle_rad(self) -> float:
         """Get maximum steering angle in radians"""

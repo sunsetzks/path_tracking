@@ -6,7 +6,8 @@ This module implements a vehicle kinematic model with the following components:
 - DelayBuffer: Handles actuator delays with command buffering
 - OdometryEstimator: Maintains odometry-based position estimation with accumulated errors
 - GlobalLocalizationEstimator: Maintains global localization estimation with GPS-like characteristics
-- VehicleStateManager: Manages all three state types (true, odometry, global)
+- SimpleNoiseEstimator: Adds simple Gaussian noise to true position without accumulation
+- VehicleStateManager: Manages all four state types (true, odometry, global, simple)
 - BicycleKinematicModel: Core bicycle model kinematics (pure, no delays)
 - VehicleModel: Main vehicle model combining kinematics with delays and control methods
 
@@ -449,9 +450,103 @@ class GlobalLocalizationEstimator:
             self.rng = np.random.RandomState()
 
 
+class SimpleNoiseEstimator:
+    """
+    Simple noise estimator that adds Gaussian noise to true position
+    
+    This estimator provides a basic noise model that simply adds independent
+    Gaussian noise to the position coordinates at each time step. Unlike
+    odometry noise, this noise doesn't accumulate over time, and unlike
+    global localization, it doesn't have delays or measurement intervals.
+    """
+
+    def __init__(self, config: "VehicleConfig"):
+        """
+        Initialize simple noise estimator
+
+        Args:
+            config (VehicleConfig): Vehicle configuration containing noise parameters
+        """
+        self.config = config
+        self.noise_enabled = True  # Simple noise is always enabled when used
+        
+        # Initialize random number generator with seed for reproducibility
+        if config.noise_seed is not None:
+            self.rng = np.random.RandomState(config.noise_seed)
+        else:
+            self.rng = np.random.RandomState()
+        
+        # Simple noise state
+        self.simple_state = VehicleState()
+
+    def update_simple_state(self, true_state: "VehicleState") -> "VehicleState":
+        """
+        Update simple noise state by adding Gaussian noise to true position
+
+        Args:
+            true_state (VehicleState): True vehicle state
+
+        Returns:
+            VehicleState: Updated simple noise state
+        """
+        if not self.noise_enabled:
+            return true_state.copy()
+
+        # Copy true state
+        self.simple_state = true_state.copy()
+        
+        # Add Gaussian noise to position coordinates
+        position_noise = self.rng.normal(0, self.config.simple_position_noise_std, 2)
+        self.simple_state.position_x += position_noise[0]
+        self.simple_state.position_y += position_noise[1]
+        
+        # Add Gaussian noise to yaw angle
+        yaw_noise = self.rng.normal(0, self.config.simple_yaw_noise_std)
+        self.simple_state.yaw_angle += yaw_noise
+        
+        # Add Gaussian noise to velocity
+        velocity_noise = self.rng.normal(0, self.config.simple_velocity_noise_std)
+        self.simple_state.velocity += velocity_noise
+        
+        # Steering angle remains the same (assume directly measured)
+        # self.simple_state.steering_angle = true_state.steering_angle
+
+        return self.simple_state.copy()
+
+    def reset_state(self, initial_state: "VehicleState"):
+        """
+        Reset simple noise estimator to initial state
+
+        Args:
+            initial_state (VehicleState): Initial state to reset to
+        """
+        self.simple_state = initial_state.copy()
+
+    def set_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable noise generation
+
+        Args:
+            enabled (bool): Whether to enable noise
+        """
+        self.noise_enabled = enabled
+
+    def reset_seed(self, seed: Optional[int] = None):
+        """
+        Reset the random number generator with a new seed
+
+        Args:
+            seed (Optional[int]): New seed value, None for random seed
+        """
+        if seed is not None:
+            self.rng = np.random.RandomState(seed)
+        else:
+            self.rng = np.random.RandomState()
+
+
 class VehicleStateManager:
     """
-    Manages all three types of vehicle states: true, odometry, and global localization
+    Manages all four types of vehicle states: true, odometry, global localization, and simple noise
     
     This class coordinates the different state estimators and provides a unified interface
     for accessing different state types.
@@ -469,6 +564,7 @@ class VehicleStateManager:
         # Initialize state estimators
         self.odometry_estimator = OdometryEstimator(config)
         self.global_estimator = GlobalLocalizationEstimator(config)
+        self.simple_estimator = SimpleNoiseEstimator(config)
         
         # Control input noise generator
         self.control_noise_enabled = config.control_input_noise_enabled
@@ -494,16 +590,17 @@ class VehicleStateManager:
         self.true_state = true_state.copy()
         self.simulation_time += time_step
         
-        # Update odometry and global estimates
+        # Update odometry, global, and simple estimates
         self.odometry_estimator.update_odometry_state(true_state, time_step)
         self.global_estimator.update_global_state(true_state, self.simulation_time)
+        self.simple_estimator.update_simple_state(true_state)
 
     def get_state(self, state_type: Optional[str] = None) -> "VehicleState":
         """
         Get vehicle state of specified type
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -518,8 +615,10 @@ class VehicleStateManager:
             return self.odometry_estimator.odometry_state.copy()
         elif state_type == "global":
             return self.global_estimator.global_state.copy()
+        elif state_type == "simple":
+            return self.simple_estimator.simple_state.copy()
         else:
-            raise ValueError(f"Unknown state type: {state_type}. Must be 'true', 'odometry', or 'global'")
+            raise ValueError(f"Unknown state type: {state_type}. Must be 'true', 'odometry', 'global', or 'simple'")
 
     def get_true_state(self) -> "VehicleState":
         """Get true vehicle state (without noise)"""
@@ -532,6 +631,10 @@ class VehicleStateManager:
     def get_global_state(self) -> "VehicleState":
         """Get global localization state estimate"""
         return self.global_estimator.global_state.copy()
+
+    def get_simple_state(self) -> "VehicleState":
+        """Get simple noise state estimate"""
+        return self.simple_estimator.simple_state.copy()
 
     def generate_control_input_noise(self) -> Tuple[float, float]:
         """
@@ -574,6 +677,7 @@ class VehicleStateManager:
         self.true_state = initial_state.copy()
         self.odometry_estimator.reset_state(initial_state)
         self.global_estimator.reset_state(initial_state)
+        self.simple_estimator.reset_state(initial_state)
         self.simulation_time = 0.0
 
     def set_noise_enabled(self, enabled: bool):
@@ -588,6 +692,7 @@ class VehicleStateManager:
         """
         self.odometry_estimator.set_noise_enabled(enabled)
         self.global_estimator.set_noise_enabled(enabled)
+        self.simple_estimator.set_noise_enabled(enabled)
 
     def set_control_input_noise_enabled(self, enabled: bool):
         """
@@ -613,6 +718,7 @@ class VehicleStateManager:
             
         self.odometry_estimator.reset_seed(seed)
         self.global_estimator.reset_seed(seed)
+        self.simple_estimator.reset_seed(seed)
 
 
 class BicycleKinematicModel:
@@ -732,7 +838,7 @@ class BicycleKinematicModel:
         Get current vehicle state
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -745,7 +851,7 @@ class BicycleKinematicModel:
         Get current vehicle state as numpy array (for backward compatibility)
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -779,6 +885,15 @@ class BicycleKinematicModel:
             VehicleState: Global localization state estimate
         """
         return self.state_manager.get_global_state()
+
+    def get_simple_state(self) -> VehicleState:
+        """
+        Get simple noise state estimate
+
+        Returns:
+            VehicleState: Simple noise state estimate
+        """
+        return self.state_manager.get_simple_state()
 
     def set_noise_enabled(self, enabled: bool):
         """
@@ -1016,7 +1131,7 @@ class VehicleModel:
         Get current vehicle state
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1029,7 +1144,7 @@ class VehicleModel:
         Get current vehicle state as numpy array (for backward compatibility)
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1064,12 +1179,21 @@ class VehicleModel:
         """
         return self.kinematic_model.get_global_state()
 
+    def get_simple_state(self) -> VehicleState:
+        """
+        Get simple noise state estimate
+
+        Returns:
+            VehicleState: Simple noise state estimate
+        """
+        return self.kinematic_model.get_simple_state()
+
     def get_position(self, state_type: Optional[str] = None):
         """
         Get vehicle position
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1083,7 +1207,7 @@ class VehicleModel:
         Get vehicle orientation
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1096,7 +1220,7 @@ class VehicleModel:
         Get vehicle velocity
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1109,7 +1233,7 @@ class VehicleModel:
         Get steering angle
 
         Args:
-            state_type (Optional[str]): Type of state to return ("true", "odometry", "global")
+            state_type (Optional[str]): Type of state to return ("true", "odometry", "global", "simple")
                                        If None, uses default from config
 
         Returns:
@@ -1205,7 +1329,7 @@ class VehicleModel:
         Returns:
             bool: Whether control input noise is enabled
         """
-        return self.kinematic_model.get_control_input_noise_enabled()
+        return self.config.control_input_noise_enabled
 
 
 # Legacy compatibility - keep original class name as alias
