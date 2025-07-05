@@ -1022,7 +1022,7 @@ Simulation Options:
     print("=" * 70)
     
     # Run acceleration demo first
-    demo_acceleration_planning()
+    # demo_acceleration_planning()
     
     print("\n" + "=" * 70)
     print("🎯 RUNNING SIMULATION")
