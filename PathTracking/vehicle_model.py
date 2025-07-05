@@ -90,7 +90,7 @@ class NoiseGenerator:
         Returns:
             Tuple[float, float]: (steering_rate_noise, acceleration_noise)
         """
-        if not self.noise_enabled:
+        if not self.noise_enabled or not self.config.control_input_noise_enabled:
             return 0.0, 0.0
 
         steering_rate_noise = self.rng.normal(0, self.config.process_noise_std)
@@ -134,6 +134,243 @@ class NoiseGenerator:
             self.rng = np.random.RandomState(seed)
         else:
             self.rng = np.random.RandomState()
+
+
+class GlobalLocalizationNoiseGenerator:
+    """
+    Global localization noise generator for GPS-like positioning systems
+    
+    This noise model simulates global positioning systems (GPS, GNSS) characteristics:
+    - Bounded noise that doesn't accumulate over time
+    - Periodic corrections to prevent drift
+    - Measurement delays and update frequencies
+    - Separate noise characteristics for position and orientation
+    """
+
+    def __init__(self, config: "VehicleConfig"):
+        """
+        Initialize global localization noise generator
+
+        Args:
+            config (VehicleConfig): Vehicle configuration containing noise parameters
+        """
+        self.config = config
+        self.noise_enabled = config.noise_enabled
+        
+        # Initialize random number generator with seed for reproducibility
+        if config.noise_seed is not None:
+            self.rng = np.random.RandomState(config.noise_seed)
+        else:
+            self.rng = np.random.RandomState()
+        
+        # Global localization state
+        self.true_position = np.array([0.0, 0.0])  # True position without noise
+        self.true_yaw = 0.0  # True yaw without noise
+        self.last_global_measurement_time = 0.0
+        self.global_measurement_interval = 1.0 / config.global_measurement_frequency
+        
+        # Persistent noise offsets (simulate GPS bias)
+        self.position_bias = self.rng.normal(0, config.global_position_noise_std * 0.3, 2)
+        self.yaw_bias = self.rng.normal(0, config.global_yaw_noise_std * 0.3)
+        
+        # Measurement buffer for delayed measurements
+        self.measurement_buffer = deque()
+
+    def update_true_state(self, state: "VehicleState"):
+        """
+        Update the true state (clean state without noise)
+        
+        Args:
+            state (VehicleState): Current clean vehicle state
+        """
+        self.true_position[0] = state.position_x
+        self.true_position[1] = state.position_y
+        self.true_yaw = state.yaw_angle
+
+    def generate_global_measurement(self, current_time: float) -> Optional[Tuple[float, float, float]]:
+        """
+        Generate a global localization measurement if it's time for one
+        
+        Args:
+            current_time (float): Current simulation time
+            
+        Returns:
+            Optional[Tuple[float, float, float]]: (x, y, yaw) measurement or None if no measurement
+        """
+        if not self.noise_enabled:
+            return None
+            
+        # Check if it's time for a new global measurement
+        if current_time - self.last_global_measurement_time >= self.global_measurement_interval:
+            self.last_global_measurement_time = current_time
+            
+            # Generate measurement with bounded noise
+            measurement_noise_x = self.rng.normal(0, self.config.global_position_noise_std * 0.7)
+            measurement_noise_y = self.rng.normal(0, self.config.global_position_noise_std * 0.7)
+            measurement_noise_yaw = self.rng.normal(0, self.config.global_yaw_noise_std * 0.7)
+            
+            # Add persistent bias and current measurement noise
+            measured_x = self.true_position[0] + self.position_bias[0] + measurement_noise_x
+            measured_y = self.true_position[1] + self.position_bias[1] + measurement_noise_y
+            measured_yaw = self.true_yaw + self.yaw_bias + measurement_noise_yaw
+            
+            # Add measurement to buffer with delay
+            delivery_time = current_time + self.config.global_measurement_delay
+            self.measurement_buffer.append((delivery_time, measured_x, measured_y, measured_yaw))
+            
+        return None
+
+    def get_delayed_measurement(self, current_time: float) -> Optional[Tuple[float, float, float]]:
+        """
+        Get a delayed global measurement if available
+        
+        Args:
+            current_time (float): Current simulation time
+            
+        Returns:
+            Optional[Tuple[float, float, float]]: (x, y, yaw) measurement or None if no measurement ready
+        """
+        if not self.measurement_buffer:
+            return None
+            
+        # Check if the oldest measurement is ready
+        delivery_time, measured_x, measured_y, measured_yaw = self.measurement_buffer[0]
+        if current_time >= delivery_time:
+            return self.measurement_buffer.popleft()[1:]  # Return (x, y, yaw)
+            
+        return None
+
+    def generate_state_noise(self, state: "VehicleState", current_time: float) -> "VehicleState":
+        """
+        Generate noise for vehicle state using global localization model
+        
+        Args:
+            state (VehicleState): Current vehicle state
+            current_time (float): Current simulation time
+            
+        Returns:
+            VehicleState: State with global localization noise applied
+        """
+        if not self.noise_enabled:
+            return state
+            
+        # Update true state
+        self.update_true_state(state)
+        
+        # Generate global measurement (may be None)
+        self.generate_global_measurement(current_time)
+        
+        # Check for delayed measurement
+        global_measurement = self.get_delayed_measurement(current_time)
+        
+        if global_measurement is not None:
+            # Apply global correction with some smoothing
+            correction_factor = 0.8  # How much to trust the global measurement
+            
+            noisy_x = state.position_x * (1 - correction_factor) + global_measurement[0] * correction_factor
+            noisy_y = state.position_y * (1 - correction_factor) + global_measurement[1] * correction_factor
+            noisy_yaw = state.yaw_angle * (1 - correction_factor) + global_measurement[2] * correction_factor
+        else:
+            # No global measurement available, use odometry with bounded drift
+            drift_limit = self.config.global_position_noise_std * 2.0
+            
+            # Calculate current drift from true position
+            current_drift_x = state.position_x - self.true_position[0]
+            current_drift_y = state.position_y - self.true_position[1]
+            current_drift_yaw = state.yaw_angle - self.true_yaw
+            
+            # Limit drift and add small random walk
+            bounded_drift_x = np.clip(current_drift_x, -drift_limit, drift_limit)
+            bounded_drift_y = np.clip(current_drift_y, -drift_limit, drift_limit)
+            bounded_drift_yaw = np.clip(current_drift_yaw, -self.config.global_yaw_noise_std * 3, 
+                                       self.config.global_yaw_noise_std * 3)
+            
+            # Add small random walk
+            walk_noise_x = self.rng.normal(0, self.config.position_noise_std * 0.1)
+            walk_noise_y = self.rng.normal(0, self.config.position_noise_std * 0.1)
+            walk_noise_yaw = self.rng.normal(0, self.config.yaw_noise_std * 0.1)
+            
+            noisy_x = self.true_position[0] + bounded_drift_x + walk_noise_x
+            noisy_y = self.true_position[1] + bounded_drift_y + walk_noise_y
+            noisy_yaw = self.true_yaw + bounded_drift_yaw + walk_noise_yaw
+        
+        # Apply noise to other state components (similar to odometry model)
+        velocity_noise = self.rng.normal(0, self.config.velocity_noise_std)
+        steering_noise = self.rng.normal(0, self.config.steering_noise_std)
+        
+        # Create noisy state
+        noisy_state = VehicleState(
+            position_x=noisy_x,
+            position_y=noisy_y,
+            yaw_angle=noisy_yaw,
+            velocity=state.velocity + velocity_noise,
+            steering_angle=state.steering_angle + steering_noise,
+        )
+        
+        return noisy_state
+
+    def generate_process_noise(self) -> Tuple[float, float]:
+        """
+        Generate process noise for control inputs (similar to odometry model)
+        
+        Returns:
+            Tuple[float, float]: (steering_rate_noise, acceleration_noise)
+        """
+        if not self.noise_enabled or not self.config.control_input_noise_enabled:
+            return 0.0, 0.0
+
+        steering_rate_noise = self.rng.normal(0, self.config.process_noise_std)
+        acceleration_noise = self.rng.normal(0, self.config.process_noise_std)
+
+        return steering_rate_noise, acceleration_noise
+
+    def generate_measurement_noise(self, measurement: float) -> float:
+        """
+        Generate measurement noise for sensor readings
+        
+        Args:
+            measurement (float): Original measurement value
+            
+        Returns:
+            float: Noisy measurement
+        """
+        if not self.noise_enabled:
+            return measurement
+
+        noise = self.rng.normal(0, self.config.measurement_noise_std)
+        return measurement + noise
+
+    def set_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable noise generation
+        
+        Args:
+            enabled (bool): Whether to enable noise
+        """
+        self.noise_enabled = enabled
+
+    def reset_seed(self, seed: Optional[int] = None):
+        """
+        Reset the random number generator with a new seed
+        
+        Args:
+            seed (Optional[int]): New seed value, None for random seed
+        """
+        if seed is not None:
+            self.rng = np.random.RandomState(seed)
+        else:
+            self.rng = np.random.RandomState()
+            
+        # Reset biases
+        self.position_bias = self.rng.normal(0, self.config.global_position_noise_std * 0.3, 2)
+        self.yaw_bias = self.rng.normal(0, self.config.global_yaw_noise_std * 0.3)
+
+    def reset_state(self):
+        """Reset the noise generator state"""
+        self.true_position = np.array([0.0, 0.0])
+        self.true_yaw = 0.0
+        self.last_global_measurement_time = 0.0
+        self.measurement_buffer.clear()
 
 
 @dataclass
@@ -326,8 +563,14 @@ class BicycleKinematicModel:
         self.max_acceleration = self.config.max_acceleration
         self.max_deceleration = -self.config.max_deceleration  # Convert to negative value
 
-        # Initialize noise generator
-        self.noise_generator = NoiseGenerator(config)
+        # Initialize noise generator based on noise model type
+        if config.noise_model == "global_localization":
+            self.noise_generator = GlobalLocalizationNoiseGenerator(config)
+        else:
+            self.noise_generator = NoiseGenerator(config)
+        
+        # Track simulation time for global localization model
+        self.simulation_time = 0.0
 
         if initial_state:
             self.state = initial_state.copy()
@@ -384,7 +627,14 @@ class BicycleKinematicModel:
         )
 
         # Step 8: Apply state noise for realistic vehicle behavior
-        self.state = self.noise_generator.generate_state_noise(clean_state)
+        # Update simulation time
+        self.simulation_time += time_step
+        
+        # Apply noise based on noise model type
+        if isinstance(self.noise_generator, GlobalLocalizationNoiseGenerator):
+            self.state = self.noise_generator.generate_state_noise(clean_state, self.simulation_time)
+        else:
+            self.state = self.noise_generator.generate_state_noise(clean_state)
 
         return self.state.copy()
 
@@ -400,6 +650,13 @@ class BicycleKinematicModel:
             self.state = state.copy()
         else:
             self.state = VehicleState.from_array(state)
+            
+        # Reset noise generator state for global localization model
+        if isinstance(self.noise_generator, GlobalLocalizationNoiseGenerator):
+            self.noise_generator.reset_state()
+        
+        # Reset simulation time
+        self.simulation_time = 0.0
 
     def get_state(self):
         """
@@ -466,6 +723,24 @@ class BicycleKinematicModel:
             float: Noisy measurement
         """
         return self.noise_generator.generate_measurement_noise(measurement)
+
+    def set_control_input_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable control input noise specifically
+
+        Args:
+            enabled (bool): Whether to enable control input noise
+        """
+        self.config.control_input_noise_enabled = enabled
+
+    def get_control_input_noise_enabled(self) -> bool:
+        """
+        Get current control input noise enabled status
+
+        Returns:
+            bool: Whether control input noise is enabled
+        """
+        return self.config.control_input_noise_enabled
 
     @staticmethod
     def normalize_angle(angle):
@@ -751,6 +1026,24 @@ class VehicleModel:
             float: Noisy measurement
         """
         return self.kinematic_model.get_noisy_measurement(measurement)
+
+    def set_control_input_noise_enabled(self, enabled: bool):
+        """
+        Enable or disable control input noise specifically
+
+        Args:
+            enabled (bool): Whether to enable control input noise
+        """
+        self.config.control_input_noise_enabled = enabled
+
+    def get_control_input_noise_enabled(self) -> bool:
+        """
+        Get current control input noise enabled status
+
+        Returns:
+            bool: Whether control input noise is enabled
+        """
+        return self.config.control_input_noise_enabled
 
 
 # Legacy compatibility - keep original class name as alias

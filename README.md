@@ -21,7 +21,9 @@ A comprehensive Python library for path tracking and vehicle control algorithms,
 - **Trajectory Management** - Waypoint handling and trajectory interpolation
 
 ### Vehicle Modeling
-- **Vehicle Dynamics** - Bicycle model and kinematic models
+- **Vehicle Dynamics** - Bicycle model and kinematic models with realistic noise simulation
+- **Noise Modeling** - Comprehensive noise simulation including odometry and GPS-like noise models
+- **Control Input Noise** - Independent control over actuator noise for testing robustness
 - **Vehicle Visualization** - Realistic vehicle display with four wheels and steering
 
 ### Utilities

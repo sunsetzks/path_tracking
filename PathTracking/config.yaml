@@ -30,6 +30,8 @@ vehicle:
   
   # Noise parameters
   noise_enabled: false              # Enable/disable noise simulation
+  control_input_noise_enabled: true # Enable/disable control input noise (master switch)
+  noise_model: "odometry"           # Noise model type: "odometry" or "global_localization"
   position_noise_std: 0.01          # Standard deviation for position noise [m]
   yaw_noise_std: 0.005              # Standard deviation for yaw angle noise [rad]
   velocity_noise_std: 0.02          # Standard deviation for velocity noise [m/s]
@@ -37,6 +39,12 @@ vehicle:
   process_noise_std: 0.001          # Standard deviation for process noise [various units]
   measurement_noise_std: 0.005      # Standard deviation for measurement noise [various units]
   noise_seed: null                  # Random seed for reproducible noise (null for random)
+  
+  # Global localization noise parameters (for GPS-like systems)
+  global_position_noise_std: 0.5    # Standard deviation for global position noise [m]
+  global_yaw_noise_std: 0.02        # Standard deviation for global yaw angle noise [rad]
+  global_measurement_frequency: 1.0 # Frequency of global measurements [Hz]
+  global_measurement_delay: 0.1     # Delay of global measurements [s]
 
 # Pure Pursuit controller configuration
 pure_pursuit:
