@@ -15,6 +15,35 @@ import numpy as np
 
 
 @dataclass
+class EstimatorConfig:
+    """State estimator configuration parameters"""
+
+    # Control noise parameters
+    control_input_noise_enabled: bool = True  # Enable/disable control input noise (master switch)
+    steering_noise_std: float = 0.01  # Standard deviation for steering angle noise [rad]
+    noise_seed: Optional[int] = None  # Random seed for reproducible noise (None for random)
+    
+    # Odometry noise parameters (for dead reckoning estimation)
+    odometry_position_noise_std: float = 0.1  # Standard deviation for odometry position noise [m]
+    odometry_yaw_noise_std: float = 0.05  # Standard deviation for odometry yaw angle noise [rad]
+    odometry_velocity_noise_std: float = 0.02  # Standard deviation for odometry velocity noise [m/s]
+    
+    # Global localization noise parameters (for GPS-like positioning)
+    global_position_noise_std: float = 0.05  # Standard deviation for global position noise [m]
+    global_yaw_noise_std: float = 0.02  # Standard deviation for global yaw angle noise [rad]
+    global_measurement_frequency: float = 1.0  # Frequency of global measurements [Hz]
+    global_measurement_delay: float = 0.1  # Delay of global measurements [s]
+    
+    # Simple noise parameters (for basic Gaussian noise on true position)
+    simple_position_noise_std: float = 0.1  # Standard deviation for simple position noise [m]
+    simple_yaw_noise_std: float = 0.02  # Standard deviation for simple yaw angle noise [rad]
+    simple_velocity_noise_std: float = 0.05  # Standard deviation for simple velocity noise [m/s]
+    
+    # Default state type to return when get_state() is called
+    default_state_type: str = "true"  # Options: "true", "odometry", "global", "simple"
+
+
+@dataclass
 class VehicleConfig:
     """Vehicle model configuration parameters"""
 
@@ -41,30 +70,6 @@ class VehicleConfig:
     # Control gains for direct control
     steering_rate_gain: float = 5.0  # Gain for converting steering error to steering rate
     acceleration_gain: float = 2.0  # Gain for converting velocity error to acceleration
-
-    # Control noise parameters
-    control_input_noise_enabled: bool = True  # Enable/disable control input noise (master switch)
-    steering_noise_std: float = 0.01  # Standard deviation for steering angle noise [rad]
-    noise_seed: Optional[int] = None  # Random seed for reproducible noise (None for random)
-    
-    # Odometry noise parameters (for dead reckoning estimation)
-    odometry_position_noise_std: float = 0.1  # Standard deviation for odometry position noise [m]
-    odometry_yaw_noise_std: float = 0.05  # Standard deviation for odometry yaw angle noise [rad]
-    odometry_velocity_noise_std: float = 0.02  # Standard deviation for odometry velocity noise [m/s]
-    
-    # Global localization noise parameters (for GPS-like positioning)
-    global_position_noise_std: float = 0.05  # Standard deviation for global position noise [m]
-    global_yaw_noise_std: float = 0.02  # Standard deviation for global yaw angle noise [rad]
-    global_measurement_frequency: float = 1.0  # Frequency of global measurements [Hz]
-    global_measurement_delay: float = 0.1  # Delay of global measurements [s]
-    
-    # Simple noise parameters (for basic Gaussian noise on true position)
-    simple_position_noise_std: float = 0.1  # Standard deviation for simple position noise [m]
-    simple_yaw_noise_std: float = 0.02  # Standard deviation for simple yaw angle noise [rad]
-    simple_velocity_noise_std: float = 0.05  # Standard deviation for simple velocity noise [m/s]
-    
-    # Default state type to return when get_state() is called
-    default_state_type: str = "true"  # Options: "true", "odometry", "global", "simple"
 
     def get_max_steering_angle_rad(self) -> float:
         """Get maximum steering angle in radians"""
@@ -132,6 +137,7 @@ class PathTrackingConfig:
     """Main configuration container for the entire PathTracking project"""
 
     vehicle: VehicleConfig = field(default_factory=VehicleConfig)
+    estimator: EstimatorConfig = field(default_factory=EstimatorConfig)
     pure_pursuit: PurePursuitConfig = field(default_factory=PurePursuitConfig)
     velocity_controller: VelocityControllerConfig = field(default_factory=VelocityControllerConfig)
     trajectory: TrajectoryConfig = field(default_factory=TrajectoryConfig)

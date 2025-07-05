@@ -20,7 +20,8 @@ import sys
 sys.path.append(str(Path(__file__).parent))
 
 from PathTracking.config import load_config
-from PathTracking.vehicle_model import VehicleModel, VehicleState
+from PathTracking.vehicle_model import VehicleModel
+from PathTracking.vehicle_state import VehicleState
 
 
 def compare_state_estimators():
@@ -33,39 +34,39 @@ def compare_state_estimators():
 
     # Configure vehicle with all noise types enabled
     config = load_config()
-    config.vehicle.noise_seed = 42  # For reproducible results
+    config.estimator.noise_seed = 42  # For reproducible results
     
     # Odometry noise parameters (dead reckoning)
-    config.vehicle.odometry_position_noise_std = 0.01  # 1cm noise per meter traveled
-    config.vehicle.odometry_yaw_noise_std = 0.005  # ~0.3 degree noise per radian turned
-    config.vehicle.odometry_velocity_noise_std = 0.05  # 5cm/s velocity noise
+    config.estimator.odometry_position_noise_std = 0.01  # 1cm noise per meter traveled
+    config.estimator.odometry_yaw_noise_std = 0.005  # ~0.3 degree noise per radian turned
+    config.estimator.odometry_velocity_noise_std = 0.05  # 5cm/s velocity noise
     
     # Global localization noise parameters (GPS-like)
-    config.vehicle.global_position_noise_std = 1.0  # 1m GPS accuracy
-    config.vehicle.global_yaw_noise_std = 0.02  # ~1 degree GPS heading accuracy
-    config.vehicle.global_measurement_frequency = 1.0  # 1 Hz GPS updates
-    config.vehicle.global_measurement_delay = 0.2  # 200ms GPS delay
+    config.estimator.global_position_noise_std = 1.0  # 1m GPS accuracy
+    config.estimator.global_yaw_noise_std = 0.02  # ~1 degree GPS heading accuracy
+    config.estimator.global_measurement_frequency = 1.0  # 1 Hz GPS updates
+    config.estimator.global_measurement_delay = 0.2  # 200ms GPS delay
     
     # Control input noise
-    config.vehicle.control_input_noise_enabled = True
-    config.vehicle.steering_noise_std = 0.01  # Control input noise
+    config.estimator.control_input_noise_enabled = True
+    config.estimator.steering_noise_std = 0.01  # Control input noise
     
     # Set default state type to "true" for clean comparison
-    config.vehicle.default_state_type = "true"
+    config.estimator.default_state_type = "true"
 
     print("Configuration:")
-    print(f"  Odometry position noise std: {config.vehicle.odometry_position_noise_std} m")
-    print(f"  Odometry yaw noise std: {config.vehicle.odometry_yaw_noise_std} rad ({np.degrees(config.vehicle.odometry_yaw_noise_std):.2f}°)")
-    print(f"  Odometry velocity noise std: {config.vehicle.odometry_velocity_noise_std} m/s")
-    print(f"  Global position noise std: {config.vehicle.global_position_noise_std} m")
-    print(f"  Global yaw noise std: {config.vehicle.global_yaw_noise_std} rad ({np.degrees(config.vehicle.global_yaw_noise_std):.2f}°)")
-    print(f"  Global measurement frequency: {config.vehicle.global_measurement_frequency} Hz")
-    print(f"  Global measurement delay: {config.vehicle.global_measurement_delay} s")
-    print(f"  Control input noise enabled: {config.vehicle.control_input_noise_enabled}")
+    print(f"  Odometry position noise std: {config.estimator.odometry_position_noise_std} m")
+    print(f"  Odometry yaw noise std: {config.estimator.odometry_yaw_noise_std} rad ({np.degrees(config.estimator.odometry_yaw_noise_std):.2f}°)")
+    print(f"  Odometry velocity noise std: {config.estimator.odometry_velocity_noise_std} m/s")
+    print(f"  Global position noise std: {config.estimator.global_position_noise_std} m")
+    print(f"  Global yaw noise std: {config.estimator.global_yaw_noise_std} rad ({np.degrees(config.estimator.global_yaw_noise_std):.2f}°)")
+    print(f"  Global measurement frequency: {config.estimator.global_measurement_frequency} Hz")
+    print(f"  Global measurement delay: {config.estimator.global_measurement_delay} s")
+    print(f"  Control input noise enabled: {config.estimator.control_input_noise_enabled}")
     print()
 
     # Create vehicle model
-    vehicle = VehicleModel(config.vehicle, initial_state)
+    vehicle = VehicleModel(config.vehicle, config.estimator, initial_state)
 
     # Simulation parameters
     time_step = 0.1
@@ -346,12 +347,12 @@ def demonstrate_state_types():
     
     # Create a vehicle with noise enabled
     config = load_config()
-    config.vehicle.noise_seed = 42
-    config.vehicle.odometry_position_noise_std = 0.02
-    config.vehicle.global_position_noise_std = 0.5
-    config.vehicle.control_input_noise_enabled = True
+    config.estimator.noise_seed = 42
+    config.estimator.odometry_position_noise_std = 0.02
+    config.estimator.global_position_noise_std = 0.5
+    config.estimator.control_input_noise_enabled = True
     
-    vehicle = VehicleModel(config.vehicle)
+    vehicle = VehicleModel(config.vehicle, config.estimator)
     
     print("Running vehicle with noise enabled...")
     print("State comparison at each step:")
@@ -376,7 +377,7 @@ def demonstrate_state_types():
     print(f"get_state('true'):     {vehicle.get_state('true').position_x:.3f}")
     print(f"get_state('odometry'): {vehicle.get_state('odometry').position_x:.3f}")
     print(f"get_state('global'):   {vehicle.get_state('global').position_x:.3f}")
-    print(f"get_state():           {vehicle.get_state().position_x:.3f} (default: {config.vehicle.default_state_type})")
+    print(f"get_state():           {vehicle.get_state().position_x:.3f} (default: {config.estimator.default_state_type})")
 
 
 if __name__ == "__main__":
