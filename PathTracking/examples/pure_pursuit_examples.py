@@ -18,6 +18,8 @@ import os
 import sys
 from typing import List, Optional
 
+from loguru import logger
+
 # from dataclasses import dataclass, field
 # from collections import deque
 
@@ -213,16 +215,16 @@ def run_forward_simulation() -> None:
     """
     Run forward driving simulation.
     """
-    print("\n" + "=" * 60)
-    print("🚗 FORWARD DRIVING SIMULATION")
-    print("=" * 60)
-    print("This simulation demonstrates forward path tracking with:")
-    print("- S-curve trajectories")
-    print("- Dynamic lookahead distance")
-    print("- Physics-based acceleration/deceleration")
-    print("- Smooth velocity planning")
-    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    print("Starting forward simulation...")
+    logger.info("\n" + "=" * 60)
+    logger.info("🚗 FORWARD DRIVING SIMULATION")
+    logger.info("=" * 60)
+    logger.info("This simulation demonstrates forward path tracking with:")
+    logger.info("- S-curve trajectories")
+    logger.info("- Dynamic lookahead distance")
+    logger.info("- Physics-based acceleration/deceleration")
+    logger.info("- Smooth velocity planning")
+    logger.info("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    logger.info("Starting forward simulation...")
 
     # Create forward trajectory
     trajectory = create_forward_test_trajectory()
@@ -268,16 +270,16 @@ def run_reverse_simulation() -> None:
     """
     Run reverse driving simulation.
     """
-    print("\n" + "=" * 60)
-    print("🔄 REVERSE DRIVING SIMULATION")
-    print("=" * 60)
-    print("This simulation demonstrates reverse path tracking with:")
-    print("- Backing maneuvers")
-    print("- Reduced speed limits for safety")
-    print("- Smaller lookahead distance")
-    print("- Conservative acceleration limits")
-    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    print("Starting reverse simulation...")
+    logger.info("\n" + "=" * 60)
+    logger.info("🔄 REVERSE DRIVING SIMULATION")
+    logger.info("=" * 60)
+    logger.info("This simulation demonstrates reverse path tracking with:")
+    logger.info("- Backing maneuvers")
+    logger.info("- Reduced speed limits for safety")
+    logger.info("- Smaller lookahead distance")
+    logger.info("- Conservative acceleration limits")
+    logger.info("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    logger.info("Starting reverse simulation...")
 
     # Create reverse trajectory
     trajectory = create_reverse_test_trajectory()
@@ -323,16 +325,16 @@ def run_direction_conflict_test() -> None:
     """
     Run a test simulation to demonstrate direction conflict detection.
     """
-    print("\n" + "=" * 60)
-    print("🔄 DIRECTION CONFLICT TEST")
-    print("=" * 60)
-    print("This simulation demonstrates direction conflict detection:")
-    print("- Path with forced forward direction")
-    print("- Scenarios where backing up would be more natural")
-    print("- Warning messages when conflicts are detected")
-    print("- Real-time direction analysis in status display")
-    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    print("Starting direction conflict test...")
+    logger.info("\n" + "=" * 60)
+    logger.info("🔄 DIRECTION CONFLICT TEST")
+    logger.info("=" * 60)
+    logger.info("This simulation demonstrates direction conflict detection:")
+    logger.info("- Path with forced forward direction")
+    logger.info("- Scenarios where backing up would be more natural")
+    logger.info("- Warning messages when conflicts are detected")
+    logger.info("- Real-time direction analysis in status display")
+    logger.info("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    logger.info("Starting direction conflict test...")
 
     # Create conflict test trajectory
     trajectory = create_direction_conflict_test_trajectory()
@@ -448,31 +450,31 @@ def run_simulation(
         if event.key == " ":  # Space key
             paused = not paused
             if paused:
-                print("Simulation paused. Press Space to continue.")
+                logger.info("Simulation paused. Press Space to continue.")
             else:
-                print("Simulation resumed.")
+                logger.info("Simulation resumed.")
         elif event.key in ["q", "escape"]:  # Q key or ESC key
-            print("Quitting simulation...")
+            logger.info("Quitting simulation...")
             plt.close(fig)
         elif event.key == "d" and diagnostics is not None:  # D key for diagnostics
             if not diagnostic_charts_visible:
-                print("Displaying diagnostic charts...")
+                logger.info("Displaying diagnostic charts...")
                 diagnostics.plot_diagnostic_charts()
                 diagnostic_charts_visible = True
             else:
-                print("Diagnostic charts already visible")
+                logger.info("Diagnostic charts already visible")
         elif event.key == "s" and diagnostics is not None:  # S key to save data
             timestamp = int(time * 10)  # Convert to deciseconds for filename
             csv_filename = f"diagnostic_data_{timestamp}.csv"
             diagnostics.export_data_to_csv(csv_filename)
-            print(f"Diagnostic data saved to {csv_filename}")
+            logger.info(f"Diagnostic data saved to {csv_filename}")
 
     # Connect the key event handler
     fig.canvas.mpl_connect("key_press_event", on_key)
     controls_text = "Controls: Space = Pause/Resume, Q/ESC = Quit"
     if enable_diagnostics:
         controls_text += ", D = Show Diagnostics, S = Save Data"
-    print(controls_text)
+    logger.info(controls_text)
 
     try:
         while time < max_time and plt.fignum_exists(fig.number):
@@ -712,16 +714,16 @@ def run_simulation(
                 plt.pause(0.1)  # Reduce CPU usage while paused
 
     except KeyboardInterrupt:
-        print("\nSimulation interrupted by user")
+        logger.info("\nSimulation interrupted by user")
     finally:
         plt.close(fig)  # Ensure figure is closed properly
 
         # Display final diagnostic summary
         if diagnostics is not None:
-            print("\n" + "=" * 60)
-            print("FINAL PERFORMANCE SUMMARY")
-            print("=" * 60)
-            print(diagnostics.get_diagnostic_summary())
+            logger.info("\n" + "=" * 60)
+            logger.info("FINAL PERFORMANCE SUMMARY")
+            logger.info("=" * 60)
+            logger.info(diagnostics.get_diagnostic_summary())
 
             # Offer to save final diagnostic data
             save_final = input("Save final diagnostic data to CSV? (y/n): ").lower().strip()
@@ -736,18 +738,18 @@ def run_diagnostic_simulation() -> None:
     """
     Run a comprehensive diagnostic simulation with detailed performance analysis.
     """
-    print("\n" + "=" * 60)
-    print("🔍 DIAGNOSTIC SIMULATION WITH PERFORMANCE ANALYSIS")
-    print("=" * 60)
-    print("This simulation provides comprehensive performance diagnostics:")
-    print("- Real-time commanded vs actual velocity/steering tracking")
-    print("- Path tracking error analysis")
-    print("- Control performance metrics")
-    print("- Direction conflict detection and statistics")
-    print("- Comprehensive data export capabilities")
-    print("\nControls: Space = Pause/Resume, Q/ESC = Quit")
-    print("          D = Show Diagnostic Charts, S = Save Data")
-    print("Starting diagnostic simulation...")
+    logger.info("\n" + "=" * 60)
+    logger.info("🔍 DIAGNOSTIC SIMULATION WITH PERFORMANCE ANALYSIS")
+    logger.info("=" * 60)
+    logger.info("This simulation provides comprehensive performance diagnostics:")
+    logger.info("- Real-time commanded vs actual velocity/steering tracking")
+    logger.info("- Path tracking error analysis")
+    logger.info("- Control performance metrics")
+    logger.info("- Direction conflict detection and statistics")
+    logger.info("- Comprehensive data export capabilities")
+    logger.info("\nControls: Space = Pause/Resume, Q/ESC = Quit")
+    logger.info("          D = Show Diagnostic Charts, S = Save Data")
+    logger.info("Starting diagnostic simulation...")
 
     # Create a forward trajectory for cleaner diagnostic testing
     trajectory = create_forward_test_trajectory()
@@ -792,44 +794,44 @@ def run_diagnostic_simulation() -> None:
 
     # Generate and display final diagnostic charts
     if diagnostics is not None:
-        print("\nGenerating final diagnostic charts...")
+        logger.info("\nGenerating final diagnostic charts...")
         diagnostics.plot_diagnostic_charts()
 
         # Export comprehensive data
-        print("\nExporting comprehensive diagnostic data...")
+        logger.info("\nExporting comprehensive diagnostic data...")
         diagnostics.export_data_to_csv("comprehensive_diagnostic_data.csv")
 
-        print("\n" + "🎯 DIAGNOSTIC SIMULATION COMPLETED" + "\n")
-        print("Key findings and recommendations:")
+        logger.info("\n" + "🎯 DIAGNOSTIC SIMULATION COMPLETED" + "\n")
+        logger.info("Key findings and recommendations:")
 
         # Analyze performance and provide recommendations
         if diagnostics.stats["velocity_tracking_error"]["mean"] > 0.5:
-            print("⚠️  High velocity tracking error detected - consider tuning acceleration gains")
+            logger.warning("⚠️  High velocity tracking error detected - consider tuning acceleration gains")
 
         if diagnostics.stats["steering_tracking_error"]["mean"] > math.radians(5):
-            print("⚠️  High steering tracking error detected - consider tuning steering gains")
+            logger.warning("⚠️  High steering tracking error detected - consider tuning steering gains")
 
         if diagnostics.stats["lateral_error"]["mean"] > 0.3:
-            print("⚠️  High lateral error detected - consider adjusting lookahead parameters")
+            logger.warning("⚠️  High lateral error detected - consider adjusting lookahead parameters")
 
         if diagnostics.stats["direction_conflicts"] > len(diagnostics.history) * 0.1:
-            print("⚠️  High direction conflict rate - review trajectory design")
+            logger.warning("⚠️  High direction conflict rate - review trajectory design")
 
         if (
             diagnostics.stats["velocity_tracking_error"]["mean"] < 0.2
             and diagnostics.stats["steering_tracking_error"]["mean"] < math.radians(3)
             and diagnostics.stats["lateral_error"]["mean"] < 0.2
         ):
-            print("✅ Excellent tracking performance - system is well-tuned")
+            logger.info("✅ Excellent tracking performance - system is well-tuned")
 
 
 def run_diagnostic_demo_simple() -> None:
     """
     Run a simple diagnostic demonstration without GUI for testing purposes.
     """
-    print("\n" + "=" * 60)
-    print("🔧 SIMPLE DIAGNOSTIC DEMO (NO GUI)")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("🔧 SIMPLE DIAGNOSTIC DEMO (NO GUI)")
+    logger.info("=" * 60)
 
     # Create a simple straight line trajectory
     config = load_config()
@@ -875,13 +877,13 @@ def run_diagnostic_demo_simple() -> None:
     dt = 0.1
     max_time = 30.0
 
-    print("Running simulation...")
+    logger.info("Running simulation...")
     while time < max_time:
         vehicle_state = vehicle_model.get_state()
 
         # Check if goal reached
         if controller.is_goal_reached(vehicle_state):
-            print(f"Goal reached at time {time:.1f}s")
+            logger.info(f"Goal reached at time {time:.1f}s")
             break
 
         # Compute control
@@ -897,29 +899,29 @@ def run_diagnostic_demo_simple() -> None:
 
         # Print status every 5 seconds
         if int(time * 10) % 50 == 0:
-            print(
+            logger.info(
                 f"Time: {time:.1f}s, Pos: ({vehicle_state.position_x:.1f}, {vehicle_state.position_y:.1f}), "
                 f"Vel: {vehicle_state.velocity:.2f} m/s"
             )
 
     # Display results
-    print("\n" + diagnostics.get_diagnostic_summary())
+    logger.info("\n" + diagnostics.get_diagnostic_summary())
 
     # Generate charts
-    print("Generating diagnostic charts...")
+    logger.info("Generating diagnostic charts...")
     diagnostics.plot_diagnostic_charts()
 
     # Export data
     diagnostics.export_data_to_csv("simple_diagnostic_demo.csv")
-    print("Demo completed!")
+    logger.info("Demo completed!")
 
 
 def demo_acceleration_planning() -> None:
     """
     Demonstration of different acceleration planning settings.
     """
-    print("\n=== Acceleration Planning Demo ===")
-    print("Testing different acceleration limits...")
+    logger.info("\n=== Acceleration Planning Demo ===")
+    logger.info("Testing different acceleration limits...")
 
     # Create simple straight line trajectory for clear acceleration demonstration
     config = load_config()
@@ -940,9 +942,9 @@ def demo_acceleration_planning() -> None:
     ]
 
     for config_item in test_configs:
-        print(f"\nTesting {config_item['name']}:")
-        print(f"  Max Acceleration: {config_item['max_acc']} m/s²")
-        print(f"  Max Deceleration: {config_item['max_dec']} m/s²")
+        logger.info(f"\nTesting {config_item['name']}:")
+        logger.info(f"  Max Acceleration: {config_item['max_acc']} m/s²")
+        logger.info(f"  Max Deceleration: {config_item['max_dec']} m/s²")
 
         # Create velocity controller with specific settings
         velocity_config = VelocityControllerConfig(
@@ -995,9 +997,9 @@ def demo_acceleration_planning() -> None:
             if abs(current_vel - target_vel) < 0.01:
                 break
 
-        print(f"  Time to reach target velocity: {time_steps[-1]:.1f}s")
-        print(f"  Final velocity: {velocities[-1]:.2f} m/s")
-        print(f"  Max acceleration achieved: {max(accelerations):.2f} m/s²")
+        logger.info(f"  Time to reach target velocity: {time_steps[-1]:.1f}s")
+        logger.info(f"  Final velocity: {velocities[-1]:.2f} m/s")
+        logger.info(f"  Max acceleration achieved: {max(accelerations):.2f} m/s²")
 
 
 def main() -> None:
@@ -1031,38 +1033,38 @@ Simulation Options:
     args = parser.parse_args()
     choice = args.simulation_choice
 
-    print("Pure Pursuit Path Tracking Simulation with Forward and Reverse Driving")
-    print("=" * 70)
+    logger.info("Pure Pursuit Path Tracking Simulation with Forward and Reverse Driving")
+    logger.info("=" * 70)
 
     # Run acceleration demo first
     # demo_acceleration_planning()
 
-    print("\n" + "=" * 70)
-    print("🎯 RUNNING SIMULATION")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("🎯 RUNNING SIMULATION")
+    logger.info("=" * 70)
 
     # Execute the selected simulation
     if choice == 1:
-        print("Running Forward Driving Simulation...")
+        logger.info("Running Forward Driving Simulation...")
         run_forward_simulation()
     elif choice == 2:
-        print("Running Reverse Driving Simulation...")
+        logger.info("Running Reverse Driving Simulation...")
         run_reverse_simulation()
     elif choice == 3:
-        print("Running Both Simulations...")
+        logger.info("Running Both Simulations...")
         run_forward_simulation()
         run_reverse_simulation()
     elif choice == 4:
-        print("Running Direction Conflict Test...")
+        logger.info("Running Direction Conflict Test...")
         run_direction_conflict_test()
     elif choice == 5:
-        print("Running Diagnostic Analysis...")
+        logger.info("Running Diagnostic Analysis...")
         run_diagnostic_simulation()
     elif choice == 6:
-        print("Running Simple Diagnostic Demo...")
+        logger.info("Running Simple Diagnostic Demo...")
         run_diagnostic_demo_simple()
 
-    print("\nSimulation completed successfully!")
+    logger.info("\nSimulation completed successfully!")
 
 
 if __name__ == "__main__":
