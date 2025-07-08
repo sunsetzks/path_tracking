@@ -186,7 +186,7 @@ def main():
     print("=" * 60)
 
     # Get the project root directory
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     csv_dir = os.path.join(project_root, "log", "csv")
 
     print(f"📁 Looking for CSV files in: {csv_dir}")

@@ -393,27 +393,10 @@ class VelocityController:
             desired_velocity = desired_velocity_magnitude * target_direction
             logger.debug(f"Normal phase - max vel for stopping: {max_velocity_for_stopping:.2f}, "
                         f"desired velocity: {desired_velocity:.2f}")
-        
-        # Apply acceleration/deceleration constraints
-        velocity_difference = desired_velocity - current_velocity
-        
-        # Determine maximum allowed velocity change
-        if velocity_difference > 0:
-            max_velocity_change = self.max_acceleration * dt
-        else:
-            max_velocity_change = self.max_deceleration * dt
-        
-        # Apply velocity change constraints
-        if abs(velocity_difference) > max_velocity_change:
-            if velocity_difference > 0:
-                target_velocity = current_velocity + max_velocity_change
-            else:
-                target_velocity = current_velocity - max_velocity_change
-        else:
-            target_velocity = desired_velocity
             
-        logger.debug(f"Final target velocity: {target_velocity:.2f} (vel diff: {velocity_difference:.2f}, "
-                    f"max change: {max_velocity_change:.2f})")
+        target_velocity = desired_velocity
+            
+        logger.debug(f"Final target velocity: {target_velocity:.2f}")
         logger.debug("=" * 50)
         
         return target_velocity
