@@ -106,13 +106,9 @@ class VelocityControllerConfig:
     conservative_braking_factor: float = 1.2  # Safety factor for deceleration distance
     min_velocity: float = 0.05  # Minimum velocity magnitude [m/s]
     
-    # Segmented ramp down control parameters
-    enable_segmented_ramp_down: bool = True  # Enable segmented ramp down control
-    fine_adjustment_distance: float = 0.5  # Distance for fine adjustment phase [m]
-    transition_zone_distance: float = 0.1  # Distance for smooth transition between phases [m]
-    creep_speed_factor: float = 0.8  # Factor for calculating creep speed (0.8 means 80% of calculated safe speed)
-    final_braking_distance: float = 0.1  # Distance for final braking phase [m]
-    smooth_transition_enabled: bool = True  # Enable smooth transitions between phases
+    # Simplified ramp down control parameters
+    enable_segmented_ramp_down: bool = True  # Enable simplified ramp down control
+    final_approach_distance: float = 0.3  # Distance for final approach at minimum velocity [m]
 
 
 @dataclass

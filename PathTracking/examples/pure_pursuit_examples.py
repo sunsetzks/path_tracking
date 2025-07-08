@@ -738,11 +738,8 @@ def run_simulation(
             logger.info("=" * 60)
             logger.info(diagnostics.get_diagnostic_summary())
 
-            # Offer to save final diagnostic data
-            save_final = input("Save final diagnostic data to CSV? (y/n): ").lower().strip()
-            if save_final == "y":
-                final_filename = f"final_diagnostic_data_{int(time*10)}.csv"
-                diagnostics.export_data_to_csv(final_filename)
+            final_filename = f"final_diagnostic_data_{int(time*10)}.csv"
+            diagnostics.export_data_to_csv(final_filename)
 
     return diagnostics
 
