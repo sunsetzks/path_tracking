@@ -45,11 +45,35 @@ class VelocityController:
             # This allows creating a default controller when no config is passed.
             # In a real application, it's recommended to always pass a config.
             from ..config import VelocityControllerConfig
-
             config = VelocityControllerConfig()
 
         self.config = config
 
+        # Validate velocity constraints
+        assert self.config.max_forward_velocity > 0, "max_forward_velocity must be positive"
+        # assert self.config.max_backward_velocity < 0, "max_backward_velocity must be negative"
+        assert abs(self.config.min_velocity) > 0, "min_velocity must be non-zero"
+        assert abs(self.config.min_velocity) <= abs(self.config.max_forward_velocity), "min_velocity cannot exceed max_forward_velocity"
+        assert abs(self.config.min_velocity) <= abs(self.config.max_backward_velocity), "min_velocity cannot exceed max_backward_velocity"
+
+        # Validate acceleration parameters
+        assert self.config.max_acceleration > 0, "max_acceleration must be positive"
+        assert self.config.max_deceleration > 0, "max_deceleration must be positive"
+        assert self.config.conservative_braking_factor >= 1.0, "conservative_braking_factor must be >= 1.0"
+
+        # Validate tolerance parameters
+        assert self.config.goal_tolerance > 0, "goal_tolerance must be positive"
+        assert self.config.velocity_tolerance > 0, "velocity_tolerance must be positive"
+
+        # Validate segmented control parameters if enabled
+        if self.config.enable_segmented_ramp_down:
+            assert self.config.fine_adjustment_distance > 0, "fine_adjustment_distance must be positive"
+            assert self.config.transition_zone_distance >= 0, "transition_zone_distance must be non-negative"
+            assert self.config.creep_speed_factor > 0 and self.config.creep_speed_factor <= 1.0, "creep_speed_factor must be between 0 and 1"
+            assert self.config.final_braking_distance > 0, "final_braking_distance must be positive"
+            assert self.config.final_braking_distance < self.config.fine_adjustment_distance, "final_braking_distance must be less than fine_adjustment_distance"
+
+        # Store validated parameters
         self.max_forward_velocity = self.config.max_forward_velocity
         self.max_backward_velocity = self.config.max_backward_velocity
         self.max_acceleration = abs(self.config.max_acceleration)
@@ -66,6 +90,27 @@ class VelocityController:
         self.creep_speed_factor = self.config.creep_speed_factor
         self.final_braking_distance = self.config.final_braking_distance
         self.smooth_transition_enabled = self.config.smooth_transition_enabled
+
+        logger.info("=== Velocity Controller Configuration ===")
+        logger.info(f"Max Forward Velocity: {self.max_forward_velocity} m/s")
+        logger.info(f"Max Backward Velocity: {self.max_backward_velocity} m/s")
+        logger.info(f"Min Velocity: {self.min_velocity} m/s")
+        logger.info(f"Max Acceleration: {self.max_acceleration} m/s²")
+        logger.info(f"Max Deceleration: {self.max_deceleration} m/s²")
+        logger.info(f"Goal Tolerance: {self.goal_tolerance} m")
+        logger.info(f"Velocity Tolerance: {self.velocity_tolerance} m/s")
+        logger.info(f"Conservative Braking Factor: {self.conservative_braking_factor}")
+        
+        if self.enable_segmented_ramp_down:
+            logger.info("Segmented Ramp Down Control: Enabled")
+            logger.info(f"Fine Adjustment Distance: {self.fine_adjustment_distance} m")
+            logger.info(f"Transition Zone Distance: {self.transition_zone_distance} m")
+            logger.info(f"Creep Speed Factor: {self.creep_speed_factor}")
+            logger.info(f"Final Braking Distance: {self.final_braking_distance} m")
+            logger.info(f"Smooth Transition: {'Enabled' if self.smooth_transition_enabled else 'Disabled'}")
+        else:
+            logger.info("Segmented Ramp Down Control: Disabled")
+        logger.info("=" * 40)
 
     def calculate_stopping_distance(self, current_velocity: float) -> float:
         """
@@ -285,12 +330,19 @@ class VelocityController:
         Returns:
             float: Target velocity [m/s] (positive for forward, negative for backward)
         """
+        # Debug: Log input parameters
+        logger.debug(f"=== compute_segmented_target_velocity ===")
+        logger.debug(f"Current state: pos=({vehicle_state.position_x:.2f}, {vehicle_state.position_y:.2f}), vel={vehicle_state.velocity:.2f}")
+        logger.debug(f"Target direction: {target_direction}, dt: {dt}")
+        
         # Check if goal is reached
         if self.is_goal_reached(vehicle_state, trajectory):
+            logger.debug("Goal reached - returning zero velocity")
             return 0.0
         
         # Calculate distance to goal
         distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
+        logger.debug(f"Distance to goal: {distance_to_goal:.2f} m")
         
         # Determine motion direction
         is_forward = target_direction > 0
@@ -298,19 +350,23 @@ class VelocityController:
         # Get current control phase
         control_phase = self.get_control_phase(distance_to_goal)
         current_velocity = vehicle_state.velocity
+        logger.debug(f"Control phase: {control_phase}, Current velocity: {current_velocity:.2f}")
         
         if control_phase == 'final_braking':
             # Final braking phase: Aggressive deceleration to stop
             desired_velocity = 0.0
+            logger.debug("Final braking phase - setting desired velocity to 0")
             
         elif control_phase == 'fine_adjustment':
             # Fine adjustment phase: Maintain creep speed for precise positioning
             creep_speed = self.calculate_creep_speed(is_forward)
             desired_velocity = creep_speed * target_direction
+            logger.debug(f"Fine adjustment phase - creep speed: {creep_speed:.2f}, desired velocity: {desired_velocity:.2f}")
             
         elif control_phase == 'transition':
             # Transition phase: Smooth blend between normal and fine adjustment
             transition_factor = self.calculate_transition_factor(distance_to_goal)
+            logger.debug(f"Transition phase - factor: {transition_factor:.2f}")
             
             # Calculate normal phase velocity
             max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
@@ -326,6 +382,8 @@ class VelocityController:
                 (1 - transition_factor) * creep_speed
             )
             desired_velocity = blended_velocity_magnitude * target_direction
+            logger.debug(f"Transition phase - normal vel: {normal_velocity_magnitude:.2f}, "
+                        f"creep speed: {creep_speed:.2f}, blended vel: {blended_velocity_magnitude:.2f}")
             
         else:  # normal phase
             # Normal phase: Standard velocity control with deceleration planning
@@ -333,6 +391,8 @@ class VelocityController:
             max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
             desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
             desired_velocity = desired_velocity_magnitude * target_direction
+            logger.debug(f"Normal phase - max vel for stopping: {max_velocity_for_stopping:.2f}, "
+                        f"desired velocity: {desired_velocity:.2f}")
         
         # Apply acceleration/deceleration constraints
         velocity_difference = desired_velocity - current_velocity
@@ -351,6 +411,10 @@ class VelocityController:
                 target_velocity = current_velocity - max_velocity_change
         else:
             target_velocity = desired_velocity
+            
+        logger.debug(f"Final target velocity: {target_velocity:.2f} (vel diff: {velocity_difference:.2f}, "
+                    f"max change: {max_velocity_change:.2f})")
+        logger.debug("=" * 50)
         
         return target_velocity
 
