@@ -181,6 +181,7 @@ class VelocityController:
             bool: True if goal is reached, False otherwise
         """
         if len(trajectory.waypoints) == 0:
+            logger.debug("Goal reached: Empty trajectory")
             return True
 
         # Get the last waypoint (goal position)
@@ -198,6 +199,13 @@ class VelocityController:
         nearest_point = trajectory.find_nearest_point(vehicle_state.position_x, vehicle_state.position_y)
         trajectory_length = trajectory.get_trajectory_length()
         s_reached = abs(nearest_point.s - trajectory_length) <= self.goal_tolerance
+
+        if position_reached:
+            logger.debug(f"Goal reached: Position within tolerance - distance to goal: {distance_to_goal:.3f} m (tolerance: {self.goal_tolerance} m)")
+        if s_reached:
+            logger.debug(f"Goal reached: Longitudinal position (s) within tolerance - s_diff: {abs(nearest_point.s - trajectory_length):.3f} m (tolerance: {self.goal_tolerance} m)")
+        if not (position_reached or s_reached):
+            logger.debug(f"Goal not reached - distance: {distance_to_goal:.3f} m, s_diff: {abs(nearest_point.s - trajectory_length):.3f} m (tolerance: {self.goal_tolerance} m)")
 
         return position_reached or s_reached
 

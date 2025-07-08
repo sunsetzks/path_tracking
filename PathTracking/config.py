@@ -101,7 +101,7 @@ class VelocityControllerConfig:
     max_backward_velocity: float = 2.0  # Maximum backward velocity [m/s]
     max_acceleration: float = 1.0  # Maximum acceleration magnitude [m/s²]
     max_deceleration: float = 1.0  # Maximum deceleration magnitude [m/s²]
-    goal_tolerance: float = 0.5  # Distance tolerance to consider goal reached [m]
+    goal_tolerance: float = 0.1  # Distance tolerance to consider goal reached [m]
     velocity_tolerance: float = 0.1  # Velocity tolerance to consider vehicle stopped [m/s]
     conservative_braking_factor: float = 1.2  # Safety factor for deceleration distance
     min_velocity: float = 0.05  # Minimum velocity magnitude [m/s]

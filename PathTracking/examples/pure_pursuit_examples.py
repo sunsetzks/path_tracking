@@ -297,7 +297,7 @@ def run_reverse_simulation() -> None:
         max_backward_velocity=2.5,  # Conservative reverse speed
         max_acceleration=1.0,  # Slower acceleration for reverse
         max_deceleration=1.5,  # Gentler deceleration
-        goal_tolerance=0.8,  # Tighter tolerance for reverse parking
+        goal_tolerance=0.1,  # Tighter tolerance for reverse parking
         velocity_tolerance=0.1,
         conservative_braking_factor=1.5,  # More conservative for reverse
         min_velocity=0.3,  # Lower minimum velocity for precise maneuvering
