@@ -26,6 +26,7 @@ from loguru import logger
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
+from pprint import pformat  # Add this import at the top of the file
 
 # Add the parent directory to the path so we can import the modules
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -406,6 +407,18 @@ def run_simulation(
     trajectory = controller.get_trajectory()
     if trajectory is None:
         raise ValueError("Controller has no trajectory set")
+
+    # Log the configuration at the start of the simulation
+    logger.info("\n" + "=" * 60)
+    logger.info("📋 SIMULATION CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info(f"Vehicle Model Configuration:\n{pformat(vehicle_model.config.__dict__, indent=4)}")
+    logger.info(f"Pure Pursuit Controller Configuration:\n{pformat(controller.config.__dict__, indent=4)}")
+    logger.info(f"Velocity Controller Configuration:\n{pformat(controller.velocity_controller.config.__dict__, indent=4)}")
+    logger.info(f"Simulation Time Step: {time_step} s")
+    logger.info(f"Max Simulation Time: {max_time} s")
+    logger.info(f"Diagnostics Enabled: {enable_diagnostics}")
+    logger.info("=" * 60 + "\n")
 
     # Initialize performance diagnostics
     diagnostics = PerformanceDiagnostics() if enable_diagnostics else None
