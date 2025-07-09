@@ -176,8 +176,8 @@ def simple_noise_example():
     print("Example completed successfully!")
     print("\nKey Features of Simple Noise Estimator:")
     print("- Adds independent Gaussian noise to each state component")
-    print("- Noise does not accumulate over time (unlike odometry)")
-    print("- No measurement delays or intervals (unlike global localization)")
+    print("- Noise does not accumulate over time")
+    print("- No measurement delays or intervals")
     print("- Suitable for basic sensor noise simulation")
 
 
