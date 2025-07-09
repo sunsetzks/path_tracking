@@ -188,13 +188,6 @@ class VelocityController:
         trajectory_length = trajectory.get_trajectory_length()
         s_reached = abs(nearest_point.s - trajectory_length) <= self.goal_tolerance
 
-        if position_reached:
-            logger.debug(f"Goal reached: Position within tolerance - distance to goal: {distance_to_goal:.3f} m (tolerance: {self.goal_tolerance} m)")
-        if s_reached:
-            logger.debug(f"Goal reached: Longitudinal position (s) within tolerance - s_diff: {abs(nearest_point.s - trajectory_length):.3f} m (tolerance: {self.goal_tolerance} m)")
-        if not (position_reached or s_reached):
-            logger.debug(f"Goal not reached - distance: {distance_to_goal:.3f} m, s_diff: {abs(nearest_point.s - trajectory_length):.3f} m (tolerance: {self.goal_tolerance} m)")
-
         return position_reached or s_reached
 
     def calculate_distance_to_goal(self, vehicle_state: "VehicleState", trajectory: "Trajectory") -> float:
@@ -324,70 +317,8 @@ class VelocityController:
         Returns:
             float: Target velocity [m/s] (positive for forward, negative for backward).
         """
-        # Use segmented control if enabled
-        if self.enable_segmented_ramp_down:
-            return self.compute_segmented_target_velocity(vehicle_state, trajectory, target_direction, dt)
         
-        # Traditional single-phase control
-        return self._compute_traditional_target_velocity(vehicle_state, trajectory, target_direction, dt)
-
-    def _compute_traditional_target_velocity(
-        self, vehicle_state: "VehicleState", trajectory: "Trajectory", target_direction: float, dt: float = 0.1
-    ) -> float:
-        """
-        Compute target velocity using traditional single-phase control strategy.
-        
-        This is the original implementation for backward compatibility.
-
-        Args:
-            vehicle_state (VehicleState): Current vehicle state.
-            trajectory (Trajectory): Path trajectory.
-            target_direction (float): Direction of motion (1.0 for forward, -1.0 for backward).
-            dt (float): Time step for acceleration calculation [s].
-
-        Returns:
-            float: Target velocity [m/s] (positive for forward, negative for backward).
-        """
-        # Step 1: Check if goal is reached - return 0 velocity if true
-        if self.is_goal_reached(vehicle_state, trajectory):
-            return 0.0  # Stop the vehicle when goal is reached
-
-        # Step 2: Calculate distance remaining to the goal position
-        distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
-
-        # Step 3: Determine if we're moving forward or backward
-        is_forward = target_direction > 0
-
-        # Step 4: Calculate maximum safe velocity that allows stopping at goal
-        max_velocity_for_stopping = self.calculate_max_velocity_for_distance(distance_to_goal, is_forward)
-
-        # Step 5: Get configured max velocity for current direction
-        max_velocity = self.max_forward_velocity if is_forward else self.max_backward_velocity
-
-        # Step 6: Calculate desired velocity within safe limits
-        desired_velocity_magnitude = max(min(max_velocity, max_velocity_for_stopping), self.min_velocity)
-        desired_velocity = desired_velocity_magnitude * target_direction
-
-        # Step 7: Apply acceleration/deceleration constraints
-        current_velocity = vehicle_state.velocity
-        velocity_difference = desired_velocity - current_velocity
-
-        # Step 8: Determine maximum allowed velocity change based on acceleration/deceleration limits
-        if velocity_difference > 0:
-            max_velocity_change = self.max_acceleration * dt  # Acceleration limit
-        else:
-            max_velocity_change = self.max_deceleration * dt  # Deceleration limit
-
-        # Step 9: Apply velocity change with constraints
-        if abs(velocity_difference) > max_velocity_change:
-            if velocity_difference > 0:
-                target_velocity = current_velocity + max_velocity_change  # Accelerate
-            else:
-                target_velocity = current_velocity - max_velocity_change  # Decelerate
-        else:
-            target_velocity = desired_velocity  # Within allowed change limits
-
-        return target_velocity
+        return self.compute_segmented_target_velocity(vehicle_state, trajectory, target_direction, dt)
 
     def get_control_diagnostics(
         self, vehicle_state: "VehicleState", trajectory: "Trajectory", target_direction: float
