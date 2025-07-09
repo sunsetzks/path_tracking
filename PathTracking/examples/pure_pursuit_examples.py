@@ -293,16 +293,7 @@ def run_reverse_simulation() -> None:
     vehicle_model = VehicleModel(config.vehicle)
 
     # Create velocity controller optimized for reverse driving
-    velocity_config = VelocityControllerConfig(
-        max_forward_velocity=3.0,
-        max_backward_velocity=2.5,  # Conservative reverse speed
-        max_acceleration=1.0,  # Slower acceleration for reverse
-        max_deceleration=1.5,  # Gentler deceleration
-        goal_tolerance=0.1,  # Tighter tolerance for reverse parking
-        velocity_tolerance=0.1,
-        conservative_braking_factor=1.5,  # More conservative for reverse
-        min_velocity=0.3,  # Lower minimum velocity for precise maneuvering
-    )
+    velocity_config = VelocityControllerConfig()
     velocity_controller = VelocityController(velocity_config)
 
     # Create pure pursuit controller

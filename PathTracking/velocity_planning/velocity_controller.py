@@ -243,13 +243,17 @@ class VelocityController:
         """
         # Check if goal is reached
         if self.is_goal_reached(vehicle_state, trajectory):
+            logger.debug("Goal reached - returning zero velocity")
             return 0.0
         
         # Calculate distance to goal
         distance_to_goal = self.calculate_distance_to_goal(vehicle_state, trajectory)
+        logger.debug(f"Distance to goal: {distance_to_goal:.3f}m")
         
         # Determine motion direction
         is_forward = target_direction > 0
+        direction_str = "forward" if is_forward else "backward"
+        logger.debug(f"Motion direction: {direction_str}")
         
         # Use configured final approach distance
         final_approach_distance = self.final_approach_distance
@@ -257,11 +261,13 @@ class VelocityController:
         if distance_to_goal <= final_approach_distance:
             # Final approach phase: Constant minimum velocity
             desired_velocity = self.min_velocity * target_direction
+            logger.debug(f"Final approach phase - using min velocity: {desired_velocity:.3f}m/s")
             
         else:
             # Deceleration phase: Calculate velocity to reach minimum velocity at final approach distance
             # Distance available for deceleration
             deceleration_distance = distance_to_goal - final_approach_distance
+            logger.debug(f"Deceleration phase - distance: {deceleration_distance:.3f}m")
             
             # Calculate required velocity to decelerate to minimum velocity over available distance
             # Using physics: v² = v₀² + 2*a*d, where v = min_velocity, a = -max_deceleration
@@ -278,9 +284,9 @@ class VelocityController:
             target_velocity_magnitude = max(target_velocity_magnitude, self.min_velocity)
             
             desired_velocity = target_velocity_magnitude * target_direction
+            logger.debug(f"Deceleration phase - target velocity: {desired_velocity:.3f}m/s")
             
         return desired_velocity
-
     def calculate_current_acceleration(self, current_velocity: float, target_velocity: float, dt: float = 0.1) -> float:
         """
         Calculate the current acceleration based on velocity change.
