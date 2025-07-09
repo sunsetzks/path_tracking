@@ -1,118 +1,148 @@
+#!/usr/bin/env python3
 """
-Example demonstrating gradient-based path smoothing with fixed endpoints.
-
-This example shows how the gradient-based smoother preserves start and end points
-while smoothing the intermediate path points.
+Example demonstrating the gradient-based path smoother with interpolation.
+This example shows how interpolation before gradient descent improves smoothing results.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-from pathlib import Path
+import os
 
-# Add the source directory to path
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+# Add the parent directory to the path so we can import from src
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(parent_dir, 'src'))
 
 from path_smoothing.gradient_based_smoother import GradientPathSmoother
 
-
 def create_zigzag_path():
-    """Create a zigzag path for testing."""
-    x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
-    y = [0.0, 2.0, -1.0, 3.0, -2.0, 4.0, -1.0, 3.0, -2.0, 2.0, 0.0]
-    return list(zip(x, y))
+    """Create a simple zigzag path for testing."""
+    x_points = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    y_points = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+    return list(zip(x_points, y_points))
 
+def create_curved_path():
+    """Create a curved path with varying point density."""
+    # Create a path with non-uniform spacing
+    angles = np.array([0, 0.5, 1.2, 2.0, 3.0, 4.5, 6.0])
+    x_points = 5 * np.cos(angles)
+    y_points = 5 * np.sin(angles)
+    return list(zip(x_points, y_points))
+
+def plot_comparison(original_path, interpolated_path, smoothed_path, title):
+    """Plot original, interpolated, and smoothed paths for comparison."""
+    plt.figure(figsize=(12, 8))
+    
+    # Convert paths to arrays for plotting
+    orig_arr = np.array(original_path)
+    interp_arr = np.array(interpolated_path)
+    smooth_arr = np.array(smoothed_path)
+    
+    plt.plot(orig_arr[:, 0], orig_arr[:, 1], 'ro-', label='Original Path', linewidth=2, markersize=8)
+    plt.plot(interp_arr[:, 0], interp_arr[:, 1], 'b.-', label='Interpolated Path', linewidth=1, markersize=4, alpha=0.7)
+    plt.plot(smooth_arr[:, 0], smooth_arr[:, 1], 'g-', label='Smoothed Path', linewidth=2)
+    
+    plt.title(title)
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.axis('equal')
 
 def main():
-    """Demonstrate gradient-based path smoothing with endpoint preservation."""
+    """Demonstrate different interpolation modes."""
     
-    # Create test path
-    original_path = create_zigzag_path()
-    print(f"Original path start: {original_path[0]}")
-    print(f"Original path end: {original_path[-1]}")
+    # Create test paths
+    zigzag_path = create_zigzag_path()
+    curved_path = create_curved_path()
     
-    # Initialize smoother with endpoint fixing enabled
-    smoother_fixed = GradientPathSmoother(
-        alpha=0.5,          # Higher weight for smoothness
-        beta=0.3,           # Lower weight for similarity to allow more smoothing
-        learning_rate=0.01,
-        max_iterations=2000,
-        fix_endpoints=True  # Keep start and end points fixed
+    print("=== 梯度路径平滑器示例 ===")
+    print("演示基于距离的插值功能\n")
+    
+    # Test 1: Factor-based interpolation (original method)
+    print("1. 使用插值因子的方法 (interpolation_factor=3)")
+    smoother1 = GradientPathSmoother(
+        alpha=0.3,
+        beta=0.5,
+        interpolation_factor=10,
+        distance_based=False,
+        max_iterations=500
     )
     
-    # Initialize smoother without endpoint fixing for comparison
-    smoother_free = GradientPathSmoother(
-        alpha=0.5,
-        beta=0.3,
-        learning_rate=0.01,
-        max_iterations=2000,
-        fix_endpoints=False  # Allow start and end points to move
+    interpolated1 = smoother1.get_interpolated_path(zigzag_path)
+    smoothed1 = smoother1.smooth_path(zigzag_path)
+    
+    print(f"原始路径点数: {len(zigzag_path)}")
+    print(f"插值后点数: {len(interpolated1)}")
+    print(f"平滑后点数: {len(smoothed1)}")
+    
+    # Test 2: Distance-based interpolation with fixed distance
+    print("\n2. 使用固定距离间隔的插值 (target_distance=0.3)")
+    smoother2 = GradientPathSmoother(
+        alpha=1.3,
+        beta=0.05,
+        distance_based=True,
+        target_distance=0.05,
+        max_iterations=5000
     )
     
-    # Smooth the path with both methods
-    smoothed_path_fixed = smoother_fixed.smooth_path(original_path)
-    smoothed_path_free = smoother_free.smooth_path(original_path)
+    interpolated2 = smoother2.get_interpolated_path(zigzag_path)
+    smoothed2 = smoother2.smooth_path(zigzag_path)
     
-    print(f"Smoothed path (fixed) start: {smoothed_path_fixed[0]}")
-    print(f"Smoothed path (fixed) end: {smoothed_path_fixed[-1]}")
-    print(f"Smoothed path (free) start: {smoothed_path_free[0]}")
-    print(f"Smoothed path (free) end: {smoothed_path_free[-1]}")
+    print(f"原始路径点数: {len(zigzag_path)}")
+    print(f"插值后点数: {len(interpolated2)}")
+    print(f"平滑后点数: {len(smoothed2)}")
     
-    # Verify endpoints are preserved when fix_endpoints=True
-    start_preserved = np.allclose(original_path[0], smoothed_path_fixed[0], atol=1e-10)
-    end_preserved = np.allclose(original_path[-1], smoothed_path_fixed[-1], atol=1e-10)
+    # Test 3: Distance-based interpolation with auto distance
+    print("\n3. 使用自动计算距离间隔的插值 (distance_based=True, auto)")
+    smoother3 = GradientPathSmoother(
+        alpha=0.3,
+        beta=0.5,
+        distance_based=True,
+        interpolation_factor=4,  # Used for auto distance calculation
+        max_iterations=500
+    )
     
-    print(f"\nEndpoint preservation check:")
-    print(f"Start point preserved: {start_preserved}")
-    print(f"End point preserved: {end_preserved}")
+    interpolated3 = smoother3.get_interpolated_path(curved_path)
+    smoothed3 = smoother3.smooth_path(curved_path)
     
-    # Calculate curvature for both paths
-    curvature_fixed = smoother_fixed.get_path_curvature(smoothed_path_fixed)
-    curvature_free = smoother_free.get_path_curvature(smoothed_path_free)
+    # Calculate average distance for reference
+    curved_arr = np.array(curved_path)
+    distances = np.sqrt(np.sum(np.diff(curved_arr, axis=0)**2, axis=1))
+    avg_distance = np.mean(distances)
+    auto_distance = avg_distance / 4
     
-    # Plot results
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    print(f"原始路径点数: {len(curved_path)}")
+    print(f"平均距离: {avg_distance:.3f}")
+    print(f"自动计算的目标距离: {auto_distance:.3f}")
+    print(f"插值后点数: {len(interpolated3)}")
+    print(f"平滑后点数: {len(smoothed3)}")
     
-    # Plot paths
-    original_x, original_y = zip(*original_path)
-    fixed_x, fixed_y = zip(*smoothed_path_fixed)
-    free_x, free_y = zip(*smoothed_path_free)
+    # Plotting
+    plot_comparison(zigzag_path, interpolated1, smoothed1, 
+                   "Factor-based Interpolation (factor=3)")
     
-    ax1.plot(original_x, original_y, 'ro-', label='Original path', linewidth=2, markersize=8)
-    ax1.plot(fixed_x, fixed_y, 'b-', label='Smoothed (fixed endpoints)', linewidth=2)
-    ax1.plot(free_x, free_y, 'g--', label='Smoothed (free endpoints)', linewidth=2)
+    plot_comparison(zigzag_path, interpolated2, smoothed2, 
+                   "Distance-based Interpolation (distance=0.3)")
     
-    # Highlight start and end points
-    ax1.plot(original_x[0], original_y[0], 'ks', markersize=12, label='Start point')
-    ax1.plot(original_x[-1], original_y[-1], 'ks', markersize=12, label='End point')
+    plot_comparison(curved_path, interpolated3, smoothed3, 
+                   "Auto Distance-based Interpolation")
     
-    ax1.set_xlabel('X [m]')
-    ax1.set_ylabel('Y [m]')
-    ax1.set_title('Path Smoothing Comparison')
-    ax1.legend()
-    ax1.grid(True)
-    ax1.set_aspect('equal')
-    
-    # Plot curvature comparison
-    path_length_fixed = np.arange(len(curvature_fixed))
-    path_length_free = np.arange(len(curvature_free))
-    
-    ax2.plot(path_length_fixed, curvature_fixed, 'b-', label='Fixed endpoints', linewidth=2)
-    ax2.plot(path_length_free, curvature_free, 'g--', label='Free endpoints', linewidth=2)
-    ax2.set_xlabel('Path point index')
-    ax2.set_ylabel('Curvature [1/m]')
-    ax2.set_title('Path Curvature Comparison')
-    ax2.legend()
-    ax2.grid(True)
-    
-    plt.tight_layout()
     plt.show()
     
-    # Print statistics
-    print(f"\nCurvature statistics:")
-    print(f"Fixed endpoints - Max: {max(curvature_fixed):.4f}, Mean: {np.mean(curvature_fixed):.4f}")
-    print(f"Free endpoints  - Max: {max(curvature_free):.4f}, Mean: {np.mean(curvature_free):.4f}")
-
+    # Distance analysis
+    print("\n=== 距离分析 ===")
+    for i, (name, path) in enumerate([
+        ("Factor-based", interpolated1),
+        ("Fixed distance", interpolated2), 
+        ("Auto distance", interpolated3)
+    ]):
+        path_arr = np.array(path)
+        distances = np.sqrt(np.sum(np.diff(path_arr, axis=0)**2, axis=1))
+        print(f"{name}: 平均距离={np.mean(distances):.3f}, "
+              f"标准差={np.std(distances):.3f}, "
+              f"最小距离={np.min(distances):.3f}, "
+              f"最大距离={np.max(distances):.3f}")
 
 if __name__ == "__main__":
     main() 
