@@ -5,13 +5,15 @@ class GradientPathSmoother:
     """
     A path smoother using gradient descent to minimize a cost function that balances
     path smoothness and deviation from the original path.
+    The start and end points remain fixed during optimization.
     """
     def __init__(self, 
                  alpha: float = 0.1,    # Weight for path smoothness
                  beta: float = 0.2,     # Weight for path similarity
                  learning_rate: float = 0.01,
                  max_iterations: int = 1000,
-                 convergence_threshold: float = 1e-6):
+                 convergence_threshold: float = 1e-6,
+                 fix_endpoints: bool = True):
         """
         Initialize the path smoother.
         
@@ -21,12 +23,14 @@ class GradientPathSmoother:
             learning_rate: Learning rate for gradient descent
             max_iterations: Maximum number of iterations
             convergence_threshold: Threshold for convergence check
+            fix_endpoints: Whether to keep start and end points fixed
         """
         self.alpha = alpha
         self.beta = beta
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
         self.convergence_threshold = convergence_threshold
+        self.fix_endpoints = fix_endpoints
 
     def _compute_smoothness_gradient(self, path: np.ndarray) -> np.ndarray:
         """
@@ -70,6 +74,10 @@ class GradientPathSmoother:
         path = np.array(original_path)
         original_path_array = path.copy()
         
+        # Store original start and end points
+        start_point = path[0].copy()
+        end_point = path[-1].copy()
+        
         prev_cost = float('inf')
         
         for iteration in range(self.max_iterations):
@@ -81,8 +89,18 @@ class GradientPathSmoother:
             total_gradient = (self.alpha * smoothness_gradient + 
                             self.beta * similarity_gradient)
             
+            # Zero out gradients for endpoints if they should be fixed
+            if self.fix_endpoints:
+                total_gradient[0] = 0.0
+                total_gradient[-1] = 0.0
+            
             # Update path
             path = path - self.learning_rate * total_gradient
+            
+            # Explicitly fix start and end points to ensure they don't drift due to numerical errors
+            if self.fix_endpoints:
+                path[0] = start_point
+                path[-1] = end_point
             
             # Compute current cost
             smoothness_cost = np.sum(np.square(path[2:] - 2 * path[1:-1] + path[:-2]))
@@ -95,7 +113,7 @@ class GradientPathSmoother:
                 
             prev_cost = current_cost
             
-        return path.tolist()
+        return [(float(point[0]), float(point[1])) for point in path]
 
     def get_path_curvature(self, path: List[Tuple[float, float]]) -> List[float]:
         """
@@ -107,11 +125,15 @@ class GradientPathSmoother:
         Returns:
             List of curvature values
         """
-        path = np.array(path)
-        dx = np.gradient(path[:, 0])
-        dy = np.gradient(path[:, 1])
+        path_array = np.array(path)
+        dx = np.gradient(path_array[:, 0])
+        dy = np.gradient(path_array[:, 1])
         ddx = np.gradient(dx)
         ddy = np.gradient(dy)
         
-        curvature = np.abs(dx * ddy - dy * ddx) / (dx * dx + dy * dy) ** 1.5
+        # Avoid division by zero
+        denominator = (dx * dx + dy * dy) ** 1.5
+        denominator = np.where(denominator == 0, 1e-10, denominator)
+        
+        curvature = np.abs(dx * ddy - dy * ddx) / denominator
         return curvature.tolist() 

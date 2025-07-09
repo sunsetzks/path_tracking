@@ -6,5 +6,6 @@ This module provides path smoothing algorithms for trajectory planning.
 
 from .cubic_spline_smoother import CubicSplineSmoother, PathPoint
 from .gradient_based_smoother import GradientPathSmoother
+from .bspline_smoother import BSplineSmoother
 
-__all__ = ['CubicSplineSmoother', 'PathPoint', 'GradientPathSmoother'] 
+__all__ = ['CubicSplineSmoother', 'PathPoint', 'GradientPathSmoother', 'BSplineSmoother'] 
