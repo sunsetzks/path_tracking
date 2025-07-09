@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "path_smoothing"
+version = "0.1.0"
+description = "Path smoothing algorithms for trajectory planning"
+authors = [
+    {name = "Path Tracking Contributors"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "matplotlib>=3.3.0",
+]
+
+[tool.hatch.build]
+packages = ["src/path_smoothing"]

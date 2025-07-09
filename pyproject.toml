@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["PathTracking"]
+packages = ["PathTracking", "PathSmoothing"]
 
 [project.optional-dependencies]
 dev = [
@@ -57,3 +57,8 @@ disallow_untyped_defs = true
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=PathTracking --cov-report=html --cov-report=term-missing" 
+
+[tool.uv.workspace]
+members = [
+    "PathSmoothing",
+]
