@@ -107,9 +107,11 @@ class GradientPathSmoother:
         # Store start and end points to keep them fixed
         start_point = interpolated_path[0].copy()
         end_point = interpolated_path[-1].copy()
+
+        initial_path = interpolated_path
         
         # Flatten path for optimization
-        initial_path_flat = interpolated_path.flatten()
+        initial_path_flat = initial_path.flatten()
         
         # Create equality constraints to fix start and end points
         def start_x_constraint(x): return x[0] - start_point[0]
@@ -124,10 +126,10 @@ class GradientPathSmoother:
             {'type': 'eq', 'fun': end_y_constraint}
         ]
         
-        # Optimization options
+        # Optimization options with improved precision
         options = {
             'maxiter': self.max_iterations,
-            'ftol': 1e-6,
+            'ftol': 1e-12,  # Much stricter convergence tolerance
             'disp': False
         }
         
@@ -135,11 +137,12 @@ class GradientPathSmoother:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             
+            # Use SLSQP method which properly supports equality constraints
             result = minimize(
                 fun=self._objective_function,
                 x0=initial_path_flat,
                 args=(interpolated_path,),
-                method='L-BFGS-B',
+                method='SLSQP',
                 constraints=constraints,
                 options=options
             )
