@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Example demonstrating the gradient-based path smoother with interpolation.
-This example shows how interpolation before scipy optimization improves smoothing results.
-Now includes interactive mode where you can drag points to modify the path.
+Example demonstrating the simplified gradient-based path smoother.
+Uses distance-based interpolation followed by optimization smoothing.
+Includes interactive mode where you can drag points to modify the path.
 """
 
 import numpy as np
@@ -34,10 +34,8 @@ class InteractivePathSmoother:
         default_params = {
             'alpha': 0.3,
             'beta': 0.5,
-            'distance_based': True,
             'target_distance': 0.1,
-            'method': 'L-BFGS-B',
-            'max_iterations': 500
+            'max_iterations': 300
         }
         if smoother_params:
             default_params.update(smoother_params)
@@ -85,7 +83,8 @@ class InteractivePathSmoother:
                        '• Path will re-smooth automatically\n'
                        '• Press "r" to reset to original path\n'
                        '• Press "q" to quit\n'
-                       f'• Smoothing params: α={self.smoother.alpha}, β={self.smoother.beta}')
+                       f'• Smoothing params: α={self.smoother.alpha}, β={self.smoother.beta}, '
+                       f'distance={self.smoother.target_distance}')
         
         self.ax.text(0.02, 0.98, instructions, 
                     transform=self.ax.transAxes, fontsize=9, verticalalignment='top',
@@ -117,7 +116,7 @@ class InteractivePathSmoother:
         self.ax.autoscale()
         
         # Redraw
-        self.fig.canvas.draw_idle()  # Use draw_idle for better performance
+        self.fig.canvas.draw_idle()
     
     def on_pick(self, event):
         """Handle point selection."""
@@ -179,30 +178,14 @@ class InteractivePathSmoother:
         """Get the current smoothed path."""
         return list(self.smoothed_path) if self.smoothed_path else []
 
-def create_zigzag_path():
-    """Create a simple zigzag path for testing."""
-    x_points = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
-    y_points = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
-    return list(zip(x_points, y_points))
-
-def create_curved_path():
-    """Create a curved path with varying point density."""
-    # Create a path with non-uniform spacing
-    angles = np.array([0, 0.5, 1.2, 2.0, 3.0, 4.5, 6.0])
-    x_points = 5 * np.cos(angles)
-    y_points = 5 * np.sin(angles)
-    return list(zip(x_points, y_points))
-
 def create_demo_path():
-    """Create a demo path that's good for interactive editing."""
-    # Create a path with some sharp turns that benefit from smoothing
-    x_points = [0, 2, 4, 6, 8, 10, 12]
-    y_points = [0, 3, 1, 4, 0, 2, 1]
+    """Create a demo path with sharp turns that benefit from smoothing."""
+    x_points = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0]
+    y_points = [0.0, 3.0, 1.0, 4.0, 0.0, 2.0, 1.0]
     return list(zip(x_points, y_points))
 
-def create_interesting_path():
-    """Create a more interesting path with curves and corners."""
-    # Create a path that resembles a track or circuit
+def create_circular_path():
+    """Create a circular path with some irregularities."""
     angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
     radius = 4
     x_points = radius * np.cos(angles)
@@ -214,39 +197,19 @@ def create_interesting_path():
     
     return list(zip(x_points, y_points))
 
-def plot_comparison(original_path, interpolated_path, smoothed_path, title):
-    """Plot original, interpolated, and smoothed paths for comparison."""
-    plt.figure(figsize=(12, 8))
-    
-    # Convert paths to arrays for plotting
-    orig_arr = np.array(original_path)
-    interp_arr = np.array(interpolated_path)
-    smooth_arr = np.array(smoothed_path)
-    
-    plt.plot(orig_arr[:, 0], orig_arr[:, 1], 'ro-', label='Original Path', linewidth=2, markersize=8)
-    plt.plot(interp_arr[:, 0], interp_arr[:, 1], 'b.-', label='Interpolated Path', linewidth=1, markersize=4, alpha=0.7)
-    plt.plot(smooth_arr[:, 0], smooth_arr[:, 1], 'g-', label='Smoothed Path', linewidth=2)
-    
-    plt.title(title)
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.axis('equal')
-
 def run_interactive_demo():
     """Run the interactive path smoothing demo."""
-    print("=== 交互式路径平滑器演示 ===")
-    print("你可以拖动红色点来修改路径，系统会自动重新平滑")
-    print("关闭窗口结束演示\n")
+    print("=== Interactive Path Smoother Demo ===")
+    print("Unified mode: Distance-based interpolation + optimization smoothing")
+    print("You can drag the red points to modify the path\n")
     
     # Let user choose path type
-    print("选择路径类型:")
-    print("1. 简单演示路径 (直线和转角)")
-    print("2. 有趣的环形路径")
+    print("Choose path type:")
+    print("1. Simple demo path (lines and corners)")
+    print("2. Circular path with irregularities")
     
     try:
-        path_choice = input("请选择路径类型 (1/2, 默认为2): ").strip()
+        path_choice = input("Please select path type (1/2, default is 2): ").strip()
         if not path_choice:
             path_choice = "2"
     except:
@@ -255,16 +218,14 @@ def run_interactive_demo():
     if path_choice == "1":
         demo_path = create_demo_path()
     else:
-        demo_path = create_interesting_path()
+        demo_path = create_circular_path()
     
     # Setup smoother parameters
     smoother_params = {
-        'alpha': 0.3,
-        'beta': 0.3,  # Reduced beta for more smoothing
-        'distance_based': True,
-        'target_distance': 0.15,  # Smaller for more detail
-        'method': 'L-BFGS-B',
-        'max_iterations': 300  # Reduced for faster interactive response
+        'alpha': 0.3,           # Smoothness weight
+        'beta': 0.3,            # Similarity weight (reduced for more smoothing)
+        'target_distance': 0.15, # Distance between interpolated points
+        'max_iterations': 300   # Optimization iterations
     }
     
     # Create interactive smoother
@@ -273,133 +234,97 @@ def run_interactive_demo():
     # Show the plot
     plt.show()
     
-    # After closing, print final paths
-    print("\n=== 最终结果 ===")
+    # After closing, print final results
+    print("\n=== Final Results ===")
     final_path = interactive_smoother.get_current_path()
     smoothed_path = interactive_smoother.get_smoothed_path()
     
-    print(f"修改后的路径点数: {len(final_path)}")
-    print(f"平滑后的路径点数: {len(smoothed_path)}")
+    print(f"Modified path point count: {len(final_path)}")
+    print(f"Smoothed path point count: {len(smoothed_path)}")
     
     # Calculate some statistics
     if len(final_path) > 1:
         final_array = np.array(final_path)
         distances = np.sqrt(np.sum(np.diff(final_array, axis=0)**2, axis=1))
-        print(f"路径总长度: {np.sum(distances):.2f}")
-        print(f"平均段长度: {np.mean(distances):.2f}")
+        print(f"Total path length: {np.sum(distances):.2f}")
+        print(f"Average segment length: {np.mean(distances):.2f}")
     
     if len(smoothed_path) > 1:
         smooth_array = np.array(smoothed_path)
         smooth_distances = np.sqrt(np.sum(np.diff(smooth_array, axis=0)**2, axis=1))
-        print(f"平滑路径总长度: {np.sum(smooth_distances):.2f}")
-        print(f"平滑路径平均段长度: {np.mean(smooth_distances):.2f}")
+        print(f"Smoothed path total length: {np.sum(smooth_distances):.2f}")
+        print(f"Smoothed path average segment length: {np.mean(smooth_distances):.2f}")
 
-def run_static_demos():
-    """Run the original static demonstration."""
+def run_static_demo():
+    """Run a static demonstration of the path smoother."""
+    print("=== Static Path Smoother Demo ===")
+    print("Demonstrating the unified distance-based smoothing approach\n")
+    
     # Create test paths
-    zigzag_path = create_zigzag_path()
-    curved_path = create_curved_path()
+    demo_path = create_demo_path()
+    circular_path = create_circular_path()
     
-    print("=== 梯度路径平滑器示例 ===")
-    print("演示基于距离的插值功能\n")
+    # Test different parameter combinations
+    test_configs = [
+        {'alpha': 0.3, 'beta': 0.0, 'target_distance': 0.05, 'name': 'High Detail'},
+        {'alpha': 0.5, 'beta': 0.0, 'target_distance': 0.05, 'name': 'Smooth & Fast'},
+        {'alpha': 0.2, 'beta': 0.0, 'target_distance': 0.05, 'name': 'Conservative'},
+    ]
     
-    # Test 1: Factor-based interpolation (original method)
-    print("1. 使用插值因子的方法 (interpolation_factor=3)")
-    smoother1 = GradientPathSmoother(
-        alpha=0.3,
-        beta=0.5,
-        interpolation_factor=10,
-        distance_based=False,
-        method='L-BFGS-B',
-        max_iterations=500
-    )
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    fig.suptitle('Gradient Path Smoother - Different Parameter Settings', fontsize=14)
     
-    interpolated1 = smoother1.get_interpolated_path(zigzag_path)
-    smoothed1 = smoother1.smooth_path(zigzag_path)
+    for i, config in enumerate(test_configs):
+        for j, (path, path_name) in enumerate([(demo_path, 'Demo Path'), (circular_path, 'Circular Path')]):
+            ax = axes[j, i]
+            
+            # Create smoother with current config
+            smoother = GradientPathSmoother(
+                alpha=config['alpha'],
+                beta=config['beta'], 
+                target_distance=config['target_distance'],
+                max_iterations=500
+            )
+            
+            # Smooth the path
+            smoothed_path = smoother.smooth_path(path)
+            
+            # Plot original and smoothed paths
+            orig_arr = np.array(path)
+            smooth_arr = np.array(smoothed_path)
+            
+            ax.plot(orig_arr[:, 0], orig_arr[:, 1], 'ro-', label='Original', 
+                   linewidth=2, markersize=6)
+            ax.plot(smooth_arr[:, 0], smooth_arr[:, 1], 'g-', label='Smoothed', 
+                   linewidth=2)
+            
+            ax.set_title(f'{config["name"]}\n{path_name}')
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_aspect('equal')
+            
+            # Print statistics
+            print(f"{config['name']} - {path_name}:")
+            print(f"  Original points: {len(path)}, Smoothed points: {len(smoothed_path)}")
+            print(f"  Alpha: {config['alpha']}, Beta: {config['beta']}, Distance: {config['target_distance']}")
     
-    print(f"原始路径点数: {len(zigzag_path)}")
-    print(f"插值后点数: {len(interpolated1)}")
-    print(f"平滑后点数: {len(smoothed1)}")
-    
-    # Test 2: Distance-based interpolation with fixed distance
-    print("\n2. 使用固定距离间隔的插值 (target_distance=0.3)")
-    smoother2 = GradientPathSmoother(
-        alpha=0.3,
-        beta=0.0,
-        distance_based=True,
-        target_distance=0.05,
-        method='L-BFGS-B',
-        max_iterations=5000
-    )
-    
-    interpolated2 = smoother2.get_interpolated_path(zigzag_path)
-    smoothed2 = smoother2.smooth_path(zigzag_path)
-    
-    print(f"原始路径点数: {len(zigzag_path)}")
-    print(f"插值后点数: {len(interpolated2)}")
-    print(f"平滑后点数: {len(smoothed2)}")
-    
-    # Test 3: Distance-based interpolation with auto distance
-    print("\n3. 使用自动计算距离间隔的插值 (distance_based=True, auto)")
-    smoother3 = GradientPathSmoother(
-        alpha=0.3,
-        beta=0.5,
-        distance_based=True,
-        interpolation_factor=4,  # Used for auto distance calculation
-        method='L-BFGS-B',
-        max_iterations=500
-    )
-    
-    interpolated3 = smoother3.get_interpolated_path(curved_path)
-    smoothed3 = smoother3.smooth_path(curved_path)
-    
-    # Calculate average distance for reference
-    curved_arr = np.array(curved_path)
-    distances = np.sqrt(np.sum(np.diff(curved_arr, axis=0)**2, axis=1))
-    avg_distance = np.mean(distances)
-    auto_distance = avg_distance / 4
-    
-    print(f"原始路径点数: {len(curved_path)}")
-    print(f"平均距离: {avg_distance:.3f}")
-    print(f"自动计算的目标距离: {auto_distance:.3f}")
-    print(f"插值后点数: {len(interpolated3)}")
-    print(f"平滑后点数: {len(smoothed3)}")
-    
-    # Plotting
-    plot_comparison(zigzag_path, interpolated1, smoothed1, 
-                   "Factor-based Interpolation (factor=3)")
-    
-    plot_comparison(zigzag_path, interpolated2, smoothed2, 
-                   "Distance-based Interpolation (distance=0.3)")
-    
-    plot_comparison(curved_path, interpolated3, smoothed3, 
-                   "Auto Distance-based Interpolation")
-    
+    plt.tight_layout()
     plt.show()
-    
-    # Distance analysis
-    print("\n=== 距离分析 ===")
-    for i, (name, path) in enumerate([
-        ("Factor-based", interpolated1),
-        ("Fixed distance", interpolated2), 
-        ("Auto distance", interpolated3)
-    ]):
-        path_arr = np.array(path)
-        distances = np.sqrt(np.sum(np.diff(path_arr, axis=0)**2, axis=1))
-        print(f"{name}: 平均距离={np.mean(distances):.3f}, "
-              f"标准差={np.std(distances):.3f}, "
-              f"最小距离={np.min(distances):.3f}, "
-              f"最大距离={np.max(distances):.3f}")
 
 def main():
     """Main function with option to choose demo mode."""
-    print("选择演示模式:")
-    print("1. 交互式演示 (可拖动点)")
-    print("2. 静态对比演示")
-    print("3. 同时运行两种演示")
+    print("Simplified Gradient Path Smoother - Unified Mode")
+    print("Uses distance-based interpolation followed by optimization smoothing\n")
+    
+    print("Choose demo mode:")
+    print("1. Interactive demo (draggable points)")
+    print("2. Static comparison demo")
+    print("3. Run both demos")
     
     try:
-        choice = input("请输入选择 (1/2/3, 默认为1): ").strip()
+        choice = input("Please enter your choice (1/2/3, default is 1): ").strip()
         if not choice:
             choice = "1"
     except:
@@ -408,14 +333,14 @@ def main():
     if choice == "1":
         run_interactive_demo()
     elif choice == "2":
-        run_static_demos()
+        run_static_demo()
     elif choice == "3":
-        print("\n首先运行交互式演示...")
+        print("\nFirst running interactive demo...")
         run_interactive_demo()
-        print("\n接下来运行静态对比演示...")
-        run_static_demos()
+        print("\nNext running static comparison demo...")
+        run_static_demo()
     else:
-        print("无效选择，运行交互式演示...")
+        print("Invalid choice, running interactive demo...")
         run_interactive_demo()
 
 if __name__ == "__main__":
