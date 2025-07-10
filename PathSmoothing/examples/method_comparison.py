@@ -67,19 +67,17 @@ def compare_smoothing_methods():
     gradient_smoother_basic = GradientPathSmoother(
         alpha=0.5,
         beta=0.3,
-        learning_rate=0.01,
-        max_iterations=500,
-        interpolation_factor=1,  # No interpolation
-        interpolation_method='linear'
+        target_distance=0.2,  # Fixed distance interval for interpolation (was learning_rate)
+        max_iterations=500
+        # Removed interpolation_factor and interpolation_method as they don't exist
     )
     
     gradient_smoother_interp = GradientPathSmoother(
         alpha=0.5,
         beta=0.3,
-        learning_rate=0.01,
-        max_iterations=500,
-        interpolation_factor=3,  # With interpolation
-        interpolation_method='cubic'
+        target_distance=0.1,  # Smaller distance for more points (was learning_rate)
+        max_iterations=500
+        # Removed interpolation_factor and interpolation_method as they don't exist
     )
     
     bspline_smoother = BSplineSmoother(degree=3, smoothing_factor=0.1)
@@ -171,25 +169,25 @@ def compare_smoothing_methods():
     plt.show()
 
 def analyze_interpolation_benefits():
-    """Analyze the specific benefits of interpolation in gradient-based smoothing."""
+    """Analyze the specific benefits of different target distances in gradient-based smoothing."""
     
     # Create a path with sparse points but smooth underlying curve
     t = np.linspace(0, 4*np.pi, 8)  # Only 8 points for a full sine curve
     sparse_path = list(zip(t, 2 * np.sin(t)))
     
-    # Create smoothers with different interpolation settings
+    # Create smoothers with different target distances (effectively different interpolation densities)
     smoothers = {
-        'No Interpolation': GradientPathSmoother(
-            alpha=0.6, beta=0.4, interpolation_factor=1, interpolation_method='linear'
+        'Sparse (0.5)': GradientPathSmoother(
+            alpha=0.6, beta=0.4, target_distance=0.5
         ),
-        'Linear Interpolation (2x)': GradientPathSmoother(
-            alpha=0.6, beta=0.4, interpolation_factor=2, interpolation_method='linear'
+        'Medium (0.2)': GradientPathSmoother(
+            alpha=0.6, beta=0.4, target_distance=0.2
         ),
-        'Cubic Interpolation (3x)': GradientPathSmoother(
-            alpha=0.6, beta=0.4, interpolation_factor=3, interpolation_method='cubic'
+        'Dense (0.1)': GradientPathSmoother(
+            alpha=0.6, beta=0.4, target_distance=0.1
         ),
-        'Cubic Interpolation (5x)': GradientPathSmoother(
-            alpha=0.6, beta=0.4, interpolation_factor=5, interpolation_method='cubic'
+        'Very Dense (0.05)': GradientPathSmoother(
+            alpha=0.6, beta=0.4, target_distance=0.05
         )
     }
     
@@ -212,15 +210,11 @@ def analyze_interpolation_benefits():
     results = {}
     
     for i, (method_name, smoother) in enumerate(smoothers.items()):
-        # Get interpolated and smoothed paths
-        interpolated = smoother.get_interpolated_path(sparse_path)
+        # Get smoothed path
         smoothed = smoother.smooth_path(sparse_path)
-        
-        interpolated_array = np.array(interpolated)
         smoothed_array = np.array(smoothed)
         
         results[method_name] = {
-            'interpolated': interpolated_array,
             'smoothed': smoothed_array,
             'num_points': len(smoothed_array)
         }
@@ -230,7 +224,7 @@ def analyze_interpolation_benefits():
                 color=colors[i], linestyle=styles[i], 
                 label=f'{method_name} ({len(smoothed_array)} pts)', linewidth=2)
     
-    ax1.set_title('Interpolation Effect on Sparse Path Smoothing')
+    ax1.set_title('Target Distance Effect on Sparse Path Smoothing')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
