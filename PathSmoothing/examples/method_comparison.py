@@ -121,9 +121,9 @@ def compare_smoothing_methods():
         ax.plot(cubic_array[:, 0], cubic_array[:, 1], 'g-', 
                 label='Cubic Spline', linewidth=2)
         ax.plot(gradient_basic_array[:, 0], gradient_basic_array[:, 1], 'b--', 
-                label='Gradient (Basic)', linewidth=2)
+                label='Gradient (Sparse)', linewidth=2)
         ax.plot(gradient_interp_array[:, 0], gradient_interp_array[:, 1], 'm-', 
-                label='Gradient (Interpolated)', linewidth=2)
+                label='Gradient (Dense)', linewidth=2)
         ax.plot(bspline_array[:, 0], bspline_array[:, 1], 'c-.', 
                 label='B-Spline', linewidth=2)
         
@@ -150,8 +150,8 @@ def compare_smoothing_methods():
             
             ax_curv.plot(x_orig, original_curvature, 'ro-', label='Original', markersize=4)
             ax_curv.plot(x_cubic, cubic_curvature, 'g-', label='Cubic Spline')
-            ax_curv.plot(x_grad_basic, gradient_basic_curvature, 'b--', label='Gradient (Basic)')
-            ax_curv.plot(x_grad_interp, gradient_interp_curvature, 'm-', label='Gradient (Interpolated)')
+            ax_curv.plot(x_grad_basic, gradient_basic_curvature, 'b--', label='Gradient (Sparse)')
+            ax_curv.plot(x_grad_interp, gradient_interp_curvature, 'm-', label='Gradient (Dense)')
             ax_curv.plot(x_bspline, bspline_curvature, 'c-.', label='B-Spline')
             
         except Exception as e:
@@ -284,13 +284,13 @@ def analyze_interpolation_benefits():
         print(f"  Deviation from true curve: {deviations[methods.index(method)]:.4f}")
 
 if __name__ == "__main__":
-    print("Path Smoothing Methods Comparison with Interpolation")
-    print("=" * 60)
+    print("Path Smoothing Methods Comparison")
+    print("=" * 50)
     
     print("\n1. Comparing all smoothing methods...")
     compare_smoothing_methods()
     
-    print("\n2. Analyzing interpolation benefits...")
+    print("\n2. Analyzing target distance effects...")
     analyze_interpolation_benefits()
     
     print("\nComparison completed!")
