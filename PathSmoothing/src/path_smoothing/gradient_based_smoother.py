@@ -1,10 +1,12 @@
 import numpy as np
 from typing import List, Tuple, Optional
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize
+import warnings
 
 class GradientPathSmoother:
     """
-    A path smoother using gradient descent to minimize a cost function that balances
+    A path smoother using scipy optimization to minimize a cost function that balances
     path smoothness and deviation from the original path.
     The start and end points remain fixed during optimization.
     Includes interpolation to increase path density before optimization.
@@ -12,9 +14,9 @@ class GradientPathSmoother:
     def __init__(self, 
                  alpha: float = 0.1,    # Weight for path smoothness
                  beta: float = 0.2,     # Weight for path similarity
-                 learning_rate: float = 0.01,
+                 method: str = 'L-BFGS-B',  # Optimization method
                  max_iterations: int = 1000,
-                 convergence_threshold: float = 1e-6,
+                 tolerance: float = 1e-6,
                  fix_endpoints: bool = True,
                  interpolation_factor: int = 3,  # Number of points to interpolate between each pair
                  interpolation_method: str = 'linear',  # Interpolation method
@@ -26,9 +28,9 @@ class GradientPathSmoother:
         Args:
             alpha: Weight for path smoothness term
             beta: Weight for path similarity term
-            learning_rate: Learning rate for gradient descent
+            method: Optimization method ('L-BFGS-B', 'BFGS', 'CG', 'TNC', etc.)
             max_iterations: Maximum number of iterations
-            convergence_threshold: Threshold for convergence check
+            tolerance: Tolerance for optimization convergence
             fix_endpoints: Whether to keep start and end points fixed
             interpolation_factor: Number of interpolated points between each original point pair (when distance_based=False)
             interpolation_method: Interpolation method ('linear', 'cubic', 'quadratic')
@@ -37,9 +39,9 @@ class GradientPathSmoother:
         """
         self.alpha = alpha
         self.beta = beta
-        self.learning_rate = learning_rate
+        self.method = method
         self.max_iterations = max_iterations
-        self.convergence_threshold = convergence_threshold
+        self.tolerance = tolerance
         self.fix_endpoints = fix_endpoints
         self.interpolation_factor = interpolation_factor
         self.interpolation_method = interpolation_method
@@ -125,37 +127,69 @@ class GradientPathSmoother:
             new_y = interp_y(new_params)
             return np.column_stack([new_x, new_y])
 
-    def _compute_smoothness_gradient(self, path: np.ndarray) -> np.ndarray:
+    def _objective_function(self, path_flat: np.ndarray, original_path: np.ndarray) -> float:
         """
-        Compute the gradient of the smoothness term.
-        The smoothness term penalizes sharp turns in the path.
+        Compute the objective function to minimize.
+        
+        Args:
+            path_flat: Flattened path array (optimization variable)
+            original_path: Original interpolated path for similarity term
+            
+        Returns:
+            Objective function value
         """
-        # Calculate second derivatives (approximation)
-        second_derivatives = path[2:] - 2 * path[1:-1] + path[:-2]
+        # Reshape flat path back to 2D
+        path = path_flat.reshape(-1, 2)
         
-        # Initialize gradient array
-        gradient = np.zeros_like(path)
+        # Smoothness term: sum of squared second derivatives
+        if len(path) >= 3:
+            second_derivatives = path[2:] - 2 * path[1:-1] + path[:-2]
+            smoothness_cost = np.sum(np.square(second_derivatives))
+        else:
+            smoothness_cost = 0.0
         
-        # Fill in the gradient for interior points
-        gradient[2:] += second_derivatives
-        gradient[1:-1] += -2 * second_derivatives
-        gradient[:-2] += second_derivatives
+        # Similarity term: sum of squared deviations from original path
+        similarity_cost = np.sum(np.square(path - original_path))
         
-        return gradient
+        # Combined objective
+        return self.alpha * smoothness_cost + self.beta * similarity_cost
 
-    def _compute_similarity_gradient(self, 
-                                   current_path: np.ndarray, 
-                                   original_path: np.ndarray) -> np.ndarray:
+    def _create_constraints(self, path_shape: Tuple[int, int]) -> List[dict]:
         """
-        Compute the gradient of the similarity term.
-        The similarity term penalizes deviation from the original path.
+        Create constraints to fix endpoints if required.
+        
+        Args:
+            path_shape: Shape of the path array (n_points, 2)
+            
+        Returns:
+            List of constraint dictionaries for scipy.optimize
         """
-        return 2 * (current_path - original_path)
+        constraints = []
+        
+        if self.fix_endpoints:
+            n_points, n_dims = path_shape
+            
+            # Fix first point (start)
+            def start_x_constraint(x): return x[0]  # x[0] should be original start x
+            def start_y_constraint(x): return x[1]  # x[1] should be original start y
+            
+            # Fix last point (end)
+            def end_x_constraint(x): return x[-2]  # x[-2] should be original end x
+            def end_y_constraint(x): return x[-1]  # x[-1] should be original end y
+            
+            constraints.extend([
+                {'type': 'eq', 'fun': start_x_constraint},
+                {'type': 'eq', 'fun': start_y_constraint},
+                {'type': 'eq', 'fun': end_x_constraint},
+                {'type': 'eq', 'fun': end_y_constraint}
+            ])
+        
+        return constraints
 
     def smooth_path(self, 
                    original_path: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
         """
-        Smooth the input path using interpolation followed by gradient descent.
+        Smooth the input path using interpolation followed by scipy optimization.
         
         Args:
             original_path: List of (x, y) coordinates representing the original path
@@ -168,50 +202,70 @@ class GradientPathSmoother:
         
         # Step 1: Interpolate the path to increase density
         interpolated_path = self._interpolate_path(original_path_array)
-        path = interpolated_path.copy()
         
-        # Store original start and end points
-        start_point = path[0].copy()
-        end_point = path[-1].copy()
+        # Store original start and end points for constraints
+        start_point = interpolated_path[0].copy()
+        end_point = interpolated_path[-1].copy()
         
-        prev_cost = float('inf')
+        # Flatten path for optimization (scipy expects 1D array)
+        initial_path_flat = interpolated_path.flatten()
         
-        # Step 2: Apply gradient descent optimization
-        for iteration in range(self.max_iterations):
-            # Compute gradients
-            smoothness_gradient = self._compute_smoothness_gradient(path)
-            similarity_gradient = self._compute_similarity_gradient(path, interpolated_path)
+        # Create constraints if endpoints should be fixed
+        if self.fix_endpoints:
+            constraints = []
+            n_points = len(interpolated_path)
             
-            # Combine gradients with weights
-            total_gradient = (self.alpha * smoothness_gradient + 
-                            self.beta * similarity_gradient)
+            # Create equality constraints for start and end points
+            def start_x_constraint(x): return x[0] - start_point[0]
+            def start_y_constraint(x): return x[1] - start_point[1]
+            def end_x_constraint(x): return x[-2] - end_point[0]
+            def end_y_constraint(x): return x[-1] - end_point[1]
             
-            # Zero out gradients for endpoints if they should be fixed
-            if self.fix_endpoints:
-                total_gradient[0] = 0.0
-                total_gradient[-1] = 0.0
+            constraints = [
+                {'type': 'eq', 'fun': start_x_constraint},
+                {'type': 'eq', 'fun': start_y_constraint},
+                {'type': 'eq', 'fun': end_x_constraint},
+                {'type': 'eq', 'fun': end_y_constraint}
+            ]
+        else:
+            constraints = []
+        
+        # Set up optimization options
+        options = {
+            'maxiter': self.max_iterations,
+            'ftol': self.tolerance,
+            'disp': False
+        }
+        
+        # Suppress optimization warnings for cleaner output
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
             
-            # Update path
-            path = path - self.learning_rate * total_gradient
-            
-            # Explicitly fix start and end points to ensure they don't drift due to numerical errors
-            if self.fix_endpoints:
-                path[0] = start_point
-                path[-1] = end_point
-            
-            # Compute current cost
-            smoothness_cost = np.sum(np.square(path[2:] - 2 * path[1:-1] + path[:-2]))
-            similarity_cost = np.sum(np.square(path - interpolated_path))
-            current_cost = self.alpha * smoothness_cost + self.beta * similarity_cost
-            
-            # Check convergence
-            if abs(prev_cost - current_cost) < self.convergence_threshold:
-                print(f"Convergence reached at iteration {iteration}")
-                break
-                
-            prev_cost = current_cost
-            
-        return [(float(point[0]), float(point[1])) for point in path]
+            # Run optimization
+            result = minimize(
+                fun=self._objective_function,
+                x0=initial_path_flat,
+                args=(interpolated_path,),
+                method=self.method,
+                constraints=constraints,
+                options=options
+            )
+        
+        # Print convergence information
+        if result.success:
+            print(f"Optimization converged successfully in {result.nit} iterations")
+        else:
+            print(f"Optimization did not converge: {result.message}")
+        
+        # Reshape optimized path back to 2D
+        optimized_path = result.x.reshape(-1, 2)
+        
+        # Ensure endpoints are exactly fixed (numerical precision)
+        if self.fix_endpoints:
+            optimized_path[0] = start_point
+            optimized_path[-1] = end_point
+        
+        return [(float(point[0]), float(point[1])) for point in optimized_path]
 
     def get_path_curvature(self, path: List[Tuple[float, float]]) -> List[float]:
         """
