@@ -264,11 +264,11 @@ def run_static_demo():
     demo_path = create_demo_path()
     circular_path = create_circular_path()
     
-    # Test different parameter combinations
+    # Test different parameter combinations - fixed for better performance
     test_configs = [
-        {'alpha': 0.3, 'beta': 0.0, 'target_distance': 0.05, 'name': 'High Detail'},
-        {'alpha': 0.5, 'beta': 0.0, 'target_distance': 0.05, 'name': 'Smooth & Fast'},
-        {'alpha': 0.2, 'beta': 0.0, 'target_distance': 0.05, 'name': 'Conservative'},
+        {'alpha': 0.3, 'beta': 0.0, 'target_distance': 0.2, 'max_iterations': 500, 'name': 'Balanced'},
+        {'alpha': 0.5, 'beta': 0.2, 'target_distance': 0.2, 'max_iterations': 100, 'name': 'Smooth'},
+        {'alpha': 0.2, 'beta': 0.4, 'target_distance': 0.2, 'max_iterations': 100, 'name': 'Conservative'},
     ]
     
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
@@ -278,40 +278,49 @@ def run_static_demo():
         for j, (path, path_name) in enumerate([(demo_path, 'Demo Path'), (circular_path, 'Circular Path')]):
             ax = axes[j, i]
             
+            print(f"Processing {config['name']} - {path_name}...")
+            
             # Create smoother with current config
             smoother = GradientPathSmoother(
                 alpha=config['alpha'],
                 beta=config['beta'], 
                 target_distance=config['target_distance'],
-                max_iterations=500
+                max_iterations=config['max_iterations']
             )
             
             # Smooth the path
-            smoothed_path = smoother.smooth_path(path)
-            
-            # Plot original and smoothed paths
-            orig_arr = np.array(path)
-            smooth_arr = np.array(smoothed_path)
-            
-            ax.plot(orig_arr[:, 0], orig_arr[:, 1], 'ro-', label='Original', 
-                   linewidth=2, markersize=6)
-            ax.plot(smooth_arr[:, 0], smooth_arr[:, 1], 'g-', label='Smoothed', 
-                   linewidth=2)
-            
-            ax.set_title(f'{config["name"]}\n{path_name}')
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            ax.set_aspect('equal')
-            
-            # Print statistics
-            print(f"{config['name']} - {path_name}:")
-            print(f"  Original points: {len(path)}, Smoothed points: {len(smoothed_path)}")
-            print(f"  Alpha: {config['alpha']}, Beta: {config['beta']}, Distance: {config['target_distance']}")
+            try:
+                smoothed_path = smoother.smooth_path(path)
+                
+                # Plot original and smoothed paths
+                orig_arr = np.array(path)
+                smooth_arr = np.array(smoothed_path)
+                
+                ax.plot(orig_arr[:, 0], orig_arr[:, 1], 'ro-', label='Original', 
+                       linewidth=2, markersize=6)
+                ax.plot(smooth_arr[:, 0], smooth_arr[:, 1], 'g-', label='Smoothed', 
+                       linewidth=2)
+                
+                ax.set_title(f'{config["name"]}\n{path_name}')
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                ax.set_aspect('equal')
+                
+                # Print statistics
+                print(f"  Original points: {len(path)}, Smoothed points: {len(smoothed_path)}")
+                print(f"  Alpha: {config['alpha']}, Beta: {config['beta']}, Distance: {config['target_distance']}")
+                
+            except Exception as e:
+                print(f"  Error processing {config['name']} - {path_name}: {e}")
+                ax.set_title(f'{config["name"]}\n{path_name}\n(Error occurred)')
+                ax.text(0.5, 0.5, 'Processing failed', transform=ax.transAxes, 
+                       ha='center', va='center', fontsize=12, color='red')
     
     plt.tight_layout()
     plt.show()
+    print("Static demo completed!")
 
 def main():
     """Main function with option to choose demo mode."""
