@@ -276,7 +276,7 @@ def analyze_interpolation_benefits():
     plt.show()
     
     # Print numerical results
-    print("\n=== Interpolation Analysis Results ===")
+    print("\n=== Target Distance Analysis Results ===")
     for method in methods:
         print(f"\n{method}:")
         print(f"  Points: {results[method]['num_points']}")
