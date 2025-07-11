@@ -347,7 +347,7 @@ def run_direction_conflict_test() -> None:
         goal_tolerance=1.0,
         velocity_tolerance=0.1,
         conservative_braking_factor=1.3,
-        min_velocity=0.3,
+        min_velocity=0.03,
     )
     velocity_controller = VelocityController(velocity_config)
 
