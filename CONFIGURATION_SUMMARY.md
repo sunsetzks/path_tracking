@@ -236,10 +236,10 @@ The enhanced CSV loader will:
 ================================================================================
 #   Filename                            Size       Points   Duration   Modified            
 --------------------------------------------------------------------------------
-1   final_diagnostic_data_328.csv       107.5 KB   328      32.7s       2025-07-05 09:25    
-2   simple_diagnostic_demo.csv          57.7 KB    173      17.2s       2025-07-05 09:19    
-3   comprehensive_diagnostic_data.csv   66.7 KB    221      22.0s       2025-07-05 09:17    
-4   final_diagnostic_data_221.csv       66.7 KB    221      22.0s       2025-07-05 09:05    
+1   final_diagnostic_data_328_20240315_143022.csv       107.5 KB   328      32.7s       2025-07-05 09:25    
+2   simple_diagnostic_demo_20240315_143100.csv          57.7 KB    173      17.2s       2025-07-05 09:19    
+3   comprehensive_diagnostic_data_20240315_143045.csv   66.7 KB    221      22.0s       2025-07-05 09:17    
+4   final_diagnostic_data_221_20240315_142955.csv       66.7 KB    221      22.0s       2025-07-05 09:05    
 --------------------------------------------------------------------------------
 
 Enter file number (1-4) or 'q' to quit: 

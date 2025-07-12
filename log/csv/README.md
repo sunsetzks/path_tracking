@@ -8,10 +8,10 @@ This directory contains CSV files exported from the PathTracking performance dia
 log/
 └── csv/
     ├── README.md                          # This file
-    ├── final_diagnostic_data_328.csv      # Example: Simulation with 328 data points
-    ├── comprehensive_diagnostic_data.csv  # Example: Comprehensive diagnostic data
-    ├── simple_diagnostic_demo.csv         # Example: Simple diagnostic demo
-    └── final_diagnostic_data_221.csv      # Example: Simulation with 221 data points
+    ├── final_diagnostic_data_328_20240315_143022.csv      # Example: Simulation with 328 data points
+    ├── comprehensive_diagnostic_data_20240315_143045.csv  # Example: Comprehensive diagnostic data
+    ├── simple_diagnostic_demo_20240315_143100.csv         # Example: Simple diagnostic demo
+    └── final_diagnostic_data_221_20240315_142955.csv      # Example: Simulation with 221 data points
 ```
 
 ## CSV File Format
@@ -112,9 +112,9 @@ if diagnostics.load_from_csv("log/csv/my_data.csv"):
 ## File Naming Conventions
 
 Recommended naming patterns:
-- `final_diagnostic_data_<datapoints>.csv` - Final simulation results
-- `comprehensive_diagnostic_data.csv` - Full diagnostic analysis
-- `simple_diagnostic_demo.csv` - Simple demonstration data
+- `final_diagnostic_data_<datapoints>_<timestamp>.csv` - Final simulation results with timestamp
+- `comprehensive_diagnostic_data_<timestamp>.csv` - Full diagnostic analysis with timestamp
+- `simple_diagnostic_demo_<timestamp>.csv` - Simple demonstration data with timestamp
 - `<experiment_name>_<timestamp>.csv` - Custom experiment data
 
 ## Chart Output

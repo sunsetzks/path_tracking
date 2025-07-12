@@ -729,7 +729,9 @@ def run_simulation(
             logger.info("=" * 60)
             logger.info(diagnostics.get_diagnostic_summary())
 
-            final_filename = f"final_diagnostic_data_{int(time*10)}.csv"
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            final_filename = f"final_diagnostic_data_{int(time*10)}_{timestamp}.csv"
             diagnostics.export_data_to_csv(final_filename)
 
     return diagnostics
@@ -800,7 +802,9 @@ def run_diagnostic_simulation() -> None:
 
         # Export comprehensive data
         logger.info("\nExporting comprehensive diagnostic data...")
-        diagnostics.export_data_to_csv("comprehensive_diagnostic_data.csv")
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        diagnostics.export_data_to_csv(f"comprehensive_diagnostic_data_{timestamp}.csv")
 
         logger.info("\n" + "🎯 DIAGNOSTIC SIMULATION COMPLETED" + "\n")
         logger.info("Key findings and recommendations:")
@@ -913,7 +917,9 @@ def run_diagnostic_demo_simple() -> None:
     diagnostics.plot_diagnostic_charts()
 
     # Export data
-    diagnostics.export_data_to_csv("simple_diagnostic_demo.csv")
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    diagnostics.export_data_to_csv(f"simple_diagnostic_demo_{timestamp}.csv")
     logger.info("Demo completed!")
 
 
