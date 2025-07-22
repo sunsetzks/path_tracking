@@ -14,6 +14,15 @@ from typing import List, Tuple, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
+
+# Optional scipy import for smooth path interpolation
+try:
+    from scipy.interpolate import interp1d
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
 
 
 class DirectionMode(Enum):
@@ -174,6 +183,10 @@ class HybridAStar:
         self.map_height = 0
         self.map_origin_x = 0
         self.map_origin_y = 0
+        
+        # Visualization data
+        self.explored_nodes = []  # Store explored nodes for visualization
+        self.simulation_trajectories = []  # Store all simulation trajectories
     
     def set_obstacle_map(self, obstacle_map: np.ndarray, 
                         origin_x: float = 0, origin_y: float = 0):
@@ -283,6 +296,15 @@ class HybridAStar:
                     
                 final_state = simulated_states[-1]
                 
+                # Store simulation trajectory for visualization
+                trajectory = {
+                    'states': [current_state] + simulated_states,
+                    'steer_rate': steer_rate,
+                    'direction': direction,
+                    'parent': node.state
+                }
+                self.simulation_trajectories.append(trajectory)
+                
                 # Check collision for all states in trajectory
                 collision_free = True
                 for state in simulated_states:
@@ -374,6 +396,10 @@ class HybridAStar:
         Returns:
             List of states representing the path, or None if no path found
         """
+        # Initialize visualization data
+        self.explored_nodes = []
+        self.simulation_trajectories = []
+        
         # Initialize
         open_list = []
         closed_set: Set[Tuple[int, int, int, int]] = set()
@@ -401,6 +427,9 @@ class HybridAStar:
                 continue
                 
             closed_set.add(current_key)
+            
+            # Store explored node for visualization
+            self.explored_nodes.append(current_node)
             
             # Check if goal reached
             if self.is_goal_reached(current_node.state, goal):
@@ -440,13 +469,34 @@ class HybridAStar:
         print(f"No path found after {iterations} iterations")
         return None
     
-    def visualize_path(self, path: List[State], start: State, goal: State):
-        """Visualize the planned path"""
+    def visualize_path(self, path: List[State], start: State, goal: State, 
+                      show_exploration=True, show_trajectories=True, show_costs=True):
+        """Enhanced visualization of the planned path with exploration details"""
         if not path:
             print("No path to visualize")
             return
             
-        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        # Create subplots
+        if show_costs:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+        else:
+            fig, ax1 = plt.subplots(1, 1, figsize=(15, 10))
+        
+        # Main path visualization
+        self._plot_main_visualization(ax1, path, start, goal, show_exploration, show_trajectories)
+        
+        # Cost analysis visualization
+        if show_costs:
+            self._plot_cost_analysis(ax2, path)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Print detailed path statistics
+        self._print_path_statistics(path)
+    
+    def _plot_main_visualization(self, ax, path, start, goal, show_exploration, show_trajectories):
+        """Plot main path visualization with exploration details"""
         
         # Plot obstacle map if available
         if self.obstacle_map is not None:
@@ -454,54 +504,440 @@ class HybridAStar:
                      self.map_origin_x + self.map_width * self.grid_resolution,
                      self.map_origin_y,
                      self.map_origin_y + self.map_height * self.grid_resolution)
+            # Obstacles as black, free as white
             ax.imshow(self.obstacle_map, extent=extent, origin='lower', 
-                     cmap='gray', alpha=0.7)
+                     cmap='gray_r', vmin=0, vmax=1, alpha=1.0)
         
-        # Extract path coordinates
-        x_coords = [state.x for state in path]
-        y_coords = [state.y for state in path]
-        yaw_coords = [state.yaw for state in path]
+        # Plot exploration nodes (if enabled)
+        if show_exploration and self.explored_nodes:
+            explored_x = [node.state.x for node in self.explored_nodes]
+            explored_y = [node.state.y for node in self.explored_nodes]
+            ax.scatter(explored_x, explored_y, c='lightblue', s=8, alpha=0.5, 
+                      label=f'Explored Nodes ({len(self.explored_nodes)})')
         
-        # Plot path
-        ax.plot(x_coords, y_coords, 'b-', linewidth=2, label='Path')
+        # Plot simulation trajectories (if enabled)
+        if show_trajectories and self.simulation_trajectories:
+            # Sample trajectories to avoid overcrowding
+            sample_rate = max(1, len(self.simulation_trajectories) // 100)
+            sampled_trajectories = self.simulation_trajectories[::sample_rate]
+            
+            for traj in sampled_trajectories:
+                states = traj['states']
+                direction = traj['direction']
+                
+                x_coords = [s.x for s in states]
+                y_coords = [s.y for s in states]
+                
+                # Different colors for forward/backward
+                color = 'lightgreen' if direction == DirectionMode.FORWARD else 'lightcoral'
+                alpha = 0.3
+                
+                ax.plot(x_coords, y_coords, color=color, alpha=alpha, linewidth=0.8)
         
-        # Plot vehicle orientations
-        for i in range(0, len(path), max(1, len(path)//20)):
+        # Plot final path with enhanced details - smooth curves
+        x_coords = np.array([state.x for state in path])
+        y_coords = np.array([state.y for state in path])
+        
+        # Color the path by steering angle
+        steer_angles = [state.steer for state in path]
+        
+        # Create smooth interpolated path for better visualization
+        if len(path) > 3 and HAS_SCIPY:
+            try:
+                # Parameter for interpolation (arc length approximation)
+                t = np.linspace(0, 1, len(path))
+                
+                # Create smooth interpolation
+                f_x = interp1d(t, x_coords, kind='cubic', assume_sorted=True)
+                f_y = interp1d(t, y_coords, kind='cubic', assume_sorted=True)
+                
+                # Generate more points for smooth curve
+                t_smooth = np.linspace(0, 1, len(path) * 5)  # 5x more points
+                x_smooth = f_x(t_smooth)
+                y_smooth = f_y(t_smooth)
+                
+                # Interpolate steering angles as well
+                f_steer = interp1d(t, steer_angles, kind='linear', assume_sorted=True)
+                steer_smooth = f_steer(t_smooth)
+                
+                # Create segments for colored smooth path
+                for i in range(len(x_smooth)-1):
+                    # Color based on steering angle
+                    steer_normalized = abs(steer_smooth[i]) / self.vehicle_model.max_steer
+                    color_intensity = steer_normalized
+                    
+                    if steer_smooth[i] > 0:
+                        color = cm.get_cmap('Reds')(0.3 + 0.7 * color_intensity)
+                    elif steer_smooth[i] < 0:
+                        color = cm.get_cmap('Blues')(0.3 + 0.7 * color_intensity)
+                    else:
+                        color = 'green'
+                    
+                    ax.plot([x_smooth[i], x_smooth[i+1]], [y_smooth[i], y_smooth[i+1]], 
+                           color=color, linewidth=3, alpha=0.8)
+                
+            except Exception as e:
+                print(f"Warning: Smooth interpolation failed ({e}), using linear path visualization")
+                # Fall back to original linear segments
+                for i in range(len(path)-1):
+                    steer_normalized = abs(steer_angles[i]) / self.vehicle_model.max_steer
+                    color_intensity = steer_normalized
+                    
+                    if steer_angles[i] > 0:
+                        color = cm.get_cmap('Reds')(0.3 + 0.7 * color_intensity)
+                    elif steer_angles[i] < 0:
+                        color = cm.get_cmap('Blues')(0.3 + 0.7 * color_intensity)
+                    else:
+                        color = 'green'
+                    
+                    ax.plot([x_coords[i], x_coords[i+1]], [y_coords[i], y_coords[i+1]], 
+                           color=color, linewidth=3, alpha=0.8)
+        else:
+            # For very short paths, use original method
+            for i in range(len(path)-1):
+                steer_normalized = abs(steer_angles[i]) / self.vehicle_model.max_steer
+                color_intensity = steer_normalized
+                
+                if steer_angles[i] > 0:
+                    color = cm.get_cmap('Reds')(0.3 + 0.7 * color_intensity)
+                elif steer_angles[i] < 0:
+                    color = cm.get_cmap('Blues')(0.3 + 0.7 * color_intensity)
+                else:
+                    color = 'green'
+                
+                ax.plot([x_coords[i], x_coords[i+1]], [y_coords[i], y_coords[i+1]], 
+                       color=color, linewidth=3, alpha=0.8)
+        
+        # Plot vehicle orientations along path
+        orientation_step = max(1, len(path) // 30)
+        for i in range(0, len(path), orientation_step):
             state = path[i]
-            dx = 0.5 * np.cos(state.yaw)
-            dy = 0.5 * np.sin(state.yaw)
-            ax.arrow(state.x, state.y, dx, dy, head_width=0.2, 
-                    head_length=0.2, fc='blue', ec='blue', alpha=0.7)
+            
+            # Vehicle body representation
+            vehicle_length = 0.8
+            vehicle_width = 0.4
+            
+            # Calculate vehicle corners
+            cos_yaw = np.cos(state.yaw)
+            sin_yaw = np.sin(state.yaw)
+            
+            # Vehicle outline
+            front_x = state.x + vehicle_length/2 * cos_yaw
+            front_y = state.y + vehicle_length/2 * sin_yaw
+            rear_x = state.x - vehicle_length/2 * cos_yaw
+            rear_y = state.y - vehicle_length/2 * sin_yaw
+            
+            # Draw vehicle as rectangle
+            vehicle_corners_x = [
+                rear_x - vehicle_width/2 * sin_yaw,
+                rear_x + vehicle_width/2 * sin_yaw,
+                front_x + vehicle_width/2 * sin_yaw,
+                front_x - vehicle_width/2 * sin_yaw,
+                rear_x - vehicle_width/2 * sin_yaw
+            ]
+            vehicle_corners_y = [
+                rear_y + vehicle_width/2 * cos_yaw,
+                rear_y - vehicle_width/2 * cos_yaw,
+                front_y - vehicle_width/2 * cos_yaw,
+                front_y + vehicle_width/2 * cos_yaw,
+                rear_y + vehicle_width/2 * cos_yaw
+            ]
+            
+            ax.plot(vehicle_corners_x, vehicle_corners_y, 'k-', linewidth=1, alpha=0.7)
+            
+            # Direction arrow
+            arrow_length = 0.6
+            dx = arrow_length * cos_yaw
+            dy = arrow_length * sin_yaw
+            ax.arrow(state.x, state.y, dx, dy, head_width=0.15, 
+                    head_length=0.15, fc='darkblue', ec='darkblue', alpha=0.8)
+            
+            # Steering angle visualization
+            if abs(state.steer) > 0.1:  # Only show if significant steering
+                # Front wheel position
+                front_wheel_x = state.x + vehicle_length/2 * cos_yaw
+                front_wheel_y = state.y + vehicle_length/2 * sin_yaw
+                
+                # Steered wheel direction
+                wheel_yaw = state.yaw + state.steer
+                wheel_dx = 0.3 * np.cos(wheel_yaw)
+                wheel_dy = 0.3 * np.sin(wheel_yaw)
+                
+                ax.arrow(front_wheel_x, front_wheel_y, wheel_dx, wheel_dy,
+                        head_width=0.1, head_length=0.1, 
+                        fc='red', ec='red', alpha=0.8)
         
-        # Plot start and goal
-        ax.plot(start.x, start.y, 'go', markersize=10, label='Start')
-        ax.plot(goal.x, goal.y, 'ro', markersize=10, label='Goal')
-        
-        # Start and goal orientations
-        start_dx = 1.0 * np.cos(start.yaw)
-        start_dy = 1.0 * np.sin(start.yaw)
+        # Enhanced start and goal visualization
+        # Start
+        ax.plot(start.x, start.y, 'go', markersize=12, label='Start', zorder=10)
+        start_dx = 1.2 * np.cos(start.yaw)
+        start_dy = 1.2 * np.sin(start.yaw)
         ax.arrow(start.x, start.y, start_dx, start_dy, 
-                head_width=0.3, head_length=0.3, fc='green', ec='green')
+                head_width=0.4, head_length=0.4, fc='green', ec='darkgreen', 
+                linewidth=2, zorder=10)
         
-        goal_dx = 1.0 * np.cos(goal.yaw)
-        goal_dy = 1.0 * np.sin(goal.yaw)
+        # Goal
+        ax.plot(goal.x, goal.y, 'ro', markersize=12, label='Goal', zorder=10)
+        goal_dx = 1.2 * np.cos(goal.yaw)
+        goal_dy = 1.2 * np.sin(goal.yaw)
         ax.arrow(goal.x, goal.y, goal_dx, goal_dy,
-                head_width=0.3, head_length=0.3, fc='red', ec='red')
+                head_width=0.4, head_length=0.4, fc='red', ec='darkred',
+                linewidth=2, zorder=10)
+        
+        # Waypoint numbers (every 10th point)
+        waypoint_step = max(1, len(path) // 15)
+        for i in range(0, len(path), waypoint_step):
+            ax.annotate(f'{i}', (path[i].x, path[i].y), 
+                       xytext=(5, 5), textcoords='offset points',
+                       fontsize=8, alpha=0.7, 
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='yellow', alpha=0.7))
+        
+        ax.set_xlabel('X (m)', fontsize=12)
+        ax.set_ylabel('Y (m)', fontsize=12)
+        ax.set_title('Hybrid A* Path Planning - Detailed Visualization', fontsize=14)
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        ax.axis('equal')
+        
+        # Add color bar for steering angle
+        sm = cm.ScalarMappable(cmap=cm.get_cmap('RdBu_r'), 
+                               norm=Normalize(vmin=-self.vehicle_model.max_steer, 
+                                             vmax=self.vehicle_model.max_steer))
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax, shrink=0.6)
+        cbar.set_label('Steering Angle (rad)', fontsize=10)
+    
+    def _plot_cost_analysis(self, ax, path):
+        """Plot cost analysis charts"""
+        if len(path) < 2:
+            return
+            
+        # Calculate costs along path
+        path_indices = list(range(len(path)))
+        steer_costs = []
+        turn_costs = []
+        curvatures = []
+        speeds = []
+        
+        for i, state in enumerate(path):
+            # Steering cost
+            steer_cost = abs(state.steer) / self.vehicle_model.max_steer
+            steer_costs.append(steer_cost)
+            
+            # Turn cost (yaw change rate)
+            if i > 0:
+                yaw_change = abs(self.vehicle_model.normalize_angle(
+                    state.yaw - path[i-1].yaw)) / self.dt
+                turn_costs.append(yaw_change)
+            else:
+                turn_costs.append(0)
+            
+            # Curvature approximation
+            if i > 0 and i < len(path) - 1:
+                p1 = np.array([path[i-1].x, path[i-1].y])
+                p2 = np.array([state.x, state.y])
+                p3 = np.array([path[i+1].x, path[i+1].y])
+                
+                # Calculate curvature
+                a = np.linalg.norm(p2 - p1)
+                b = np.linalg.norm(p3 - p2)
+                c = np.linalg.norm(p3 - p1)
+                
+                if a > 1e-6 and b > 1e-6:
+                    area = 0.5 * abs(np.cross(p2 - p1, p3 - p1))
+                    curvature = 4 * area / (a * b * c) if c > 1e-6 else 0
+                else:
+                    curvature = 0
+                curvatures.append(curvature)
+            else:
+                curvatures.append(0)
+            
+            # Speed (constant for this implementation)
+            speeds.append(self.velocity)
+        
+        # Create subplots for different cost components
+        ax.clear()
+        
+        # Multi-axis plot
+        ax2 = ax.twinx()
+        ax3 = ax.twinx()
+        ax3.spines['right'].set_position(('outward', 60))
+        
+        # Plot different cost components
+        line1 = ax.plot(path_indices, steer_costs, 'r-', linewidth=2, 
+                       label='Steering Cost', alpha=0.8)
+        line2 = ax2.plot(path_indices, turn_costs, 'b-', linewidth=2, 
+                        label='Turn Rate (rad/s)', alpha=0.8)
+        line3 = ax3.plot(path_indices, curvatures, 'g-', linewidth=2, 
+                        label='Curvature', alpha=0.8)
+        
+        # Styling
+        ax.set_xlabel('Path Index', fontsize=12)
+        ax.set_ylabel('Steering Cost', color='r', fontsize=12)
+        ax2.set_ylabel('Turn Rate (rad/s)', color='b', fontsize=12)
+        ax3.set_ylabel('Curvature', color='g', fontsize=12)
+        
+        ax.tick_params(axis='y', labelcolor='r')
+        ax2.tick_params(axis='y', labelcolor='b')
+        ax3.tick_params(axis='y', labelcolor='g')
+        
+        ax.set_title('Path Cost Analysis', fontsize=14)
+        ax.grid(True, alpha=0.3)
+        
+        # Combined legend
+        lines = line1 + line2 + line3
+        labels = [l.get_label() for l in lines]
+        ax.legend(lines, labels, loc='upper right')
+    
+    def _print_path_statistics(self, path):
+        """Print detailed path statistics"""
+        if not path:
+            return
+            
+        print(f"\n{'='*60}")
+        print(f"DETAILED PATH STATISTICS")
+        print(f"{'='*60}")
+        
+        # Basic statistics
+        total_distance = sum(np.sqrt((path[i+1].x - path[i].x)**2 + 
+                                   (path[i+1].y - path[i].y)**2) 
+                           for i in range(len(path)-1))
+        
+        print(f"Path length: {len(path)} waypoints")
+        print(f"Total distance: {total_distance:.2f} m")
+        print(f"Average waypoint spacing: {total_distance/(len(path)-1):.2f} m")
+        
+        # Time and speed statistics
+        total_time = (len(path) - 1) * self.simulation_time
+        print(f"Estimated travel time: {total_time:.2f} s")
+        print(f"Average speed: {total_distance/total_time:.2f} m/s")
+        
+        # Steering statistics
+        steer_angles = [state.steer for state in path]
+        max_steer = max(abs(s) for s in steer_angles)
+        avg_steer = np.mean([abs(s) for s in steer_angles])
+        
+        print(f"\nSTEERING ANALYSIS:")
+        print(f"Maximum steering angle: {np.degrees(max_steer):.1f}° ({max_steer:.3f} rad)")
+        print(f"Average |steering|: {np.degrees(avg_steer):.1f}° ({avg_steer:.3f} rad)")
+        print(f"Steering utilization: {max_steer/self.vehicle_model.max_steer*100:.1f}%")
+        
+        # Direction changes
+        direction_changes = 0
+        for i in range(1, len(path)):
+            if path[i].direction != path[i-1].direction:
+                direction_changes += 1
+        
+        print(f"Direction changes (cusps): {direction_changes}")
+        
+        # Curvature analysis
+        curvatures = []
+        for i in range(1, len(path) - 1):
+            p1 = np.array([path[i-1].x, path[i-1].y])
+            p2 = np.array([path[i].x, path[i].y])
+            p3 = np.array([path[i+1].x, path[i+1].y])
+            
+            a = np.linalg.norm(p2 - p1)
+            b = np.linalg.norm(p3 - p2)
+            c = np.linalg.norm(p3 - p1)
+            
+            if a > 1e-6 and b > 1e-6 and c > 1e-6:
+                area = 0.5 * abs(np.cross(p2 - p1, p3 - p1))
+                curvature = 4 * area / (a * b * c)
+                curvatures.append(curvature)
+        
+        if curvatures:
+            print(f"\nCURVATURE ANALYSIS:")
+            print(f"Maximum curvature: {max(curvatures):.4f}")
+            print(f"Average curvature: {np.mean(curvatures):.4f}")
+        
+        # Exploration statistics
+        if self.explored_nodes:
+            print(f"\nSEARCH STATISTICS:")
+            print(f"Nodes explored: {len(self.explored_nodes)}")
+            print(f"Trajectories simulated: {len(self.simulation_trajectories)}")
+            
+            # Cost breakdown for final path
+            if hasattr(path[-1], 'g_cost'):
+                final_node = None
+                # Find the final node in explored nodes
+                for node in self.explored_nodes:
+                    if (abs(node.state.x - path[-1].x) < 0.1 and 
+                        abs(node.state.y - path[-1].y) < 0.1):
+                        final_node = node
+                        break
+                
+                if final_node:
+                    print(f"\nFINAL PATH COSTS:")
+                    print(f"Total cost (g): {final_node.g_cost:.2f}")
+                    print(f"  - Motion cost component: ~{final_node.g_cost * 0.6:.2f}")
+                    print(f"  - Steering cost component: {self.w_steer * final_node.steer_cost:.2f}")
+                    print(f"  - Turn cost component: {self.w_turn * final_node.turn_cost:.2f}")
+                    print(f"  - Cusp cost component: {self.w_cusp * final_node.cusp_cost:.2f}")
+                    print(f"  - Path smoothness component: {self.w_path * final_node.path_cost:.2f}")
+        
+        print(f"{'='*60}")
+    
+    def visualize_search_progress(self, path: List[State], start: State, goal: State, 
+                                 max_nodes_to_show: int = 500):
+        """Visualize the search progress with animated-like progression"""
+        if not self.explored_nodes:
+            print("No exploration data available")
+            return
+            
+        fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+        
+        # Plot obstacle map
+        if self.obstacle_map is not None:
+            extent = (self.map_origin_x, 
+                     self.map_origin_x + self.map_width * self.grid_resolution,
+                     self.map_origin_y,
+                     self.map_origin_y + self.map_height * self.grid_resolution)
+            ax.imshow(self.obstacle_map, extent=extent, origin='lower', 
+                     cmap='gray', alpha=0.3)
+        
+        # Show exploration progression with color gradient
+        nodes_to_show = min(len(self.explored_nodes), max_nodes_to_show)
+        step = max(1, len(self.explored_nodes) // nodes_to_show)
+        
+        exploration_x = []
+        exploration_y = []
+        exploration_costs = []
+        
+        for i in range(0, len(self.explored_nodes), step):
+            node = self.explored_nodes[i]
+            exploration_x.append(node.state.x)
+            exploration_y.append(node.state.y)
+            exploration_costs.append(node.f_cost)
+        
+        # Color by exploration order (early = blue, late = red)
+        colors = cm.get_cmap('viridis')(np.linspace(0, 1, len(exploration_x)))
+        scatter = ax.scatter(exploration_x, exploration_y, c=colors, s=15, alpha=0.7, 
+                           label=f'Exploration Progress ({len(exploration_x)} nodes)')
+        
+        # Plot final path
+        if path:
+            x_coords = [state.x for state in path]
+            y_coords = [state.y for state in path]
+            ax.plot(x_coords, y_coords, 'r-', linewidth=3, label='Final Path')
+        
+        # Start and goal
+        ax.plot(start.x, start.y, 'go', markersize=15, label='Start', zorder=10)
+        ax.plot(goal.x, goal.y, 'ro', markersize=15, label='Goal', zorder=10)
         
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
-        ax.set_title('Hybrid A* Path Planning')
+        ax.set_title('Search Exploration Progress')
         ax.legend()
         ax.grid(True, alpha=0.3)
         ax.axis('equal')
         
+        # Add colorbar for exploration progression
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Exploration Order (Blue=Early, Yellow=Late)')
+        
         plt.tight_layout()
         plt.show()
-        
-        # Print path statistics
-        print(f"\nPath Statistics:")
-        print(f"Path length: {len(path)} points")
-        print(f"Total distance: {sum(np.sqrt((path[i+1].x - path[i].x)**2 + (path[i+1].y - path[i].y)**2) for i in range(len(path)-1)):.2f} m")
 
 
 # Example usage and testing
@@ -539,6 +975,21 @@ if __name__ == "__main__":
     
     if path:
         print(f"Path found with {len(path)} waypoints")
-        planner.visualize_path(path, start, goal)
+        
+        # Enhanced visualization with all details
+        print("\nShowing enhanced visualization...")
+        planner.visualize_path(path, start, goal, 
+                              show_exploration=True, 
+                              show_trajectories=True, 
+                              show_costs=True)
+        
+        # Show search progress visualization
+        print("\nShowing search progress visualization...")
+        planner.visualize_search_progress(path, start, goal, max_nodes_to_show=300)
+        
     else:
         print("No path found!")
+        # Even if no path found, show exploration
+        if planner.explored_nodes:
+            print("Showing exploration data...")
+            planner.visualize_search_progress([], start, goal)
