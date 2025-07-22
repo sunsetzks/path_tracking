@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "astar_project"
+version = "0.1.0"
+description = ""
+authors = ["kszheng <2436809937@qq.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+numpy = "^1.24.0"
+matplotlib = "^3.7.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
