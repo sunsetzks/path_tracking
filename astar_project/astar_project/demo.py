@@ -55,6 +55,7 @@ def demo_basic_navigation():
         vehicle_model=vehicle,
         grid_resolution=0.5,
         angle_resolution=np.pi/8,
+        steer_resolution=np.pi/16,
         velocity=3.0,
         simulation_time=0.8,
         dt=0.1
@@ -99,6 +100,7 @@ def demo_parallel_parking():
         vehicle_model=vehicle,
         grid_resolution=0.3,
         angle_resolution=np.pi/12,
+        steer_resolution=np.pi/24,
         velocity=1.5,  # Slower speed for precision
         simulation_time=0.6,
         dt=0.1
@@ -142,6 +144,7 @@ def demo_u_turn():
         vehicle_model=vehicle,
         grid_resolution=0.4,
         angle_resolution=np.pi/10,
+        steer_resolution=np.pi/20,
         velocity=2.0,
         simulation_time=0.7,
         dt=0.1

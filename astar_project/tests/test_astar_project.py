@@ -117,6 +117,7 @@ class TestHybridAStar:
             vehicle_model=self.vehicle,
             grid_resolution=1.0,
             angle_resolution=np.pi/4,
+            steer_resolution=np.pi/16,
             velocity=2.0,
             simulation_time=0.5,
             dt=0.1
@@ -143,7 +144,7 @@ class TestHybridAStar:
         state = State(x=1.7, y=2.3, yaw=np.pi/3)
         grid_coords = self.planner.discretize_state(state)
         
-        assert len(grid_coords) == 3
+        assert len(grid_coords) == 4  # Now includes steer angle
         assert all(isinstance(coord, int) for coord in grid_coords)
     
     def test_collision_detection_no_map(self):
@@ -247,6 +248,7 @@ class TestIntegration:
         planner = HybridAStar(
             vehicle_model=vehicle,
             grid_resolution=0.5,
+            steer_resolution=np.pi/16,
             velocity=1.0,
             simulation_time=0.5
         )

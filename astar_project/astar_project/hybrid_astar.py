@@ -135,6 +135,7 @@ class HybridAStar:
                  vehicle_model: VehicleModel,
                  grid_resolution: float = 1.0,
                  angle_resolution: float = np.pi/8,
+                 steer_resolution: float = np.pi/16,
                  velocity: float = 2.0,
                  simulation_time: float = 1.0,
                  dt: float = 0.1):
@@ -143,6 +144,7 @@ class HybridAStar:
             vehicle_model: Vehicle kinematic model
             grid_resolution: Grid resolution for discretization (m)
             angle_resolution: Angular resolution (rad)
+            steer_resolution: Steering angle resolution (rad)
             velocity: Fixed linear velocity for simulation (m/s)
             simulation_time: Forward simulation time (s)
             dt: Simulation time step (s)
@@ -150,6 +152,7 @@ class HybridAStar:
         self.vehicle_model = vehicle_model
         self.grid_resolution = grid_resolution
         self.angle_resolution = angle_resolution
+        self.steer_resolution = steer_resolution
         self.velocity = velocity
         self.simulation_time = simulation_time
         self.dt = dt
@@ -329,12 +332,13 @@ class HybridAStar:
         
         return successors
     
-    def discretize_state(self, state: State) -> Tuple[int, int, int]:
+    def discretize_state(self, state: State) -> Tuple[int, int, int, int]:
         """Discretize continuous state for duplicate detection"""
         grid_x = int(state.x / self.grid_resolution)
         grid_y = int(state.y / self.grid_resolution)
         grid_yaw = int(state.yaw / self.angle_resolution)
-        return (grid_x, grid_y, grid_yaw)
+        grid_steer = int(state.steer / self.steer_resolution)
+        return (grid_x, grid_y, grid_yaw, grid_steer)
     
     def is_goal_reached(self, current: State, goal: State, 
                        position_tolerance: float = 1.0, 
@@ -372,7 +376,7 @@ class HybridAStar:
         """
         # Initialize
         open_list = []
-        closed_set: Set[Tuple[int, int, int]] = set()
+        closed_set: Set[Tuple[int, int, int, int]] = set()
         node_map = {}
         
         # Create start node
