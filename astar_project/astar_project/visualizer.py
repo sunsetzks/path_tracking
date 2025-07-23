@@ -27,7 +27,7 @@ except ImportError:
 try:
     from .hybrid_astar import State, DirectionMode, Node
 except ImportError:
-    from astar_search.hybrid_astar import State, DirectionMode, Node
+    from astar_project.hybrid_astar import State, DirectionMode, Node
 
 
 class HybridAStarVisualizer:
@@ -90,27 +90,32 @@ class HybridAStarVisualizer:
         self.show_trajectories = show_trajectories
         self.show_cost_panel = show_costs
         
-        # Create figure with space for controls
-        self.fig = plt.figure(figsize=(20, 10))
+        # Create figure with space for controls - balanced size for good visibility
+        self.fig = plt.figure(figsize=(18, 10))
         
-        # Create layout: main plot + control panel
+        # Create layout: main plot + control panel - balanced ratios for both functionality and space
         if self.show_cost_panel:
-            # With cost panel: [main plot | cost plot | controls]
+            # With cost panel: [main plot | cost plot | controls] - balanced layout
             from matplotlib.gridspec import GridSpec
-            gs = GridSpec(1, 4, width_ratios=[3, 1, 0.8, 0.1], figure=self.fig)
+            gs = GridSpec(1, 3, width_ratios=[4.5, 1, 1.2], figure=self.fig, 
+                         left=0.05, right=0.98, top=0.95, bottom=0.08, wspace=0.12)
             self.main_ax = self.fig.add_subplot(gs[0])
             self.cost_ax = self.fig.add_subplot(gs[1])
             self.control_ax = self.fig.add_subplot(gs[2])
         else:
-            # Without cost panel: [main plot | controls]
+            # Without cost panel: [main plot | controls] - give adequate space to controls
             from matplotlib.gridspec import GridSpec
-            gs = GridSpec(1, 3, width_ratios=[4, 1, 0.1], figure=self.fig)
+            gs = GridSpec(1, 2, width_ratios=[5, 1.2], figure=self.fig,
+                         left=0.05, right=0.98, top=0.95, bottom=0.08, wspace=0.08)
             self.main_ax = self.fig.add_subplot(gs[0])
             self.cost_ax = None
             self.control_ax = self.fig.add_subplot(gs[1])
         
         # Store current axis reference
         self.current_ax = self.main_ax
+        
+        # Initialize stored limits to None to ensure proper initial view
+        self._stored_limits = None
         
         # Create interactive controls
         self._create_interactive_controls()
@@ -134,20 +139,20 @@ class HybridAStarVisualizer:
         self.control_ax.set_ylim(0, 1)
         self.control_ax.axis('off')
         
-        # Control panel title
+        # Control panel title - proper size and positioning
         self.control_ax.text(0.5, 0.95, 'Display Controls', 
-                           ha='center', va='top', fontsize=12, fontweight='bold',
+                           ha='center', va='top', fontsize=11, fontweight='bold',
                            transform=self.control_ax.transAxes)
         
-        # Create checkboxes for different display elements
+        # Create checkboxes for different display elements - more concise labels
         checkbox_labels = [
-            'Show Exploration Nodes',
-            'Show Trajectories', 
-            'Show Final Path',
-            'Show Vehicle Arrows',
-            'Show Steering Arrows',
-            'Show Waypoint Numbers',
-            'Show Cost Panel'
+            'Exploration Nodes',
+            'Trajectories', 
+            'Final Path',
+            'Vehicle Arrows',
+            'Steering Arrows',
+            'Waypoint Numbers',
+            'Cost Panel'
         ]
         
         # Initial states
@@ -161,42 +166,51 @@ class HybridAStarVisualizer:
             self.show_cost_panel
         ]
         
-        # Create checkbox widget - use control_ax position
+        # Create checkbox widget - proper positioning with adequate space
         if self.fig:
             bbox = self.control_ax.get_position()
-            # Position relative to the control axis
-            checkbox_ax = self.fig.add_axes((bbox.x0 + 0.02, bbox.y0 + 0.15, bbox.width - 0.04, 0.6))
+            # Calculate proper positioning to ensure checkboxes are visible
+            checkbox_width = max(0.15, bbox.width * 0.9)  # Use 90% of available width
+            checkbox_height = 0.65  # Fixed height that works well
+            checkbox_x = bbox.x0 + (bbox.width - checkbox_width) / 2  # Center horizontally
+            checkbox_y = bbox.y0 + 0.15  # Start from a good vertical position
+            
+            # Debug: print positioning info
+            print(f"Control panel bbox: {bbox}")
+            print(f"Checkbox position: x={checkbox_x:.3f}, y={checkbox_y:.3f}, w={checkbox_width:.3f}, h={checkbox_height:.3f}")
+            
+            checkbox_ax = self.fig.add_axes((checkbox_x, checkbox_y, checkbox_width, checkbox_height))
             self.checkboxes = CheckButtons(checkbox_ax, checkbox_labels, checkbox_states)
             
-            # Customize checkbox appearance
+            # Customize checkbox appearance for better visibility
             if self.checkboxes:
                 for i, label in enumerate(self.checkboxes.labels):
-                    label.set_fontsize(9)
+                    label.set_fontsize(9)  # Good readable size
                 
                 # Connect checkbox events
                 self.checkboxes.on_clicked(self._on_checkbox_clicked)
         
-        # Add instruction text
-        self.control_ax.text(0.5, 0.05, 'Click checkboxes to toggle display elements', 
+        # Add instruction text - clear and positioned well
+        self.control_ax.text(0.5, 0.05, 'Click checkboxes to toggle', 
                            ha='center', va='bottom', fontsize=8, style='italic',
                            transform=self.control_ax.transAxes)
     
     def _on_checkbox_clicked(self, label):
         """Handle checkbox click events"""
-        # Update corresponding state
-        if label == 'Show Exploration Nodes':
+        # Update corresponding state - match labels exactly
+        if label == 'Exploration Nodes':
             self.show_exploration = not self.show_exploration
-        elif label == 'Show Trajectories':
+        elif label == 'Trajectories':
             self.show_trajectories = not self.show_trajectories
-        elif label == 'Show Final Path':
+        elif label == 'Final Path':
             self.show_path = not self.show_path
-        elif label == 'Show Vehicle Arrows':
+        elif label == 'Vehicle Arrows':
             self.show_vehicle_arrows = not self.show_vehicle_arrows
-        elif label == 'Show Steering Arrows':
+        elif label == 'Steering Arrows':
             self.show_steering_arrows = not self.show_steering_arrows
-        elif label == 'Show Waypoint Numbers':
+        elif label == 'Waypoint Numbers':
             self.show_waypoint_numbers = not self.show_waypoint_numbers
-        elif label == 'Show Cost Panel':
+        elif label == 'Cost Panel':
             self.show_cost_panel = not self.show_cost_panel
             # Need to recreate layout when cost panel is toggled
             self._recreate_layout()
@@ -220,18 +234,20 @@ class HybridAStarVisualizer:
         # Clear current figure
         self.fig.clear()
         
-        # Recreate layout
+        # Recreate layout - use balanced ratios for proper control visibility
         if self.show_cost_panel:
-            # With cost panel: [main plot | cost plot | controls]
+            # With cost panel: [main plot | cost plot | controls] - balanced layout
             from matplotlib.gridspec import GridSpec
-            gs = GridSpec(1, 4, width_ratios=[3, 1, 0.8, 0.1], figure=self.fig)
+            gs = GridSpec(1, 3, width_ratios=[4.5, 1, 1.2], figure=self.fig,
+                         left=0.05, right=0.98, top=0.95, bottom=0.08, wspace=0.12)
             self.main_ax = self.fig.add_subplot(gs[0])
             self.cost_ax = self.fig.add_subplot(gs[1])
             self.control_ax = self.fig.add_subplot(gs[2])
         else:
-            # Without cost panel: [main plot | controls]
+            # Without cost panel: [main plot | controls] - give adequate space to controls
             from matplotlib.gridspec import GridSpec
-            gs = GridSpec(1, 3, width_ratios=[4, 1, 0.1], figure=self.fig)
+            gs = GridSpec(1, 2, width_ratios=[5, 1.2], figure=self.fig,
+                         left=0.05, right=0.98, top=0.95, bottom=0.08, wspace=0.08)
             self.main_ax = self.fig.add_subplot(gs[0])
             self.cost_ax = None
             self.control_ax = self.fig.add_subplot(gs[1])
@@ -253,15 +269,32 @@ class HybridAStarVisualizer:
         if not self.current_data or not self.main_ax:
             return
         
-        # Store the current axis limits to prevent shrinking
+        # Store the current axis limits to prevent shrinking - improved logic
+        xlim = None
+        ylim = None
+        use_stored_limits = False
+        
         try:
-            xlim = self.main_ax.get_xlim()
-            ylim = self.main_ax.get_ylim()
-            # Only use stored limits if they seem reasonable (not default auto-generated ones)
-            use_stored_limits = (abs(xlim[1] - xlim[0]) > 1.0 and abs(ylim[1] - ylim[0]) > 1.0)
-        except:
-            xlim = None
-            ylim = None
+            current_xlim = self.main_ax.get_xlim()
+            current_ylim = self.main_ax.get_ylim()
+            
+            # Check if limits are meaningful and not matplotlib defaults
+            xlim_range = abs(current_xlim[1] - current_xlim[0])
+            ylim_range = abs(current_ylim[1] - current_ylim[0])
+            
+            # Use stored limits if they're reasonable and not just matplotlib's auto-scaling
+            if (xlim_range > 1.0 and ylim_range > 1.0 and 
+                not (current_xlim == (0.0, 1.0) and current_ylim == (0.0, 1.0))):
+                xlim = current_xlim
+                ylim = current_ylim
+                use_stored_limits = True
+            # Fallback to previously stored limits if available
+            elif hasattr(self, '_stored_limits') and self._stored_limits:
+                xlim = self._stored_limits[0]
+                ylim = self._stored_limits[1] 
+                use_stored_limits = True
+        except Exception as e:
+            print(f"Warning: Could not preserve axis limits: {e}")
             use_stored_limits = False
         
         # Remove existing colorbars first to prevent duplicates
@@ -287,13 +320,19 @@ class HybridAStarVisualizer:
             self.show_trajectories
         )
         
-        # Restore axis limits if they were meaningful
+        # Restore axis limits if they were meaningful, otherwise let matplotlib auto-scale once
         if use_stored_limits and xlim and ylim:
-            self.main_ax.set_xlim(xlim)
-            self.main_ax.set_ylim(ylim)
+            try:
+                self.main_ax.set_xlim(xlim)
+                self.main_ax.set_ylim(ylim)
+            except Exception as e:
+                print(f"Warning: Could not restore axis limits: {e}")
         
-        # Store current limits for future updates
-        self._stored_limits = (self.main_ax.get_xlim(), self.main_ax.get_ylim())
+        # Always store current limits for future updates (after potential auto-scaling)
+        try:
+            self._stored_limits = (self.main_ax.get_xlim(), self.main_ax.get_ylim())
+        except:
+            pass
         
         # Update cost panel if visible
         if self.show_cost_panel and self.cost_ax:
