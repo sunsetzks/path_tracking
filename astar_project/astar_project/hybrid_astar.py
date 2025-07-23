@@ -8,6 +8,9 @@ Core algorithm without visualization dependencies.
 Author: Your Name
 Date: 2025-07-22
 """
+from rich import pretty, traceback
+pretty.install()
+traceback.install(show_locals=True)
 
 import numpy as np
 import heapq
@@ -341,7 +344,7 @@ class HybridAStar:
                     turn_cost=turn_cost,
                     cusp_cost=cusp_cost,
                     path_cost=path_cost,
-                    trajectory_states=simulated_states  # Store the forward simulation trajectory
+                    trajectory_states=trajectory_states # Store the forward simulation trajectory
                 )
                 
                 successors.append(successor)
@@ -447,14 +450,7 @@ class HybridAStar:
                 if successor_key in node_map:
                     existing_node = node_map[successor_key]
                     if successor.g_cost < existing_node.g_cost:
-                        # Update existing node
-                        existing_node.g_cost = successor.g_cost
-                        existing_node.parent = successor.parent
-                        existing_node.steer_cost = successor.steer_cost
-                        existing_node.turn_cost = successor.turn_cost
-                        existing_node.cusp_cost = successor.cusp_cost
-                        existing_node.path_cost = successor.path_cost
-                        heapq.heappush(open_list, existing_node)
+                        heapq.heappush(open_list, successor)
                 else:
                     # Add new node
                     node_map[successor_key] = successor
