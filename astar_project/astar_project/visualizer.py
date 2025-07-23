@@ -446,10 +446,11 @@ class HybridAStarVisualizer:
                         color = cm.get_cmap('plasma')(cost_normalized)
                         
                         # Plot trajectory as connected line segments
-                        ax.plot(traj_x, traj_y, color=color, linewidth=1.0, alpha=0.5, zorder=1)
+                        ax.plot(traj_x, traj_y, linewidth=1.0, alpha=1, zorder=1)
                         
                         # Add small arrows along trajectory to show direction
-                        if len(traj_x) > 2:
+                        # if len(traj_x) > 2:
+                        if False:
                             mid_idx = len(traj_x) // 2
                             if mid_idx > 0 and mid_idx < len(traj_x) - 1:
                                 dx = traj_x[mid_idx + 1] - traj_x[mid_idx - 1]
@@ -501,7 +502,8 @@ class HybridAStarVisualizer:
                           label=f'Explored Nodes ({len(explored_nodes)})')
         
         # Plot simulation trajectories (if enabled) with enhanced visualization
-        if self.show_trajectories and simulation_trajectories:
+        # if self.show_trajectories and simulation_trajectories:
+        if False:
             # Sample trajectories to avoid overcrowding
             sample_rate = max(1, len(simulation_trajectories) // 50)
             sampled_trajectories = simulation_trajectories[::sample_rate]
