@@ -79,27 +79,54 @@ class HybridAStarVisualizer:
                                show_exploration, show_trajectories):
         """Plot main path visualization with exploration details"""
         
-        # Plot obstacle map if available
+        # Plot obstacle map if available (black = obstacles, white = free space)
         if obstacle_map is not None:
             map_height, map_width = obstacle_map.shape
             extent = (map_origin_x, 
                      map_origin_x + map_width * grid_resolution,
                      map_origin_y,
                      map_origin_y + map_height * grid_resolution)
+            # Invert the colormap so black = obstacles (1), white = free space (0)
             ax.imshow(obstacle_map, extent=extent, origin='lower', 
-                     cmap='gray', alpha=0.3)
+                     cmap='gray_r', alpha=0.8, vmin=0, vmax=1)
         
         # Plot exploration nodes with enhanced visibility (if enabled)
         if show_exploration and explored_nodes:
-            # Plot parent-child connections first (behind nodes)
-            print(f"Plotting {len(explored_nodes)} exploration connections...")
+            # Plot parent-child connections using forward simulation trajectories
+            print(f"Plotting {len(explored_nodes)} exploration connections with simulation trajectories...")
             connection_count = 0
             for node in explored_nodes:
                 if node.parent is not None:
-                    # Draw connection from parent to current node
-                    ax.plot([node.parent.state.x, node.state.x], 
-                           [node.parent.state.y, node.state.y], 
-                           'cyan', linewidth=0.8, alpha=0.4, zorder=1)
+                    # Use trajectory states if available, otherwise fall back to straight line
+                    if hasattr(node, 'trajectory_states') and node.trajectory_states:
+                        # Plot the forward simulation trajectory from parent to this node
+                        traj_x = [node.parent.state.x] + [s.x for s in node.trajectory_states]
+                        traj_y = [node.parent.state.y] + [s.y for s in node.trajectory_states]
+                        
+                        # Color by cost for better visualization
+                        cost_normalized = min(1.0, node.f_cost / 100.0)  # Normalize cost
+                        color = cm.get_cmap('plasma')(cost_normalized)
+                        
+                        # Plot trajectory as connected line segments
+                        ax.plot(traj_x, traj_y, color=color, linewidth=1.0, alpha=0.5, zorder=1)
+                        
+                        # Add small arrows along trajectory to show direction
+                        if len(traj_x) > 2:
+                            mid_idx = len(traj_x) // 2
+                            if mid_idx > 0 and mid_idx < len(traj_x) - 1:
+                                dx = traj_x[mid_idx + 1] - traj_x[mid_idx - 1]
+                                dy = traj_y[mid_idx + 1] - traj_y[mid_idx - 1]
+                                length = np.sqrt(dx*dx + dy*dy)
+                                if length > 0.1:
+                                    ax.arrow(traj_x[mid_idx], traj_y[mid_idx], 
+                                           dx/length * 0.2, dy/length * 0.2,
+                                           head_width=0.08, head_length=0.08,
+                                           fc=color, ec=color, alpha=0.7, zorder=2)
+                    else:
+                        # Fallback to straight line connection
+                        ax.plot([node.parent.state.x, node.state.x], 
+                               [node.parent.state.y, node.state.y], 
+                               'cyan', linewidth=0.8, alpha=0.4, zorder=1)
                     connection_count += 1
             
             # Plot exploration nodes with better visibility
@@ -131,24 +158,74 @@ class HybridAStarVisualizer:
                           edgecolors='white', linewidths=0.5, zorder=2,
                           label=f'Explored Nodes ({len(explored_nodes)})')
         
-        # Plot simulation trajectories (if enabled)
+        # Plot simulation trajectories (if enabled) with enhanced visualization
         if show_trajectories and simulation_trajectories:
             # Sample trajectories to avoid overcrowding
-            sample_rate = max(1, len(simulation_trajectories) // 100)
+            sample_rate = max(1, len(simulation_trajectories) // 50)
             sampled_trajectories = simulation_trajectories[::sample_rate]
             
-            for traj in sampled_trajectories:
+            print(f"Showing {len(sampled_trajectories)} sampled forward simulation trajectories from {len(simulation_trajectories)} total")
+            
+            for i, traj in enumerate(sampled_trajectories):
                 states = traj['states']
                 direction = traj['direction']
                 
                 x_coords = [s.x for s in states]
                 y_coords = [s.y for s in states]
                 
-                # Different colors for forward/backward
-                color = 'lightgreen' if direction == DirectionMode.FORWARD else 'lightcoral'
-                alpha = 0.3
+                # Different colors and styles for forward/backward motion
+                if direction == DirectionMode.FORWARD:
+                    color = 'lightgreen'
+                    marker = '>'  # Right arrow = forward motion
+                    alpha = 0.4
+                    edge_color = 'darkgreen'
+                else:
+                    color = 'lightcoral'
+                    marker = '<'  # Left arrow = backward motion
+                    alpha = 0.4
+                    edge_color = 'darkred'
+                    marker = '<'  # Left arrow = backward motion
+                    alpha = 0.4
+                    edge_color = 'darkred'
                 
-                ax.plot(x_coords, y_coords, color=color, alpha=alpha, linewidth=0.8)
+                # Plot trajectory as a line with reduced opacity
+                ax.plot(x_coords, y_coords, color=color, alpha=alpha, linewidth=1.5)
+                
+                # Add directional markers at regular intervals to show motion direction
+                marker_step = max(1, len(states) // 3)
+                for j in range(0, len(states), marker_step):
+                    if j < len(states):
+                        ax.scatter(x_coords[j], y_coords[j], c=color, marker=marker, 
+                                 s=30, alpha=alpha + 0.3, edgecolors=edge_color,
+                                 linewidths=0.5, zorder=2)
+                
+                # Add arrow at the end of trajectory to show final vehicle orientation
+                if len(states) > 1:
+                    final_state = states[-1]
+                    arrow_length = 0.4
+                    dx = arrow_length * np.cos(final_state.yaw)
+                    dy = arrow_length * np.sin(final_state.yaw)
+                    ax.arrow(final_state.x, final_state.y, dx, dy,
+                           head_width=0.1, head_length=0.1,
+                           fc=color, ec=edge_color,
+                           alpha=alpha + 0.4, linewidth=1.5, zorder=2)
+            
+            # Add legend entries for trajectories (only once)
+            if sampled_trajectories:
+                # Create invisible plot elements for legend with detailed explanations
+                forward_count = len([t for t in simulation_trajectories if t["direction"] == DirectionMode.FORWARD])
+                backward_count = len([t for t in simulation_trajectories if t["direction"] != DirectionMode.FORWARD])
+                
+                ax.plot([], [], color='lightgreen', linewidth=2, alpha=0.7, 
+                       label=f'Forward Sim. Trajectories ({forward_count}) - ">" indicates forward motion')
+                ax.plot([], [], color='lightcoral', linewidth=2, alpha=0.7, 
+                       label=f'Backward Sim. Trajectories ({backward_count}) - "<" indicates backward motion')
+                
+                # Add explanation for arrows
+                ax.plot([], [], 'k-', alpha=0, label='Arrow Meanings:')
+                ax.plot([], [], 'k-', alpha=0, label='  • > = Forward motion')
+                ax.plot([], [], 'k-', alpha=0, label='  • < = Backward motion')
+                ax.plot([], [], 'k-', alpha=0, label='  • Long arrows = Vehicle orientation')
         
         # Plot final path with enhanced details - smooth curves
         self._plot_path_with_steering_colors(ax, path, vehicle_model)
@@ -169,8 +246,24 @@ class HybridAStarVisualizer:
         
         ax.set_xlabel('X (m)', fontsize=12)
         ax.set_ylabel('Y (m)', fontsize=12)
-        ax.set_title('Hybrid A* Path Planning - Detailed Visualization', fontsize=14)
-        ax.legend(fontsize=10)
+        ax.set_title('Hybrid A* Path Planning - Detailed Visualization\n' + 
+                    'Blue curves=Search tree (forward simulation), Green/Red=Exploration, Red line=Final path', 
+                    fontsize=12)
+        
+        # Add a text box with legend explanations
+        legend_text = ('Visualization Guide:\n'
+                      '• Cyan curves: Search tree connections (forward simulation)\n'
+                      '• Green traj >: Forward exploration\n' 
+                      '• Red traj <: Backward exploration\n'
+                      '• Black rect: Vehicle outline\n'
+                      '• Blue arrow: Vehicle heading\n'
+                      '• Red arrow: Front wheel steering')
+        
+        ax.text(0.02, 0.02, legend_text, transform=ax.transAxes, 
+               fontsize=8, verticalalignment='bottom',
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow', alpha=0.9))
+        
+        ax.legend(fontsize=9, loc='upper right')
         ax.grid(True, alpha=0.3)
         ax.axis('equal')
         
@@ -256,7 +349,13 @@ class HybridAStarVisualizer:
                    color=color, linewidth=3, alpha=0.8)
     
     def _plot_vehicle_orientations(self, ax, path):
-        """Plot vehicle orientations along path"""
+        """Plot vehicle orientations along path with detailed visual indicators
+        
+        Visual elements explained:
+        - Black rectangle: Vehicle body outline
+        - Blue arrow: Vehicle heading direction (yaw angle)
+        - Red arrow: Front wheel steering direction (when steering > 0.1 rad)
+        """
         orientation_step = max(1, len(path) // 30)
         for i in range(0, len(path), orientation_step):
             state = path[i]
@@ -269,7 +368,7 @@ class HybridAStarVisualizer:
             cos_yaw = np.cos(state.yaw)
             sin_yaw = np.sin(state.yaw)
             
-            # Vehicle outline
+            # Vehicle outline (black rectangle = vehicle body)
             front_x = state.x + vehicle_length/2 * cos_yaw
             front_y = state.y + vehicle_length/2 * sin_yaw
             rear_x = state.x - vehicle_length/2 * cos_yaw
@@ -293,14 +392,14 @@ class HybridAStarVisualizer:
             
             ax.plot(vehicle_corners_x, vehicle_corners_y, 'k-', linewidth=1, alpha=0.7)
             
-            # Direction arrow
+            # Direction arrow (blue = vehicle heading direction)
             arrow_length = 0.6
             dx = arrow_length * cos_yaw
             dy = arrow_length * sin_yaw
             ax.arrow(state.x, state.y, dx, dy, head_width=0.15, 
                     head_length=0.15, fc='darkblue', ec='darkblue', alpha=0.8)
             
-            # Steering angle visualization
+            # Steering angle visualization (red = front wheel direction when steering)
             if abs(state.steer) > 0.1:  # Only show if significant steering
                 # Front wheel position
                 front_wheel_x = state.x + vehicle_length/2 * cos_yaw
@@ -481,15 +580,16 @@ class HybridAStarVisualizer:
             
         fig, ax = plt.subplots(1, 1, figsize=(16, 12))
         
-        # Plot obstacle map with higher contrast
+        # Plot obstacle map with higher contrast (black = obstacles, white = free)
         if obstacle_map is not None:
             map_height, map_width = obstacle_map.shape
             extent = (map_origin_x, 
                      map_origin_x + map_width * grid_resolution,
                      map_origin_y,
                      map_origin_y + map_height * grid_resolution)
+            # Use inverted grayscale for clear obstacle visualization
             ax.imshow(obstacle_map, extent=extent, origin='lower', 
-                     cmap='gray_r', alpha=0.7, zorder=0)
+                     cmap='gray_r', alpha=0.9, vmin=0, vmax=1, zorder=0)
         
         # Filter nodes to reduce visual clutter while keeping structure
         filtered_nodes = self._filter_nodes_for_visualization(explored_nodes, goal, node_spacing_filter)
@@ -721,7 +821,7 @@ Path Length: {len(path) if path else 0}"""
                      map_origin_y,
                      map_origin_y + map_height * grid_resolution)
             ax.imshow(obstacle_map, extent=extent, origin='lower', 
-                     cmap='gray', alpha=0.3)
+                     cmap='gray_r', alpha=0.8, vmin=0, vmax=1)
         
         # Limit nodes to show for performance
         nodes_to_show = min(len(explored_nodes), max_nodes_to_show)
@@ -800,7 +900,7 @@ Path Length: {len(path) if path else 0}"""
                                obstacle_map, map_origin_x, map_origin_y,
                                grid_resolution, max_nodes_to_show):
         """Plot search progression with temporal coloring"""
-        # Plot obstacle map
+        # Plot obstacle map (black = obstacles, white = free space)
         if obstacle_map is not None:
             map_height, map_width = obstacle_map.shape
             extent = (map_origin_x, 
@@ -808,7 +908,7 @@ Path Length: {len(path) if path else 0}"""
                      map_origin_y,
                      map_origin_y + map_height * grid_resolution)
             ax.imshow(obstacle_map, extent=extent, origin='lower', 
-                     cmap='gray', alpha=0.3)
+                     cmap='gray_r', alpha=0.8, vmin=0, vmax=1)
         
         # Show exploration progression with temporal color gradient
         nodes_to_show = min(len(explored_nodes), max_nodes_to_show)

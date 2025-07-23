@@ -21,8 +21,22 @@ def visualize_planning_result(planner, path, start, goal):
     # Get visualization data from planner
     viz_data = planner.get_visualization_data()
     
-    # Visualize the path
-    visualizer.visualize_path(path, start, goal, **viz_data)
+    # Visualize the path with all parameters explicitly
+    visualizer.visualize_path(
+        path=path,
+        start=start,
+        goal=goal,
+        explored_nodes=viz_data['explored_nodes'],
+        simulation_trajectories=viz_data['simulation_trajectories'],
+        obstacle_map=viz_data['obstacle_map'],
+        map_origin_x=viz_data['map_origin_x'],
+        map_origin_y=viz_data['map_origin_y'],
+        grid_resolution=viz_data['grid_resolution'],
+        vehicle_model=viz_data['vehicle_model'],
+        show_exploration=True,
+        show_trajectories=True,
+        show_costs=True
+    )
 
 
 def create_obstacle_map_scenario1():

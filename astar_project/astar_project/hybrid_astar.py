@@ -55,6 +55,7 @@ class Node:
     turn_cost: float = 0.0   # turning cost
     cusp_cost: float = 0.0   # cusp (direction change) cost
     path_cost: float = 0.0   # path smoothness cost
+    trajectory_states: Optional[List[State]] = None  # forward simulation trajectory from parent to this node
     
     @property
     def f_cost(self) -> float:
@@ -339,7 +340,8 @@ class HybridAStar:
                     steer_cost=steer_cost,
                     turn_cost=turn_cost,
                     cusp_cost=cusp_cost,
-                    path_cost=path_cost
+                    path_cost=path_cost,
+                    trajectory_states=simulated_states  # Store the forward simulation trajectory
                 )
                 
                 successors.append(successor)
