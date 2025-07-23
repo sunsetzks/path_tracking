@@ -564,10 +564,7 @@ class HybridAStar:
         for i in range(1, len(path_nodes)):
             node = path_nodes[i]
             if node.trajectory_states:
-                # Add all trajectory states except the last one (which is the node's state)
-                detailed_path.extend(node.trajectory_states[:-1])
-            # Add the node's final state
-            detailed_path.append(node.state)
+                detailed_path.extend(node.trajectory_states[:])
         
         return detailed_path
 
