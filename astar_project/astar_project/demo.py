@@ -6,6 +6,23 @@ Demonstration of the hybrid A* path planning algorithm with various scenarios.
 import numpy as np
 import matplotlib.pyplot as plt
 from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode
+from astar_project.visualizer import HybridAStarVisualizer
+
+
+def visualize_planning_result(planner, path, start, goal):
+    """Helper function to visualize planning results"""
+    if not path:
+        print("No path to visualize")
+        return
+    
+    # Create visualizer
+    visualizer = HybridAStarVisualizer()
+    
+    # Get visualization data from planner
+    viz_data = planner.get_visualization_data()
+    
+    # Visualize the path
+    visualizer.visualize_path(path, start, goal, **viz_data)
 
 
 def create_obstacle_map_scenario1():
@@ -81,7 +98,7 @@ def demo_basic_navigation():
     
     if path:
         print(f"✓ Path found with {len(path)} waypoints")
-        planner.visualize_path(path, start, goal)
+        visualize_planning_result(planner, path, start, goal)
         return True
     else:
         print("✗ No path found!")
@@ -125,7 +142,7 @@ def demo_parallel_parking():
     
     if path:
         print(f"✓ Parking path found with {len(path)} waypoints")
-        planner.visualize_path(path, start, goal)
+        visualize_planning_result(planner, path, start, goal)
         return True
     else:
         print("✗ No parking path found!")
@@ -177,7 +194,7 @@ def demo_u_turn():
     
     if path:
         print(f"✓ U-turn path found with {len(path)} waypoints")
-        planner.visualize_path(path, start, goal)
+        visualize_planning_result(planner, path, start, goal)
         return True
     else:
         print("✗ No U-turn path found!")
