@@ -555,13 +555,21 @@ class HybridAStar:
         
         # Add the start node state
         detailed_path.append(path_nodes[0].state)
+        prev_final_state = path_nodes[0].state
         
-        # For each subsequent node, add its trajectory states (excluding the last one to avoid duplication)
+        # For each subsequent node, add its trajectory states (excluding the first to avoid duplication)
         for i in range(1, len(path_nodes)):
             node = path_nodes[i]
             if node.trajectory_states:
-                detailed_path.extend(node.trajectory_states[:])
-        
+                # Assert the first trajectory state matches the previous final state
+                assert node.trajectory_states[0] == prev_final_state, (
+                    f"Trajectory mismatch at node {i}: "
+                    f"{node.trajectory_states[0]} != {prev_final_state}"
+                )
+                # Add all except the first (already added)
+                detailed_path.extend(node.trajectory_states[1:])
+                prev_final_state = node.trajectory_states[-1]
+
         return detailed_path
 
 
