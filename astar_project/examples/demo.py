@@ -8,7 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode, Node
 from astar_project.visualizer import HybridAStarVisualizer
-from astar_project.hybrid_astar import HybridAStar
 
 
 def visualize_path_data(path: Optional[List[Node]], planner: HybridAStar) -> None:
