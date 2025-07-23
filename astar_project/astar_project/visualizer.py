@@ -257,6 +257,7 @@ class HybridAStarVisualizer:
             self.show_exploration = not self.show_exploration
         elif label == 'Trajectories':
             self.show_trajectories = not self.show_trajectories
+            self.show_trajectories = False
         elif label == 'Final Path':
             self.show_path = not self.show_path
         elif label == 'Vehicle Arrows':
