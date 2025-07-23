@@ -366,19 +366,19 @@ class HybridAStar:
         return (position_error <= position_tolerance and 
                 angle_error <= angle_tolerance)
     
-    def reconstruct_path(self, goal_node: Node) -> List[State]:
+    def reconstruct_path(self, goal_node: Node) -> List[Node]:
         """Reconstruct path from goal node to start"""
         path = []
         current = goal_node
         
         while current is not None:
-            path.append(current.state)
+            path.append(current)
             current = current.parent
             
         return list(reversed(path))
     
     def plan_path(self, start: State, goal: State, 
-                  max_iterations: int = 10000) -> Optional[List[State]]:
+                  max_iterations: int = 10000) -> Optional[List[Node]]:
         """
         Plan path using Hybrid A* algorithm
         
@@ -388,7 +388,7 @@ class HybridAStar:
             max_iterations: Maximum search iterations
             
         Returns:
-            List of states representing the path, or None if no path found
+            List of nodes representing the path, or None if no path found
         """
         # Initialize visualization data
         self.explored_nodes = []
@@ -479,11 +479,11 @@ class HybridAStar:
             'vehicle_model': self.vehicle_model
         }
     
-    def get_statistics(self, path: Optional[List[State]]) -> dict:
+    def get_statistics(self, path: Optional[List[Node]]) -> dict:
         """Get path and search statistics
         
         Args:
-            path: The planned path
+            path: The planned path (list of nodes)
             
         Returns:
             Dictionary containing statistics
@@ -495,28 +495,29 @@ class HybridAStar:
                 'trajectories_simulated': len(self.simulation_trajectories)
             }
         
-        # Basic path statistics
-        total_distance = sum(np.sqrt((path[i+1].x - path[i].x)**2 + 
-                                   (path[i+1].y - path[i].y)**2) 
-                           for i in range(len(path)-1))
+        # Basic path statistics - extract states from nodes
+        states = [node.state for node in path]
+        total_distance = sum(np.sqrt((states[i+1].x - states[i].x)**2 + 
+                                   (states[i+1].y - states[i].y)**2) 
+                           for i in range(len(states)-1))
         
         # Steering statistics
-        steer_angles = [state.steer for state in path]
+        steer_angles = [state.steer for state in states]
         max_steer = max(abs(s) for s in steer_angles)
         avg_steer = np.mean([abs(s) for s in steer_angles])
         
         # Direction changes
         direction_changes = 0
-        for i in range(1, len(path)):
-            if path[i].direction != path[i-1].direction:
+        for i in range(1, len(states)):
+            if states[i].direction != states[i-1].direction:
                 direction_changes += 1
         
         # Curvature analysis
         curvatures = []
-        for i in range(1, len(path) - 1):
-            p1 = np.array([path[i-1].x, path[i-1].y])
-            p2 = np.array([path[i].x, path[i].y])
-            p3 = np.array([path[i+1].x, path[i+1].y])
+        for i in range(1, len(states) - 1):
+            p1 = np.array([states[i-1].x, states[i-1].y])
+            p2 = np.array([states[i].x, states[i].y])
+            p3 = np.array([states[i+1].x, states[i+1].y])
             
             a = np.linalg.norm(p2 - p1)
             b = np.linalg.norm(p3 - p2)
@@ -541,6 +542,34 @@ class HybridAStar:
             'nodes_explored': len(self.explored_nodes),
             'trajectories_simulated': len(self.simulation_trajectories)
         }
+    
+    def extract_detailed_path(self, path_nodes: List[Node]) -> List[State]:
+        """Extract detailed path states using simulation trajectories
+        
+        Args:
+            path_nodes: List of nodes from path planning
+            
+        Returns:
+            List of states with simulation trajectories included
+        """
+        if not path_nodes:
+            return []
+        
+        detailed_path = []
+        
+        # Add the start node state
+        detailed_path.append(path_nodes[0].state)
+        
+        # For each subsequent node, add its trajectory states (excluding the last one to avoid duplication)
+        for i in range(1, len(path_nodes)):
+            node = path_nodes[i]
+            if node.trajectory_states:
+                # Add all trajectory states except the last one (which is the node's state)
+                detailed_path.extend(node.trajectory_states[:-1])
+            # Add the node's final state
+            detailed_path.append(node.state)
+        
+        return detailed_path
 
 
 # Example usage and testing

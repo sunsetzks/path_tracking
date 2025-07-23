@@ -9,7 +9,7 @@ from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, Directi
 from astar_project.visualizer import HybridAStarVisualizer
 
 
-def visualize_planning_result(planner, path, start, goal):
+def visualize_planning_result(planner: HybridAStar, path, start, goal):
     """Helper function to visualize planning results"""
     if not path:
         print("No path to visualize")
@@ -27,7 +27,7 @@ def visualize_planning_result(planner, path, start, goal):
         start=start,
         goal=goal,
         explored_nodes=viz_data['explored_nodes'],
-        simulation_trajectories=viz_data['simulation_trajectories'],
+        # simulation_trajectories=viz_data['simulation_trajectories'],
         obstacle_map=viz_data['obstacle_map'],
         map_origin_x=viz_data['map_origin_x'],
         map_origin_y=viz_data['map_origin_y'],

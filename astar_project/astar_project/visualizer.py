@@ -85,10 +85,55 @@ class HybridAStarVisualizer:
             'vehicle_model': vehicle_model
         }
         
+        self._create_visualization()
+    
+    def visualize_node_path(self, path_nodes: List[Node], start: State, goal: State,
+                           planner_instance,
+                           explored_nodes: Optional[List[Node]] = None,
+                           simulation_trajectories: Optional[List] = None,
+                           obstacle_map: Optional[np.ndarray] = None,
+                           map_origin_x: float = 0, map_origin_y: float = 0,
+                           grid_resolution: float = 1.0,
+                           vehicle_model = None,
+                           show_exploration: bool = True, 
+                           show_trajectories: bool = True, 
+                           show_costs: bool = False):
+        """Visualize path from Node list using detailed simulation trajectories
+        
+        Args:
+            path_nodes: List of nodes from path planning
+            planner_instance: Instance of HybridAStar planner to extract detailed path
+            Other parameters same as visualize_path
+        """
+        if not path_nodes:
+            print("No path to visualize")
+            return
+        
+        # Extract detailed path using simulation trajectories
+        detailed_path = planner_instance.extract_detailed_path(path_nodes)
+        
+        # Use the standard visualization with the detailed path
+        self.visualize_path(
+            path=detailed_path,
+            start=start,
+            goal=goal,
+            explored_nodes=explored_nodes,
+            simulation_trajectories=simulation_trajectories,
+            obstacle_map=obstacle_map,
+            map_origin_x=map_origin_x,
+            map_origin_y=map_origin_y,
+            grid_resolution=grid_resolution,
+            vehicle_model=vehicle_model,
+            show_exploration=show_exploration,
+            show_trajectories=show_trajectories,
+            show_costs=show_costs
+        )
+    
+    def _create_visualization(self):
+        """Create the main visualization layout and controls"""
         # Initialize display states
-        self.show_exploration = show_exploration
-        self.show_trajectories = show_trajectories
-        self.show_cost_panel = show_costs
+        self.show_exploration = True
+        self.show_trajectories = True
         
         # Create figure with space for controls - balanced size for good visibility
         self.fig = plt.figure(figsize=(18, 10))
@@ -117,7 +162,6 @@ class HybridAStarVisualizer:
         # Initialize stored limits to None to ensure proper initial view
         self._stored_limits = None
         
-        # Create interactive controls
         self._create_interactive_controls()
         
         # Initial plot
@@ -126,7 +170,12 @@ class HybridAStarVisualizer:
         plt.show()
         
         # Print detailed path statistics
-        self._print_path_statistics(path, explored_nodes, simulation_trajectories, vehicle_model)
+        if self.current_data:
+            path = self.current_data['path']
+            explored_nodes = self.current_data['explored_nodes']
+            simulation_trajectories = self.current_data['simulation_trajectories']
+            vehicle_model = self.current_data['vehicle_model']
+            self._print_path_statistics(path, explored_nodes, simulation_trajectories, vehicle_model)
     
     def _create_interactive_controls(self):
         """Create interactive control buttons and checkboxes"""
@@ -693,14 +742,14 @@ class HybridAStarVisualizer:
                         head_length=0.15, fc='darkblue', ec='darkblue', alpha=0.8)
             
             # Steering angle visualization (red = front wheel direction when steering) - controlled by show_steering_arrows
-            if self.show_steering_arrows and abs(state.steer) > 0.1:  # Only show if significant steering
+            if self.show_steering_arrows and abs(state.steer) > 0.01:  # Only show if significant steering
                 # Front wheel position
                 front_wheel_x = state.x + vehicle_length/2 * cos_yaw
                 front_wheel_y = state.y + vehicle_length/2 * sin_yaw
                 
-                # Steered wheel direction - CORRECTED: subtract steer angle
+                # Steered wheel direction - CORRECTED: add steer angle
                 # For bicycle model: positive steer = left turn, so front wheel points left relative to vehicle
-                wheel_yaw = state.yaw - state.steer  # FIXED: was state.yaw + state.steer
+                wheel_yaw = state.yaw + state.steer  # FIXED: should be + not - for correct steering visualization
                 wheel_dx = 0.3 * np.cos(wheel_yaw)
                 wheel_dy = 0.3 * np.sin(wheel_yaw)
                 
