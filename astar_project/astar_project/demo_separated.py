@@ -5,8 +5,8 @@ This demonstrates how to use the algorithm and visualizer separately.
 """
 
 import numpy as np
-from .hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode
-from .visualizer import HybridAStarVisualizer
+from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode
+from astar_project.visualizer import HybridAStarVisualizer
 
 
 def main():

@@ -12,7 +12,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-from typing import List, Optional
+from matplotlib.widgets import Button, CheckButtons
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
+from typing import List, Optional, Dict, Any
 
 # Optional scipy import for smooth path interpolation
 try:
@@ -32,7 +35,26 @@ class HybridAStarVisualizer:
     
     def __init__(self):
         """Initialize the visualizer"""
-        pass
+        # Interactive control states
+        self.show_exploration = True
+        self.show_trajectories = True
+        self.show_path = True
+        self.show_vehicle_arrows = True
+        self.show_steering_arrows = True
+        self.show_waypoint_numbers = True
+        self.show_cost_panel = False  # 默认隐藏成本面板
+        
+        # Store data for redrawing
+        self.current_data: Optional[Dict[str, Any]] = None
+        self.current_ax: Optional[Axes] = None
+        self.main_ax: Optional[Axes] = None
+        self.cost_ax: Optional[Axes] = None
+        self.control_ax: Optional[Axes] = None
+        self.fig: Optional[Figure] = None
+        self.checkboxes: Optional[CheckButtons] = None
+        
+        # Colorbar management
+        self._current_colorbars = []
     
     def visualize_path(self, path: List[State], start: State, goal: State,
                       explored_nodes: Optional[List[Node]] = None,
@@ -43,34 +65,255 @@ class HybridAStarVisualizer:
                       vehicle_model = None,
                       show_exploration: bool = True, 
                       show_trajectories: bool = True, 
-                      show_costs: bool = True):
-        """Enhanced visualization of the planned path with exploration details"""
+                      show_costs: bool = False):  # 默认不显示成本面板
+        """Enhanced visualization of the planned path with interactive controls"""
         if not path:
             print("No path to visualize")
             return
-            
-        # Create subplots
-        if show_costs:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+        
+        # Store data for interactive updates
+        self.current_data = {
+            'path': path,
+            'start': start,
+            'goal': goal,
+            'explored_nodes': explored_nodes,
+            'simulation_trajectories': simulation_trajectories,
+            'obstacle_map': obstacle_map,
+            'map_origin_x': map_origin_x,
+            'map_origin_y': map_origin_y,
+            'grid_resolution': grid_resolution,
+            'vehicle_model': vehicle_model
+        }
+        
+        # Initialize display states
+        self.show_exploration = show_exploration
+        self.show_trajectories = show_trajectories
+        self.show_cost_panel = show_costs
+        
+        # Create figure with space for controls
+        self.fig = plt.figure(figsize=(20, 10))
+        
+        # Create layout: main plot + control panel
+        if self.show_cost_panel:
+            # With cost panel: [main plot | cost plot | controls]
+            from matplotlib.gridspec import GridSpec
+            gs = GridSpec(1, 4, width_ratios=[3, 1, 0.8, 0.1], figure=self.fig)
+            self.main_ax = self.fig.add_subplot(gs[0])
+            self.cost_ax = self.fig.add_subplot(gs[1])
+            self.control_ax = self.fig.add_subplot(gs[2])
         else:
-            fig, ax1 = plt.subplots(1, 1, figsize=(15, 10))
+            # Without cost panel: [main plot | controls]
+            from matplotlib.gridspec import GridSpec
+            gs = GridSpec(1, 3, width_ratios=[4, 1, 0.1], figure=self.fig)
+            self.main_ax = self.fig.add_subplot(gs[0])
+            self.cost_ax = None
+            self.control_ax = self.fig.add_subplot(gs[1])
         
-        # Main path visualization
-        self._plot_main_visualization(ax1, path, start, goal, 
-                                    explored_nodes, simulation_trajectories,
-                                    obstacle_map, map_origin_x, map_origin_y, 
-                                    grid_resolution, vehicle_model,
-                                    show_exploration, show_trajectories)
+        # Store current axis reference
+        self.current_ax = self.main_ax
         
-        # Cost analysis visualization
-        if show_costs:
-            self._plot_cost_analysis(ax2, path)
+        # Create interactive controls
+        self._create_interactive_controls()
         
-        plt.tight_layout()
+        # Initial plot
+        self._update_visualization()
+        
         plt.show()
         
         # Print detailed path statistics
         self._print_path_statistics(path, explored_nodes, simulation_trajectories, vehicle_model)
+    
+    def _create_interactive_controls(self):
+        """Create interactive control buttons and checkboxes"""
+        if not self.control_ax:
+            return
+            
+        # Clear the control axis
+        self.control_ax.clear()
+        self.control_ax.set_xlim(0, 1)
+        self.control_ax.set_ylim(0, 1)
+        self.control_ax.axis('off')
+        
+        # Control panel title
+        self.control_ax.text(0.5, 0.95, 'Display Controls', 
+                           ha='center', va='top', fontsize=12, fontweight='bold',
+                           transform=self.control_ax.transAxes)
+        
+        # Create checkboxes for different display elements
+        checkbox_labels = [
+            'Show Exploration Nodes',
+            'Show Trajectories', 
+            'Show Final Path',
+            'Show Vehicle Arrows',
+            'Show Steering Arrows',
+            'Show Waypoint Numbers',
+            'Show Cost Panel'
+        ]
+        
+        # Initial states
+        checkbox_states = [
+            self.show_exploration,
+            self.show_trajectories,
+            self.show_path,
+            self.show_vehicle_arrows,
+            self.show_steering_arrows,
+            self.show_waypoint_numbers,
+            self.show_cost_panel
+        ]
+        
+        # Create checkbox widget - use control_ax position
+        if self.fig:
+            bbox = self.control_ax.get_position()
+            # Position relative to the control axis
+            checkbox_ax = self.fig.add_axes((bbox.x0 + 0.02, bbox.y0 + 0.15, bbox.width - 0.04, 0.6))
+            self.checkboxes = CheckButtons(checkbox_ax, checkbox_labels, checkbox_states)
+            
+            # Customize checkbox appearance
+            if self.checkboxes:
+                for i, label in enumerate(self.checkboxes.labels):
+                    label.set_fontsize(9)
+                
+                # Connect checkbox events
+                self.checkboxes.on_clicked(self._on_checkbox_clicked)
+        
+        # Add instruction text
+        self.control_ax.text(0.5, 0.05, 'Click checkboxes to toggle display elements', 
+                           ha='center', va='bottom', fontsize=8, style='italic',
+                           transform=self.control_ax.transAxes)
+    
+    def _on_checkbox_clicked(self, label):
+        """Handle checkbox click events"""
+        # Update corresponding state
+        if label == 'Show Exploration Nodes':
+            self.show_exploration = not self.show_exploration
+        elif label == 'Show Trajectories':
+            self.show_trajectories = not self.show_trajectories
+        elif label == 'Show Final Path':
+            self.show_path = not self.show_path
+        elif label == 'Show Vehicle Arrows':
+            self.show_vehicle_arrows = not self.show_vehicle_arrows
+        elif label == 'Show Steering Arrows':
+            self.show_steering_arrows = not self.show_steering_arrows
+        elif label == 'Show Waypoint Numbers':
+            self.show_waypoint_numbers = not self.show_waypoint_numbers
+        elif label == 'Show Cost Panel':
+            self.show_cost_panel = not self.show_cost_panel
+            # Need to recreate layout when cost panel is toggled
+            self._recreate_layout()
+            return
+        
+        # Update visualization
+        self._update_visualization()
+    
+    def _recreate_layout(self):
+        """Recreate the figure layout when cost panel is toggled"""
+        if not self.fig:
+            return
+        
+        # Store current axis limits before clearing
+        xlim = self.main_ax.get_xlim() if self.main_ax else None
+        ylim = self.main_ax.get_ylim() if self.main_ax else None
+        
+        # Remove existing colorbars
+        self._remove_existing_colorbars()
+            
+        # Clear current figure
+        self.fig.clear()
+        
+        # Recreate layout
+        if self.show_cost_panel:
+            # With cost panel: [main plot | cost plot | controls]
+            from matplotlib.gridspec import GridSpec
+            gs = GridSpec(1, 4, width_ratios=[3, 1, 0.8, 0.1], figure=self.fig)
+            self.main_ax = self.fig.add_subplot(gs[0])
+            self.cost_ax = self.fig.add_subplot(gs[1])
+            self.control_ax = self.fig.add_subplot(gs[2])
+        else:
+            # Without cost panel: [main plot | controls]
+            from matplotlib.gridspec import GridSpec
+            gs = GridSpec(1, 3, width_ratios=[4, 1, 0.1], figure=self.fig)
+            self.main_ax = self.fig.add_subplot(gs[0])
+            self.cost_ax = None
+            self.control_ax = self.fig.add_subplot(gs[1])
+        
+        # Recreate controls and update visualization
+        self._create_interactive_controls()
+        self._update_visualization()
+        
+        # Restore axis limits if they existed
+        if xlim and ylim and self.main_ax:
+            self.main_ax.set_xlim(xlim)
+            self.main_ax.set_ylim(ylim)
+        
+        if self.fig.canvas:
+            self.fig.canvas.draw()
+    
+    def _update_visualization(self):
+        """Update the main visualization based on current control states"""
+        if not self.current_data or not self.main_ax:
+            return
+        
+        # Store the current axis limits to prevent shrinking
+        try:
+            xlim = self.main_ax.get_xlim()
+            ylim = self.main_ax.get_ylim()
+            # Only use stored limits if they seem reasonable (not default auto-generated ones)
+            use_stored_limits = (abs(xlim[1] - xlim[0]) > 1.0 and abs(ylim[1] - ylim[0]) > 1.0)
+        except:
+            xlim = None
+            ylim = None
+            use_stored_limits = False
+        
+        # Remove existing colorbars first to prevent duplicates
+        self._remove_existing_colorbars()
+        
+        # Clear main axis
+        self.main_ax.clear()
+        
+        # Plot main visualization with current settings
+        self._plot_main_visualization(
+            self.main_ax, 
+            self.current_data['path'], 
+            self.current_data['start'], 
+            self.current_data['goal'],
+            self.current_data['explored_nodes'], 
+            self.current_data['simulation_trajectories'],
+            self.current_data['obstacle_map'], 
+            self.current_data['map_origin_x'], 
+            self.current_data['map_origin_y'],
+            self.current_data['grid_resolution'], 
+            self.current_data['vehicle_model'],
+            self.show_exploration, 
+            self.show_trajectories
+        )
+        
+        # Restore axis limits if they were meaningful
+        if use_stored_limits and xlim and ylim:
+            self.main_ax.set_xlim(xlim)
+            self.main_ax.set_ylim(ylim)
+        
+        # Store current limits for future updates
+        self._stored_limits = (self.main_ax.get_xlim(), self.main_ax.get_ylim())
+        
+        # Update cost panel if visible
+        if self.show_cost_panel and self.cost_ax:
+            self._plot_cost_analysis(self.cost_ax, self.current_data['path'])
+        
+        # Redraw canvas
+        if self.fig and self.fig.canvas:
+            self.fig.canvas.draw()
+    
+    def _remove_existing_colorbars(self):
+        """Remove existing colorbars to prevent duplicates"""
+        if hasattr(self, '_current_colorbars'):
+            for cbar in self._current_colorbars:
+                try:
+                    cbar.remove()
+                except:
+                    pass
+            self._current_colorbars.clear()
+        else:
+            self._current_colorbars = []
     
     def _plot_main_visualization(self, ax, path, start, goal, 
                                explored_nodes, simulation_trajectories,
@@ -91,7 +334,7 @@ class HybridAStarVisualizer:
                      cmap='gray_r', alpha=0.8, vmin=0, vmax=1)
         
         # Plot exploration nodes with enhanced visibility (if enabled)
-        if show_exploration and explored_nodes:
+        if self.show_exploration and explored_nodes:
             # Plot parent-child connections using forward simulation trajectories
             print(f"Plotting {len(explored_nodes)} exploration connections with simulation trajectories...")
             connection_count = 0
@@ -149,17 +392,21 @@ class HybridAStarVisualizer:
                                    edgecolors='white', linewidths=0.5,
                                    label=f'Explored Nodes ({len(explored_nodes)}, {connection_count} connections)')
                 
-                # Add colorbar for cost visualization
+                # Add colorbar for cost visualization (only if not already present)
                 if len(explored_nodes) > 10:  # Only add colorbar if meaningful
                     cbar = plt.colorbar(scatter, ax=ax, shrink=0.3, pad=0.02)
                     cbar.set_label('F-cost (normalized)', fontsize=8)
+                    # Track colorbar for proper cleanup
+                    if not hasattr(self, '_current_colorbars'):
+                        self._current_colorbars = []
+                    self._current_colorbars.append(cbar)
             else:
                 ax.scatter(explored_x, explored_y, c='lightblue', s=20, alpha=0.7, 
                           edgecolors='white', linewidths=0.5, zorder=2,
                           label=f'Explored Nodes ({len(explored_nodes)})')
         
         # Plot simulation trajectories (if enabled) with enhanced visualization
-        if show_trajectories and simulation_trajectories:
+        if self.show_trajectories and simulation_trajectories:
             # Sample trajectories to avoid overcrowding
             sample_rate = max(1, len(simulation_trajectories) // 50)
             sampled_trajectories = simulation_trajectories[::sample_rate]
@@ -181,9 +428,6 @@ class HybridAStarVisualizer:
                     edge_color = 'darkgreen'
                 else:
                     color = 'lightcoral'
-                    marker = '<'  # Left arrow = backward motion
-                    alpha = 0.4
-                    edge_color = 'darkred'
                     marker = '<'  # Left arrow = backward motion
                     alpha = 0.4
                     edge_color = 'darkred'
@@ -227,22 +471,25 @@ class HybridAStarVisualizer:
                 ax.plot([], [], 'k-', alpha=0, label='  • < = Backward motion')
                 ax.plot([], [], 'k-', alpha=0, label='  • Long arrows = Vehicle orientation')
         
-        # Plot final path with enhanced details - smooth curves
-        self._plot_path_with_steering_colors(ax, path, vehicle_model)
+        # Plot final path with enhanced details - smooth curves (if enabled)
+        if self.show_path:
+            self._plot_path_with_steering_colors(ax, path, vehicle_model)
         
-        # Plot vehicle orientations along path
-        self._plot_vehicle_orientations(ax, path)
+        # Plot vehicle orientations along path (if enabled)
+        if self.show_vehicle_arrows or self.show_steering_arrows:
+            self._plot_vehicle_orientations(ax, path)
         
         # Enhanced start and goal visualization
         self._plot_start_goal(ax, start, goal)
         
-        # Waypoint numbers (every 10th point)
-        waypoint_step = max(1, len(path) // 15)
-        for i in range(0, len(path), waypoint_step):
-            ax.annotate(f'{i}', (path[i].x, path[i].y), 
-                       xytext=(5, 5), textcoords='offset points',
-                       fontsize=8, alpha=0.7, 
-                       bbox=dict(boxstyle='round,pad=0.2', facecolor='yellow', alpha=0.7))
+        # Waypoint numbers (every 10th point) (if enabled)
+        if self.show_waypoint_numbers:
+            waypoint_step = max(1, len(path) // 15)
+            for i in range(0, len(path), waypoint_step):
+                ax.annotate(f'{i}', (path[i].x, path[i].y), 
+                           xytext=(5, 5), textcoords='offset points',
+                           fontsize=8, alpha=0.7, 
+                           bbox=dict(boxstyle='round,pad=0.2', facecolor='yellow', alpha=0.7))
         
         ax.set_xlabel('X (m)', fontsize=12)
         ax.set_ylabel('Y (m)', fontsize=12)
@@ -265,7 +512,9 @@ class HybridAStarVisualizer:
         
         ax.legend(fontsize=9, loc='upper right')
         ax.grid(True, alpha=0.3)
-        ax.axis('equal')
+        
+        # Set equal aspect but allow adjustable limits to avoid conflicts
+        ax.set_aspect('equal', adjustable='box')
         
         # Add color bar for steering angle if vehicle model available
         if vehicle_model:
@@ -275,6 +524,10 @@ class HybridAStarVisualizer:
             sm.set_array([])
             cbar = plt.colorbar(sm, ax=ax, shrink=0.6)
             cbar.set_label('Steering Angle (rad)', fontsize=10)
+            # Track colorbar for proper cleanup
+            if not hasattr(self, '_current_colorbars'):
+                self._current_colorbars = []
+            self._current_colorbars.append(cbar)
     
     def _plot_path_with_steering_colors(self, ax, path, vehicle_model):
         """Plot path with steering angle color coding"""
@@ -360,7 +613,7 @@ class HybridAStarVisualizer:
         for i in range(0, len(path), orientation_step):
             state = path[i]
             
-            # Vehicle body representation
+            # Vehicle body representation (always show)
             vehicle_length = 0.8
             vehicle_width = 0.4
             
@@ -392,21 +645,23 @@ class HybridAStarVisualizer:
             
             ax.plot(vehicle_corners_x, vehicle_corners_y, 'k-', linewidth=1, alpha=0.7)
             
-            # Direction arrow (blue = vehicle heading direction)
-            arrow_length = 0.6
-            dx = arrow_length * cos_yaw
-            dy = arrow_length * sin_yaw
-            ax.arrow(state.x, state.y, dx, dy, head_width=0.15, 
-                    head_length=0.15, fc='darkblue', ec='darkblue', alpha=0.8)
+            # Direction arrow (blue = vehicle heading direction) - controlled by show_vehicle_arrows
+            if self.show_vehicle_arrows:
+                arrow_length = 0.6
+                dx = arrow_length * cos_yaw
+                dy = arrow_length * sin_yaw
+                ax.arrow(state.x, state.y, dx, dy, head_width=0.15, 
+                        head_length=0.15, fc='darkblue', ec='darkblue', alpha=0.8)
             
-            # Steering angle visualization (red = front wheel direction when steering)
-            if abs(state.steer) > 0.1:  # Only show if significant steering
+            # Steering angle visualization (red = front wheel direction when steering) - controlled by show_steering_arrows
+            if self.show_steering_arrows and abs(state.steer) > 0.1:  # Only show if significant steering
                 # Front wheel position
                 front_wheel_x = state.x + vehicle_length/2 * cos_yaw
                 front_wheel_y = state.y + vehicle_length/2 * sin_yaw
                 
-                # Steered wheel direction
-                wheel_yaw = state.yaw + state.steer
+                # Steered wheel direction - CORRECTED: subtract steer angle
+                # For bicycle model: positive steer = left turn, so front wheel points left relative to vehicle
+                wheel_yaw = state.yaw - state.steer  # FIXED: was state.yaw + state.steer
                 wheel_dx = 0.3 * np.cos(wheel_yaw)
                 wheel_dy = 0.3 * np.sin(wheel_yaw)
                 
@@ -433,7 +688,15 @@ class HybridAStarVisualizer:
                 linewidth=2, zorder=10)
     
     def _plot_cost_analysis(self, ax, path):
-        """Plot cost analysis charts"""
+        """Plot cost analysis charts
+        
+        路径成本分析图表包含三个关键指标：
+        1. Steering Cost (转向成本) - 红色：衡量转向角度大小，反映转向剧烈程度
+        2. Turn Rate (转向速率) - 蓝色：衡量角度变化率，反映转向的急剧程度  
+        3. Curvature (曲率) - 绿色：衡量路径弯曲程度，数值越大路径越弯曲
+        
+        这些指标帮助评估路径的平滑性和车辆跟踪的难易程度
+        """
         if len(path) < 2:
             return
             
@@ -492,22 +755,29 @@ class HybridAStarVisualizer:
                         label='Curvature', alpha=0.8)
         
         # Styling
-        ax.set_xlabel('Path Index', fontsize=12)
-        ax.set_ylabel('Steering Cost', color='r', fontsize=12)
-        ax2.set_ylabel('Turn Rate (rad/s)', color='b', fontsize=12)
-        ax3.set_ylabel('Curvature', color='g', fontsize=12)
+        ax.set_xlabel('Path Index', fontsize=10)
+        ax.set_ylabel('Steering Cost', color='r', fontsize=10)
+        ax2.set_ylabel('Turn Rate (rad/s)', color='b', fontsize=10)
+        ax3.set_ylabel('Curvature', color='g', fontsize=10)
         
-        ax.tick_params(axis='y', labelcolor='r')
-        ax2.tick_params(axis='y', labelcolor='b')
-        ax3.tick_params(axis='y', labelcolor='g')
+        ax.tick_params(axis='y', labelcolor='r', labelsize=9)
+        ax2.tick_params(axis='y', labelcolor='b', labelsize=9)
+        ax3.tick_params(axis='y', labelcolor='g', labelsize=9)
+        ax.tick_params(axis='x', labelsize=9)
         
-        ax.set_title('Path Cost Analysis', fontsize=14)
+        ax.set_title('Path Cost Analysis\n(Steering, Turn Rate, Curvature)', fontsize=11)
         ax.grid(True, alpha=0.3)
         
-        # Combined legend
+        # Combined legend with smaller font
         lines = line1 + line2 + line3
         labels = [l.get_label() for l in lines]
-        ax.legend(lines, labels, loc='upper right')
+        ax.legend(lines, labels, loc='upper right', fontsize=8)
+        
+        # Add explanation text
+        explanation_text = ('Red: Steering Cost\nBlue: Turn Rate\nGreen: Curvature\n\nHigher values\nindicate more\ndemanding motion')
+        ax.text(0.02, 0.02, explanation_text, transform=ax.transAxes, 
+               fontsize=7, verticalalignment='bottom',
+               bbox=dict(boxstyle='round,pad=0.3', facecolor='lightcyan', alpha=0.8))
     
     @staticmethod
     def _normalize_angle(angle: float) -> float:

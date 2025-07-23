@@ -35,7 +35,7 @@ def visualize_planning_result(planner, path, start, goal):
         vehicle_model=viz_data['vehicle_model'],
         show_exploration=True,
         show_trajectories=True,
-        show_costs=True
+        show_costs=False  # 默认隐藏成本面板
     )
 
 
