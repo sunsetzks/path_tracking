@@ -12,7 +12,7 @@ Date: 2025-07-22
 import numpy as np
 import heapq
 import math
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Set, Dict, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -32,11 +32,11 @@ class State:
     direction: DirectionMode = DirectionMode.FORWARD
     steer: float = 0.0  # steering angle in radians
     
-    def __hash__(self):
+    def __hash__(self) -> int:
         # For use in sets and dictionaries
         return hash((round(self.x, 2), round(self.y, 2), round(self.yaw, 2)))
     
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if not isinstance(other, State):
             return False
         return (abs(self.x - other.x) < 0.1 and 
@@ -62,14 +62,14 @@ class Node:
         """Total cost"""
         return self.g_cost + self.h_cost
     
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         return self.f_cost < other.f_cost
 
 
 class VehicleModel:
     """Simple bicycle model for vehicle simulation"""
     
-    def __init__(self, wheelbase: float = 2.5, max_steer: float = np.pi/4):
+    def __init__(self, wheelbase: float = 2.5, max_steer: float = np.pi/4) -> None:
         """
         Args:
             wheelbase: Distance between front and rear axles (m)
@@ -140,7 +140,7 @@ class HybridAStar:
                  steer_resolution: float = np.pi/16,
                  velocity: float = 2.0,
                  simulation_time: float = 1.0,
-                 dt: float = 0.1):
+                 dt: float = 0.1) -> None:
         """
         Args:
             vehicle_model: Vehicle kinematic model
@@ -182,7 +182,7 @@ class HybridAStar:
         self.simulation_trajectories = []  # Store all simulation trajectories
     
     def set_obstacle_map(self, obstacle_map: np.ndarray, 
-                        origin_x: float = 0, origin_y: float = 0):
+                        origin_x: float = 0, origin_y: float = 0) -> None:
         """Set obstacle map
         
         Args:
@@ -463,7 +463,7 @@ class HybridAStar:
         print(f"No path found after {iterations} iterations")
         return None
     
-    def get_visualization_data(self):
+    def get_visualization_data(self) -> Dict[str, Any]:
         """Get all data needed for visualization
         
         Returns:
@@ -479,7 +479,7 @@ class HybridAStar:
             'vehicle_model': self.vehicle_model
         }
     
-    def get_statistics(self, path: Optional[List[Node]]) -> dict:
+    def get_statistics(self, path: Optional[List[Node]]) -> Dict[str, Any]:
         """Get path and search statistics
         
         Args:

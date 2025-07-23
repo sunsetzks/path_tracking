@@ -3,31 +3,33 @@ Hybrid A* Algorithm Demo
 Demonstration of the hybrid A* path planning algorithm with various scenarios.
 """
 
+from typing import List, Optional, Union, Sequence
 import numpy as np
 import matplotlib.pyplot as plt
-from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode
+from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode, Node
 from astar_project.visualizer import HybridAStarVisualizer
 
 
-def visualize_planning_result(planner: HybridAStar, path, start, goal):
+def visualize_planning_result(planner: HybridAStar, path: Optional[List[Node]], start: State, goal: State) -> None:
     """Helper function to visualize planning results"""
     if not path:
         print("No path to visualize")
         return
     
     # Create visualizer
-    visualizer = HybridAStarVisualizer()
+    visualizer: HybridAStarVisualizer = HybridAStarVisualizer()
     
     # Get visualization data from planner
     viz_data = planner.get_visualization_data()
     
-    # Visualize the path with all parameters explicitly
-    visualizer.visualize_path(
-        path=path,
+    # Visualize the node path with all parameters explicitly
+    visualizer.visualize_node_path(
+        path_nodes=path,
         start=start,
         goal=goal,
+        planner_instance=planner,
         explored_nodes=viz_data['explored_nodes'],
-        # simulation_trajectories=viz_data['simulation_trajectories'],
+        simulation_trajectories=viz_data['simulation_trajectories'],
         obstacle_map=viz_data['obstacle_map'],
         map_origin_x=viz_data['map_origin_x'],
         map_origin_y=viz_data['map_origin_y'],
@@ -39,10 +41,10 @@ def visualize_planning_result(planner: HybridAStar, path, start, goal):
     )
 
 
-def create_obstacle_map_scenario1():
+def create_obstacle_map_scenario1() -> np.ndarray:
     """Create a simple obstacle map with corridors"""
-    map_size = 60
-    obstacle_map = np.zeros((map_size, map_size))
+    map_size: int = 60
+    obstacle_map: np.ndarray = np.zeros((map_size, map_size))
     
     # Create walls
     obstacle_map[0:5, :] = 1     # Top wall
@@ -58,10 +60,10 @@ def create_obstacle_map_scenario1():
     return obstacle_map
 
 
-def create_obstacle_map_scenario2():
+def create_obstacle_map_scenario2() -> np.ndarray:
     """Create a parking lot scenario"""
-    map_size = 50
-    obstacle_map = np.zeros((map_size, map_size))
+    map_size: int = 50
+    obstacle_map: np.ndarray = np.zeros((map_size, map_size))
     
     # Parking spaces
     for i in range(5, 45, 8):
@@ -74,15 +76,15 @@ def create_obstacle_map_scenario2():
     return obstacle_map
 
 
-def demo_basic_navigation():
+def demo_basic_navigation() -> bool:
     """Demo basic navigation with obstacles"""
     print("=== Demo 1: Basic Navigation ===")
     
     # Create vehicle model
-    vehicle = VehicleModel(wheelbase=2.5, max_steer=np.pi/3)
+    vehicle: VehicleModel = VehicleModel(wheelbase=2.5, max_steer=np.pi/3)
     
     # Create hybrid A* planner with specific parameters
-    planner = HybridAStar(
+    planner: HybridAStar = HybridAStar(
         vehicle_model=vehicle,
         grid_resolution=0.5,
         angle_resolution=np.pi/8,
@@ -99,16 +101,16 @@ def demo_basic_navigation():
     planner.w_path = 3.0       # Path smoothness
     
     # Create obstacle map
-    obstacle_map = create_obstacle_map_scenario1()
+    obstacle_map: np.ndarray = create_obstacle_map_scenario1()
     planner.set_obstacle_map(obstacle_map, origin_x=-5, origin_y=-5)
     
     # Define start and goal
-    start = State(x=2.0, y=2.0, yaw=0, direction=DirectionMode.FORWARD)
-    goal = State(x=22.0, y=20.0, yaw=np.pi/2, direction=DirectionMode.FORWARD)
+    start: State = State(x=2.0, y=2.0, yaw=0, direction=DirectionMode.FORWARD)
+    goal: State = State(x=22.0, y=20.0, yaw=np.pi/2, direction=DirectionMode.FORWARD)
     
     # Plan path
     print("Planning path...")
-    path = planner.plan_path(start, goal, max_iterations=3000)
+    path: Optional[List[Node]] = planner.plan_path(start, goal, max_iterations=3000)
     
     if path:
         print(f"✓ Path found with {len(path)} waypoints")
@@ -119,15 +121,15 @@ def demo_basic_navigation():
         return False
 
 
-def demo_parallel_parking():
+def demo_parallel_parking() -> bool:
     """Demo parallel parking maneuver"""
     print("\n=== Demo 2: Parallel Parking ===")
     
     # Create vehicle model
-    vehicle = VehicleModel(wheelbase=2.5, max_steer=np.pi/4)
+    vehicle: VehicleModel = VehicleModel(wheelbase=2.5, max_steer=np.pi/4)
     
     # Create planner optimized for tight maneuvering
-    planner = HybridAStar(
+    planner: HybridAStar = HybridAStar(
         vehicle_model=vehicle,
         grid_resolution=0.3,
         angle_resolution=np.pi/12,
@@ -144,15 +146,15 @@ def demo_parallel_parking():
     planner.w_path = 2.0
     
     # Create parking scenario
-    obstacle_map = create_obstacle_map_scenario2()
+    obstacle_map: np.ndarray = create_obstacle_map_scenario2()
     planner.set_obstacle_map(obstacle_map, origin_x=-5, origin_y=-5)
     
     # Start: in the road, Goal: in parking space
-    start = State(x=5.0, y=25.0, yaw=0, direction=DirectionMode.FORWARD)
-    goal = State(x=8.0, y=12.5, yaw=np.pi/2, direction=DirectionMode.FORWARD)
+    start: State = State(x=5.0, y=25.0, yaw=0, direction=DirectionMode.FORWARD)
+    goal: State = State(x=8.0, y=12.5, yaw=np.pi/2, direction=DirectionMode.FORWARD)
     
     print("Planning parking maneuver...")
-    path = planner.plan_path(start, goal, max_iterations=5000)
+    path: Optional[List[Node]] = planner.plan_path(start, goal, max_iterations=5000)
     
     if path:
         print(f"✓ Parking path found with {len(path)} waypoints")
@@ -163,15 +165,15 @@ def demo_parallel_parking():
         return False
 
 
-def demo_u_turn():
+def demo_u_turn() -> bool:
     """Demo U-turn maneuver"""
     print("\n=== Demo 3: U-Turn Maneuver ===")
     
     # Create vehicle model
-    vehicle = VehicleModel(wheelbase=2.5, max_steer=np.pi/3)
+    vehicle: VehicleModel = VehicleModel(wheelbase=2.5, max_steer=np.pi/3)
     
     # Create planner for U-turn
-    planner = HybridAStar(
+    planner: HybridAStar = HybridAStar(
         vehicle_model=vehicle,
         grid_resolution=0.4,
         angle_resolution=np.pi/10,
@@ -188,8 +190,8 @@ def demo_u_turn():
     planner.w_path = 4.0
     
     # Simple corridor for U-turn
-    map_size = 40
-    obstacle_map = np.zeros((map_size, map_size))
+    map_size: int = 40
+    obstacle_map: np.ndarray = np.zeros((map_size, map_size))
     
     # Create narrow corridor
     obstacle_map[:15, :] = 1        # Top obstacles
@@ -200,11 +202,11 @@ def demo_u_turn():
     planner.set_obstacle_map(obstacle_map, origin_x=-2, origin_y=-2)
     
     # Start going right, goal going left (U-turn)
-    start = State(x=2.0, y=20.0, yaw=0, direction=DirectionMode.FORWARD)
-    goal = State(x=2.0, y=20.0, yaw=np.pi, direction=DirectionMode.FORWARD)
+    start: State = State(x=2.0, y=20.0, yaw=0, direction=DirectionMode.FORWARD)
+    goal: State = State(x=2.0, y=20.0, yaw=np.pi, direction=DirectionMode.FORWARD)
     
     print("Planning U-turn...")
-    path = planner.plan_path(start, goal, max_iterations=4000)
+    path: Optional[List[Node]] = planner.plan_path(start, goal, max_iterations=4000)
     
     if path:
         print(f"✓ U-turn path found with {len(path)} waypoints")
@@ -215,7 +217,7 @@ def demo_u_turn():
         return False
 
 
-def analyze_path_quality(path):
+def analyze_path_quality(path: Optional[List[Node]]) -> None:
     """Analyze the quality of a planned path"""
     if not path or len(path) < 2:
         return
@@ -223,28 +225,28 @@ def analyze_path_quality(path):
     print("\n--- Path Quality Analysis ---")
     
     # Calculate total distance
-    total_distance = 0
+    total_distance = 0.0
     for i in range(len(path) - 1):
-        dx = path[i+1].x - path[i].x
-        dy = path[i+1].y - path[i].y
+        dx = path[i+1].state.x - path[i].state.x
+        dy = path[i+1].state.y - path[i].state.y
         total_distance += np.sqrt(dx*dx + dy*dy)
     
     # Calculate steering statistics
-    steering_angles = [abs(state.steer) for state in path]
-    max_steer = max(steering_angles) if steering_angles else 0
-    avg_steer = np.mean(steering_angles) if steering_angles else 0
+    steering_angles = [abs(node.state.steer) for node in path]
+    max_steer = max(steering_angles) if steering_angles else 0.0
+    avg_steer = np.mean(steering_angles) if steering_angles else 0.0
     
     # Calculate curvature changes (smoothness)
-    curvature_changes = 0
+    curvature_changes = 0.0
     for i in range(1, len(path) - 1):
-        yaw_change1 = abs(path[i].yaw - path[i-1].yaw)
-        yaw_change2 = abs(path[i+1].yaw - path[i].yaw)
+        yaw_change1 = abs(path[i].state.yaw - path[i-1].state.yaw)
+        yaw_change2 = abs(path[i+1].state.yaw - path[i].state.yaw)
         curvature_changes += abs(yaw_change2 - yaw_change1)
     
     # Direction changes
     direction_changes = 0
     for i in range(1, len(path)):
-        if path[i].direction != path[i-1].direction:
+        if path[i].state.direction != path[i-1].state.direction:
             direction_changes += 1
     
     print(f"Total Distance: {total_distance:.2f} m")
@@ -255,12 +257,12 @@ def analyze_path_quality(path):
     print(f"Curvature Changes: {curvature_changes:.2f}")
 
 
-def main():
+def main() -> None:
     """Run all demos"""
     print("Hybrid A* Path Planning Demonstrations")
     print("=====================================")
     
-    results = []
+    results: List[bool] = []
     
     # Run demos
     results.append(demo_basic_navigation())

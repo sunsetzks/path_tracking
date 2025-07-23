@@ -15,7 +15,10 @@ from matplotlib.colors import Normalize
 from matplotlib.widgets import Button, CheckButtons
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .hybrid_astar import HybridAStar
 
 # Optional scipy import for smooth path interpolation
 try:
@@ -33,7 +36,7 @@ except ImportError:
 class HybridAStarVisualizer:
     """Visualization class for Hybrid A* path planning results"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the visualizer"""
         # Interactive control states
         self.show_exploration = True
@@ -58,14 +61,14 @@ class HybridAStarVisualizer:
     
     def visualize_path(self, path: List[State], start: State, goal: State,
                       explored_nodes: Optional[List[Node]] = None,
-                      simulation_trajectories: Optional[List] = None,
+                      simulation_trajectories: Optional[List[Any]] = None,
                       obstacle_map: Optional[np.ndarray] = None,
                       map_origin_x: float = 0, map_origin_y: float = 0,
                       grid_resolution: float = 1.0,
-                      vehicle_model = None,
+                      vehicle_model: Optional[Any] = None,
                       show_exploration: bool = True, 
                       show_trajectories: bool = True, 
-                      show_costs: bool = False):  # 默认不显示成本面板
+                      show_costs: bool = False) -> None:  # 默认不显示成本面板
         """Enhanced visualization of the planned path with interactive controls"""
         if not path:
             print("No path to visualize")
@@ -88,16 +91,16 @@ class HybridAStarVisualizer:
         self._create_visualization()
     
     def visualize_node_path(self, path_nodes: List[Node], start: State, goal: State,
-                           planner_instance,
+                           planner_instance: "HybridAStar",
                            explored_nodes: Optional[List[Node]] = None,
-                           simulation_trajectories: Optional[List] = None,
+                           simulation_trajectories: Optional[List[Any]] = None,
                            obstacle_map: Optional[np.ndarray] = None,
                            map_origin_x: float = 0, map_origin_y: float = 0,
                            grid_resolution: float = 1.0,
-                           vehicle_model = None,
+                           vehicle_model: Optional[Any] = None,
                            show_exploration: bool = True, 
                            show_trajectories: bool = True, 
-                           show_costs: bool = False):
+                           show_costs: bool = False) -> None:
         """Visualize path from Node list using detailed simulation trajectories
         
         Args:
@@ -129,7 +132,7 @@ class HybridAStarVisualizer:
             show_costs=show_costs
         )
     
-    def _create_visualization(self):
+    def _create_visualization(self) -> None:
         """Create the main visualization layout and controls"""
         # Initialize display states
         self.show_exploration = True
@@ -177,7 +180,7 @@ class HybridAStarVisualizer:
             vehicle_model = self.current_data['vehicle_model']
             self._print_path_statistics(path, explored_nodes, simulation_trajectories, vehicle_model)
     
-    def _create_interactive_controls(self):
+    def _create_interactive_controls(self) -> None:
         """Create interactive control buttons and checkboxes"""
         if not self.control_ax:
             return
@@ -244,8 +247,11 @@ class HybridAStarVisualizer:
                            ha='center', va='bottom', fontsize=8, style='italic',
                            transform=self.control_ax.transAxes)
     
-    def _on_checkbox_clicked(self, label):
+    def _on_checkbox_clicked(self, label: Optional[str]) -> None:
         """Handle checkbox click events"""
+        if label is None:
+            return
+            
         # Update corresponding state - match labels exactly
         if label == 'Exploration Nodes':
             self.show_exploration = not self.show_exploration
@@ -268,7 +274,7 @@ class HybridAStarVisualizer:
         # Update visualization
         self._update_visualization()
     
-    def _recreate_layout(self):
+    def _recreate_layout(self) -> None:
         """Recreate the figure layout when cost panel is toggled"""
         if not self.fig:
             return
@@ -313,7 +319,7 @@ class HybridAStarVisualizer:
         if self.fig.canvas:
             self.fig.canvas.draw()
     
-    def _update_visualization(self):
+    def _update_visualization(self) -> None:
         """Update the main visualization based on current control states"""
         if not self.current_data or not self.main_ax:
             return
@@ -391,7 +397,7 @@ class HybridAStarVisualizer:
         if self.fig and self.fig.canvas:
             self.fig.canvas.draw()
     
-    def _remove_existing_colorbars(self):
+    def _remove_existing_colorbars(self) -> None:
         """Remove existing colorbars to prevent duplicates"""
         if hasattr(self, '_current_colorbars'):
             for cbar in self._current_colorbars:
@@ -403,11 +409,11 @@ class HybridAStarVisualizer:
         else:
             self._current_colorbars = []
     
-    def _plot_main_visualization(self, ax, path, start, goal, 
-                               explored_nodes, simulation_trajectories,
-                               obstacle_map, map_origin_x, map_origin_y, 
-                               grid_resolution, vehicle_model,
-                               show_exploration, show_trajectories):
+    def _plot_main_visualization(self, ax: Axes, path: List[State], start: State, goal: State, 
+                               explored_nodes: Optional[List[Node]], simulation_trajectories: Optional[List[Any]],
+                               obstacle_map: Optional[np.ndarray], map_origin_x: float, map_origin_y: float, 
+                               grid_resolution: float, vehicle_model: Optional[Any],
+                               show_exploration: bool, show_trajectories: bool) -> None:
         """Plot main path visualization with exploration details"""
         
         # Plot obstacle map if available (black = obstacles, white = free space)
@@ -617,7 +623,7 @@ class HybridAStarVisualizer:
                 self._current_colorbars = []
             self._current_colorbars.append(cbar)
     
-    def _plot_path_with_steering_colors(self, ax, path, vehicle_model):
+    def _plot_path_with_steering_colors(self, ax: Axes, path: List[State], vehicle_model: Optional[Any]) -> None:
         """Plot path with steering angle color coding"""
         x_coords = np.array([state.x for state in path])
         y_coords = np.array([state.y for state in path])
@@ -669,11 +675,16 @@ class HybridAStarVisualizer:
         else:
             self._plot_linear_path_segments(ax, path, vehicle_model)
     
-    def _plot_linear_path_segments(self, ax, path, vehicle_model):
+    def _plot_linear_path_segments(self, ax: Axes, path: List[State], vehicle_model: Optional[Any]) -> None:
         """Plot path as linear segments with steering colors"""
         x_coords = [state.x for state in path]
         y_coords = [state.y for state in path]
         steer_angles = [state.steer for state in path]
+        
+        if not vehicle_model or not hasattr(vehicle_model, 'max_steer'):
+            # Fallback to simple plotting without steering colors
+            ax.plot(x_coords, y_coords, 'r-', linewidth=3, label='Path')
+            return
         
         for i in range(len(path)-1):
             steer_normalized = abs(steer_angles[i]) / vehicle_model.max_steer
@@ -689,7 +700,7 @@ class HybridAStarVisualizer:
             ax.plot([x_coords[i], x_coords[i+1]], [y_coords[i], y_coords[i+1]], 
                    color=color, linewidth=3, alpha=0.8)
     
-    def _plot_vehicle_orientations(self, ax, path):
+    def _plot_vehicle_orientations(self, ax: Axes, path: List[State]) -> None:
         """Plot vehicle orientations along path with detailed visual indicators
         
         Visual elements explained:
@@ -757,7 +768,7 @@ class HybridAStarVisualizer:
                         head_width=0.1, head_length=0.1, 
                         fc='red', ec='red', alpha=0.8)
     
-    def _plot_start_goal(self, ax, start, goal):
+    def _plot_start_goal(self, ax: Axes, start: State, goal: State) -> None:
         """Plot start and goal with direction arrows"""
         # Start
         ax.plot(start.x, start.y, 'go', markersize=12, label='Start', zorder=10)
@@ -775,7 +786,7 @@ class HybridAStarVisualizer:
                 head_width=0.4, head_length=0.4, fc='red', ec='darkred',
                 linewidth=2, zorder=10)
     
-    def _plot_cost_analysis(self, ax, path):
+    def _plot_cost_analysis(self, ax: Axes, path: List[State]) -> None:
         """Plot cost analysis charts
         
         路径成本分析图表包含三个关键指标：
@@ -858,7 +869,7 @@ class HybridAStarVisualizer:
         
         # Combined legend with smaller font
         lines = line1 + line2 + line3
-        labels = [l.get_label() for l in lines]
+        labels: List[str] = [str(l.get_label()) for l in lines]
         ax.legend(lines, labels, loc='upper right', fontsize=8)
         
         # Add explanation text
@@ -876,7 +887,8 @@ class HybridAStarVisualizer:
             angle += 2 * np.pi
         return angle
     
-    def _print_path_statistics(self, path, explored_nodes, simulation_trajectories, vehicle_model):
+    def _print_path_statistics(self, path: List[State], explored_nodes: Optional[List[Node]], 
+                              simulation_trajectories: Optional[List[Any]], vehicle_model: Optional[Any]) -> None:
         """Print detailed path statistics"""
         if not path:
             return
