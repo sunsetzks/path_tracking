@@ -10,7 +10,7 @@ Date: 2025-07-22
 """
 from rich import pretty, traceback
 pretty.install()
-traceback.install(show_locals=True)
+traceback.install()
 
 import numpy as np
 import heapq

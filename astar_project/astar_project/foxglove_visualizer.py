@@ -126,158 +126,76 @@ class FoxgloveHybridAStarVisualizer:
     """
     Foxglove-based real-time visualizer for Hybrid A* path planning
     
-    This class creates a WebSocket server that streams visualization data to Foxglove Studio.
-    It provides real-time updates of the path planning process, including exploration tree,
-    final path, vehicle states, and cost analysis.
+    This class creates visualization data for Foxglove Studio using 3D primitives and JSON data.
+    Based on the official Foxglove SDK examples.
     """
     
-    def __init__(self, port: int = 8765, host: str = "localhost"):
+    def __init__(self, port: int = 8765) -> None:
         """
         Initialize the Foxglove visualizer
         
         Args:
             port: WebSocket server port
-            host: WebSocket server host
         """
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK is not available. Please install it first.")
             
-        self.port = port
-        self.host = host
-        self.server: Optional[WebSocketServer] = None
-        
-        # Channels for different visualization elements
-        self.channels = {}
+        self.port: int = port
         
         # Visualization settings
-        self.settings = {
+        self.settings: Dict[str, float] = {
             'exploration_line_thickness': 0.05,
             'path_line_thickness': 0.15,
-            'arrow_scale': 1.0,
-            'vehicle_scale': 2.5,  # Vehicle wheelbase
             'max_exploration_nodes': 1000,  # Limit for performance
-            'update_rate': 10.0,  # Hz
         }
         
         # Current data
-        self.current_data = {}
-        self.is_running = False
+        self.current_data: Dict[str, Any] = {}
+        self.is_running: bool = False
         
-        # Setup channels
-        self._setup_channels()
+        # Channels (created when server starts)
+        self.scene_channel: Optional[Any] = None
+        self.stats_channel: Optional[Any] = None
     
-    def _setup_channels(self):
-        """Setup channels for different visualization types"""
-        
-        # Path visualization channel (JSON format for simplicity)
-        path_schema = {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "x": {"type": "number"},
-                            "y": {"type": "number"},
-                            "yaw": {"type": "number"},
-                            "steer": {"type": "number"}
-                        }
-                    }
-                },
-                "exploration_nodes": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "x": {"type": "number"},
-                            "y": {"type": "number"},
-                            "parent_x": {"type": "number"},
-                            "parent_y": {"type": "number"},
-                            "direction": {"type": "string"}
-                        }
-                    }
-                },
-                "start": {
-                    "type": "object",
-                    "properties": {
-                        "x": {"type": "number"},
-                        "y": {"type": "number"},
-                        "yaw": {"type": "number"}
-                    }
-                },
-                "goal": {
-                    "type": "object", 
-                    "properties": {
-                        "x": {"type": "number"},
-                        "y": {"type": "number"},
-                        "yaw": {"type": "number"}
-                    }
-                },
-                "obstacles": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "x": {"type": "number"},
-                            "y": {"type": "number"},
-                            "width": {"type": "number"},
-                            "height": {"type": "number"}
-                        }
-                    }
-                }
-            }
-        }
-        
-        # Statistics schema
-        stats_schema = {
-            "type": "object",
-            "properties": {
-                "timestamp": {"type": "number"},
-                "path_length": {"type": "number"},
-                "nodes_explored": {"type": "number"},
-                "total_distance": {"type": "number"},
-                "max_steering_angle": {"type": "number"},
-                "avg_steering_angle": {"type": "number"},
-                "direction_changes": {"type": "number"}
-            }
-        }
-        
-        self.path_channel = Channel(
-            topic="/hybrid_astar/visualization",
-            schema=path_schema
-        )
-        
-        self.stats_channel = Channel(
-            topic="/hybrid_astar/statistics",
-            schema=stats_schema
-        )
-    
-    def start_server(self):
-        """Start the Foxglove WebSocket server"""
+    def start_server(self) -> Any:
+        """Start the Foxglove WebSocket server with channels"""
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK is not available")
             
-        print(f"Starting Foxglove server on {self.host}:{self.port}")
+        print(f"Starting Foxglove server on ws://localhost:{self.port}")
         
-        self.server = foxglove.start_server(
-            host=self.host,
-            port=self.port,
-            name="Hybrid A* Visualizer"
-        )
+        # Import required classes
+        from foxglove import start_server, Channel
         
-        print(f"Foxglove server started on port {self.server.port}")
-        print(f"Connect Foxglove Studio to ws://{self.host}:{self.server.port}")
+        # Start the WebSocket server (global context)
+        server = start_server(port=self.port)
+        
+        # Create channels for 3D visualization
+        self.scene_channel = Channel(topic="/hybrid_astar/scene")
+        self.stats_channel = Channel(topic="/hybrid_astar/statistics")
+        
+        print(f"✓ Foxglove server started on ws://localhost:{self.port}")
+        print(f"→ Connect Foxglove Studio to this WebSocket URL")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/scene' topic")
+        print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
+        
         self.is_running = True
-        
-        return self.server
+        return server
     
-    def stop_server(self):
-        """Stop the Foxglove WebSocket server"""
-        if self.server:
-            self.server.stop()
-            self.is_running = False
-            print("Foxglove server stopped")
+    def stop_server(self) -> None:
+        """Stop the server (note: Foxglove server runs globally)"""
+        self.is_running = False
+        print("Foxglove visualizer stopped")
+    
+    def log_scene_update(self, scene_update: SceneUpdate) -> None:
+        """Log a SceneUpdate to Foxglove"""
+        if self.scene_channel and self.is_running:
+            self.scene_channel.log(scene_update)
+    
+    def log_statistics(self, stats_dict: Dict[str, Any]) -> None:
+        """Log statistics as JSON"""
+        if self.stats_channel and self.is_running:
+            self.stats_channel.log(stats_dict)
     
     def visualize_path_planning(self, 
                               path: List[State],
@@ -291,7 +209,7 @@ class FoxgloveHybridAStarVisualizer:
                               grid_resolution: float = 1.0,
                               vehicle_model: Optional[VehicleModel] = None) -> None:
         """
-        Visualize complete path planning results
+        Visualize complete path planning results with 3D primitives
         
         Args:
             path: Final planned path
@@ -324,118 +242,234 @@ class FoxgloveHybridAStarVisualizer:
         if not self.is_running:
             self.start_server()
         
-        # Update visualization
-        self._update_visualization()
-    
-    def _update_visualization(self):
-        """Update all visualization elements"""
-        if not self.server or not self.is_running:
-            print("Server not running")
-            return
+        # Create and send 3D scene update
+        scene_update = self.create_scene_update()
+        if scene_update:
+            self.log_scene_update(scene_update)
         
-        # Create visualization data
-        viz_data = self._create_visualization_data()
-        
-        # Send visualization data
-        if viz_data:
-            self.path_channel.log(viz_data)
-        
-        # Send statistics
-        stats = self._create_statistics()
+        # Create and send statistics
+        stats = self.create_statistics()
         if stats:
-            self.stats_channel.log(stats)
+            self.log_statistics(stats)
     
-    def _create_visualization_data(self) -> Optional[Dict[str, Any]]:
-        """Create visualization data dictionary"""
+    def create_scene_update(self) -> Optional[SceneUpdate]:
+        """Create a Foxglove SceneUpdate with 3D visualization primitives"""
+        from foxglove.schemas import (
+            SceneUpdate, SceneEntity, LinePrimitive, ArrowPrimitive, 
+            CubePrimitive, SpherePrimitive, Color, Point3, Vector3, Pose, Quaternion
+        )
         
-        viz_data = {}
+        entities: List[SceneEntity] = []
         
-        # Path data
-        path = self.current_data.get('path', [])
-        if path:
-            viz_data['path'] = [
-                {
-                    'x': float(state.x),
-                    'y': float(state.y),
-                    'yaw': float(state.yaw),
-                    'steer': float(getattr(state, 'steer', 0.0))
-                }
-                for state in path
-            ]
-        
-        # Exploration nodes
-        explored_nodes = self.current_data.get('explored_nodes', [])
+        # 1. Visualize exploration tree as lines
+        explored_nodes: List[Node] = self.current_data.get('explored_nodes', [])
         if explored_nodes:
-            exploration_data = []
+            lines: List[Point3] = []
+            colors: List[Color] = []
             
             # Limit nodes for performance
-            max_nodes = self.settings['max_exploration_nodes']
+            max_nodes: int = int(self.settings['max_exploration_nodes'])
             if len(explored_nodes) > max_nodes:
                 step = len(explored_nodes) // max_nodes
                 explored_nodes = explored_nodes[::step]
             
             for node in explored_nodes:
                 if node.parent is not None:
-                    exploration_data.append({
-                        'x': float(node.state.x),
-                        'y': float(node.state.y),
-                        'parent_x': float(node.parent.state.x),
-                        'parent_y': float(node.parent.state.y),
-                        'direction': str(node.state.direction.name) if hasattr(node.state.direction, 'name') else 'FORWARD'
-                    })
+                    # Create line from parent to current node
+                    lines.extend([
+                        Point3(x=float(node.parent.state.x), y=float(node.parent.state.y), z=0.0),
+                        Point3(x=float(node.state.x), y=float(node.state.y), z=0.0)
+                    ])
+                    
+                    # Color based on direction (green for forward, red for backward)
+                    if hasattr(node.state, 'direction') and str(node.state.direction) == 'BACKWARD':
+                        color = Color(r=1.0, g=0.0, b=0.0, a=0.3)  # Red for backward
+                    else:
+                        color = Color(r=0.0, g=1.0, b=0.0, a=0.3)  # Green for forward
+                    colors.extend([color, color])
             
-            viz_data['exploration_nodes'] = exploration_data
+            if lines:
+                exploration_entity = SceneEntity(
+                    id="exploration_tree",
+                    lines=[LinePrimitive(
+                        pose=Pose(
+                            position=Vector3(x=0.0, y=0.0, z=0.0),
+                            orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                        ),
+                        thickness=self.settings['exploration_line_thickness'],
+                        scale_invariant=False,
+                        points=lines,
+                        colors=colors
+                    )]
+                )
+                entities.append(exploration_entity)
         
-        # Start and goal
-        start = self.current_data.get('start')
+        # 2. Visualize final path as thick lines
+        path: List[State] = self.current_data.get('path', [])
+        if len(path) > 1:
+            path_lines: List[Point3] = []
+            for i in range(len(path) - 1):
+                path_lines.extend([
+                    Point3(x=float(path[i].x), y=float(path[i].y), z=0.1),
+                    Point3(x=float(path[i+1].x), y=float(path[i+1].y), z=0.1)
+                ])
+            
+            path_entity = SceneEntity(
+                id="final_path",
+                lines=[LinePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=0.0, y=0.0, z=0.0),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    thickness=self.settings['path_line_thickness'],
+                    scale_invariant=False,
+                    points=path_lines,
+                    color=Color(r=1.0, g=0.0, b=1.0, a=1.0)  # Magenta
+                )]
+            )
+            entities.append(path_entity)
+            
+            # 3. Vehicle orientation arrows along path
+            arrows: List[ArrowPrimitive] = []
+            step: int = max(1, len(path) // 20)  # Show ~20 arrows
+            for i in range(0, len(path), step):
+                state: State = path[i]
+                # Calculate quaternion from yaw angle
+                yaw: float = state.yaw
+                quat_z: float = math.sin(yaw / 2.0)
+                quat_w: float = math.cos(yaw / 2.0)
+                
+                arrows.append(ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(state.x), y=float(state.y), z=0.2),
+                        orientation=Quaternion(x=0.0, y=0.0, z=quat_z, w=quat_w)
+                    ),
+                    shaft_length=0.8,
+                    shaft_diameter=0.1,
+                    head_length=0.2,
+                    head_diameter=0.2,
+                    color=Color(r=0.0, g=0.0, b=1.0, a=0.8)  # Blue
+                ))
+            
+            if arrows:
+                arrow_entity = SceneEntity(
+                    id="path_arrows",
+                    arrows=arrows
+                )
+                entities.append(arrow_entity)
+        
+        # 4. Visualize start and goal positions
+        start: Optional[State] = self.current_data.get('start')
         if start:
-            viz_data['start'] = {
-                'x': float(start.x),
-                'y': float(start.y),
-                'yaw': float(start.yaw)
-            }
-        
-        goal = self.current_data.get('goal')
-        if goal:
-            viz_data['goal'] = {
-                'x': float(goal.x),
-                'y': float(goal.y),
-                'yaw': float(goal.yaw)
-            }
-        
-        # Obstacles
-        obstacle_map = self.current_data.get('obstacle_map')
-        if obstacle_map is not None:
-            obstacles = []
-            origin_x = self.current_data['map_origin_x']
-            origin_y = self.current_data['map_origin_y']
-            resolution = self.current_data['grid_resolution']
+            start_yaw: float = start.yaw
+            start_quat_z: float = math.sin(start_yaw / 2.0)
+            start_quat_w: float = math.cos(start_yaw / 2.0)
             
+            start_entity = SceneEntity(
+                id="start_position",
+                spheres=[SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=0.8, y=0.8, z=0.8),
+                    color=Color(r=0.0, g=1.0, b=0.0, a=1.0)  # Green
+                )],
+                arrows=[ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=start_quat_z, w=start_quat_w)
+                    ),
+                    shaft_length=1.2,
+                    shaft_diameter=0.15,
+                    head_length=0.3,
+                    head_diameter=0.3,
+                    color=Color(r=0.0, g=0.8, b=0.0, a=0.9)
+                )]
+            )
+            entities.append(start_entity)
+        
+        goal: Optional[State] = self.current_data.get('goal')
+        if goal:
+            goal_yaw: float = goal.yaw
+            goal_quat_z: float = math.sin(goal_yaw / 2.0)
+            goal_quat_w: float = math.cos(goal_yaw / 2.0)
+            
+            goal_entity = SceneEntity(
+                id="goal_position",
+                spheres=[SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=0.8, y=0.8, z=0.8),
+                    color=Color(r=1.0, g=0.0, b=0.0, a=1.0)  # Red
+                )],
+                arrows=[ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=goal_quat_z, w=goal_quat_w)
+                    ),
+                    shaft_length=1.2,
+                    shaft_diameter=0.15,
+                    head_length=0.3,
+                    head_diameter=0.3,
+                    color=Color(r=0.8, g=0.0, b=0.0, a=0.9)
+                )]
+            )
+            entities.append(goal_entity)
+        
+        # 5. Visualize obstacles as cubes
+        obstacle_map: Optional[np.ndarray] = self.current_data.get('obstacle_map')
+        if obstacle_map is not None:
+            cubes: List[CubePrimitive] = []
+            origin_x: float = self.current_data['map_origin_x']
+            origin_y: float = self.current_data['map_origin_y']
+            resolution: float = self.current_data['grid_resolution']
+            
+            height: int
+            width: int
             height, width = obstacle_map.shape
             
+            # Sample obstacles for performance (max 500 cubes)
+            obstacle_positions: List[Tuple[float, float]] = []
             for y in range(height):
                 for x in range(width):
-                    if obstacle_map[y, x] == 1:  # Obstacle
-                        world_x = origin_x + x * resolution
-                        world_y = origin_y + y * resolution
-                        
-                        obstacles.append({
-                            'x': float(world_x),
-                            'y': float(world_y),
-                            'width': float(resolution),
-                            'height': float(resolution)
-                        })
+                    if obstacle_map[y, x] == 1:
+                        world_x: float = origin_x + x * resolution + resolution/2
+                        world_y: float = origin_y + y * resolution + resolution/2
+                        obstacle_positions.append((world_x, world_y))
             
-            # Limit obstacles for performance
-            if len(obstacles) > 1000:
-                step = len(obstacles) // 1000
-                obstacles = obstacles[::step]
+            if len(obstacle_positions) > 500:
+                step: int = len(obstacle_positions) // 500
+                obstacle_positions = obstacle_positions[::step]
             
-            viz_data['obstacles'] = obstacles
+            for world_x, world_y in obstacle_positions:
+                cubes.append(CubePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=world_x, y=world_y, z=resolution/2),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=resolution, y=resolution, z=resolution),
+                    color=Color(r=0.2, g=0.2, b=0.2, a=0.8)  # Dark gray
+                ))
+            
+            if cubes:
+                obstacle_entity = SceneEntity(
+                    id="obstacles",
+                    cubes=cubes
+                )
+                entities.append(obstacle_entity)
         
-        return viz_data if viz_data else None
+        if not entities:
+            return None
+        
+        return SceneUpdate(
+            deletions=[],
+            entities=entities
+        )
     
-    def _create_statistics(self) -> Optional[Dict[str, Any]]:
+    def create_statistics(self) -> Optional[Dict[str, Any]]:
         """Create statistics data"""
         path = self.current_data.get('path', [])
         explored_nodes = self.current_data.get('explored_nodes', [])
@@ -474,7 +508,7 @@ class FoxgloveHybridAStarVisualizer:
         
         return stats
     
-    def visualize_live_planning(self, planner: HybridAStar, start: State, goal: State):
+    def visualize_live_planning(self, planner: HybridAStar, start: State, goal: State) -> Optional[List[Node]]:
         """
         Visualize live path planning process
         
@@ -500,15 +534,16 @@ class FoxgloveHybridAStarVisualizer:
             path_states = [node.state for node in result]
             
             # Update visualization with final result
-            viz_data = planner.get_visualization_data()
-            self.current_data = {
-                'path': path_states,
-                'start': start,
-                'goal': goal,
-                **viz_data
-            }
-            
-            self._update_visualization()
+            self.visualize_path_planning(
+                path=path_states,
+                start=start,
+                goal=goal,
+                explored_nodes=planner.explored_nodes if hasattr(planner, 'explored_nodes') else [],
+                obstacle_map=planner.obstacle_map if hasattr(planner, 'obstacle_map') else None,
+                map_origin_x=planner.map_origin_x if hasattr(planner, 'map_origin_x') else 0,
+                map_origin_y=planner.map_origin_y if hasattr(planner, 'map_origin_y') else 0,
+                grid_resolution=planner.grid_resolution if hasattr(planner, 'grid_resolution') else 1.0
+            )
             print(f"✓ Path visualization updated with {len(path_states)} waypoints")
         else:
             print("✗ No path found")
@@ -516,7 +551,7 @@ class FoxgloveHybridAStarVisualizer:
         return result
 
 
-async def run_example():
+async def run_example() -> None:
     """Example usage of the Foxglove visualizer"""
     if not FOXGLOVE_AVAILABLE:
         print("Foxglove SDK not available. Please install it first.")
@@ -582,7 +617,7 @@ def matplotlib_fallback_visualization(path: List[State],
                                     obstacle_map: Optional[np.ndarray] = None,
                                     map_origin_x: float = 0,
                                     map_origin_y: float = 0,
-                                    grid_resolution: float = 1.0):
+                                    grid_resolution: float = 1.0) -> None:
     """
     Fallback visualization using matplotlib when Foxglove is not available
     """
@@ -655,7 +690,7 @@ def matplotlib_fallback_visualization(path: List[State],
     plt.show()
 
 
-async def run_foxglove_example():
+async def run_foxglove_example() -> None:
     """Example usage of the Foxglove visualizer"""
     if not FOXGLOVE_AVAILABLE:
         print("Foxglove SDK not available. Please install it first.")
