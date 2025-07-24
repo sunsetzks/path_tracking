@@ -59,69 +59,6 @@ try:
 except ImportError:
     from astar_project.hybrid_astar import State, Node, DirectionMode, VehicleModel, HybridAStar
 
-
-"""
-Foxglove-based Visualization for Hybrid A* Path Planning
-
-This module provides real-time visualization capabilities for the Hybrid A* algorithm
-using the Foxglove WebSocket server. It creates interactive 3D visualizations that can
-be viewed in Foxglove Studio.
-
-Features:
-- Real-time path planning visualization
-- Interactive exploration tree display
-- Vehicle state visualization with orientation arrows
-- Cost analysis and statistics
-- Obstacle map visualization
-- Steering angle visualization with color coding
-
-Author: Your Name
-Date: 2025-07-24
-"""
-
-import asyncio
-import json
-import math
-import time
-from typing import List, Optional, Dict, Any, Tuple
-import numpy as np
-
-try:
-    import foxglove
-    from foxglove import Channel, Schema
-    from foxglove.schemas import (
-        Color,
-        Point3,
-        Vector3,
-        Quaternion,
-        Pose,
-        LinePrimitive,
-        ArrowPrimitive,
-        TriangleListPrimitive,
-        SceneUpdate,
-        SceneEntity,
-        Timestamp,
-    )
-    from foxglove.websocket import (
-        Capability,
-        WebSocketServer,
-        ServerListener,
-        Client,
-        ChannelView,
-    )
-    
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Warning: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
-
-# Import from our hybrid A* implementation
-try:
-    from .hybrid_astar import State, Node, DirectionMode, VehicleModel, HybridAStar
-except ImportError:
-    from astar_project.hybrid_astar import State, Node, DirectionMode, VehicleModel, HybridAStar
-
-
 class FoxgloveHybridAStarVisualizer:
     """
     Foxglove-based real-time visualizer for Hybrid A* path planning
