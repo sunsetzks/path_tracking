@@ -24,6 +24,7 @@ class DirectionMode(Enum):
     """Vehicle direction mode"""
     FORWARD = 1
     BACKWARD = -1
+    NONE = 0  # No direction (zero velocity)
 
 
 @dataclass
@@ -32,7 +33,7 @@ class State:
     x: float
     y: float
     yaw: float  # heading angle in radians
-    direction: DirectionMode = DirectionMode.FORWARD
+    direction: DirectionMode = DirectionMode.NONE  # Default to no direction
     steer: float = 0.0  # steering angle in radians
     
     def __hash__(self) -> int:
@@ -54,11 +55,31 @@ class Node:
     g_cost: float = 0.0  # cost from start
     h_cost: float = 0.0  # heuristic cost to goal
     parent: Optional['Node'] = None
-    steer_cost: float = 0.0  # steering angle cost
-    turn_cost: float = 0.0   # turning cost
-    cusp_cost: float = 0.0   # cusp (direction change) cost
-    path_cost: float = 0.0   # path smoothness cost
+    costs: Dict[str, float] = field(default_factory=lambda: {
+        'motion': 0.0,     # basic motion cost
+        'steer': 0.0,      # steering angle cost
+        'turn': 0.0,       # turning cost
+        'cusp': 0.0,       # cusp (direction change) cost
+        'path': 0.0        # path smoothness cost
+    })
     trajectory_states: Optional[List[State]] = None  # forward simulation trajectory from parent to this node
+    
+    # Backward compatibility properties
+    @property
+    def steer_cost(self) -> float:
+        return self.costs['steer']
+    
+    @property
+    def turn_cost(self) -> float:
+        return self.costs['turn']
+    
+    @property
+    def cusp_cost(self) -> float:
+        return self.costs['cusp']
+    
+    @property
+    def path_cost(self) -> float:
+        return self.costs['path']
     
     @property
     def f_cost(self) -> float:
@@ -238,7 +259,15 @@ class HybridAStar:
     
     def calculate_cusp_cost(self, prev_direction: DirectionMode, 
                            current_direction: DirectionMode) -> float:
-        """Calculate cost for direction changes (cusps)"""
+        """Calculate cost for direction changes (cusps)
+        
+        Note: Transitions to/from NONE direction don't count as cusps
+        """
+        # If either direction is NONE, no cusp cost
+        if prev_direction == DirectionMode.NONE or current_direction == DirectionMode.NONE:
+            return 0.0
+        
+        # Only count cusp cost for changes between FORWARD and BACKWARD
         if prev_direction != current_direction:
             return 1.0
         return 0.0
@@ -271,6 +300,54 @@ class HybridAStar:
             smoothness_cost += angle
             
         return smoothness_cost
+    
+    def calculate_total_motion_cost(self, node: Node, final_state: State, 
+                                  direction: DirectionMode, 
+                                  trajectory_states: List[State]) -> Tuple[float, Dict[str, float]]:
+        """
+        Calculate all motion costs for a given successor state
+        
+        Args:
+            node: Parent node
+            final_state: Final state after motion
+            direction: Direction of motion
+            trajectory_states: States along the trajectory
+            
+        Returns:
+            Tuple of (total_motion_cost, cost_dict) where cost_dict contains individual costs
+        """
+        # Calculate individual costs
+        motion_cost = self.velocity * self.simulation_time
+        steer_cost = self.calculate_steering_cost(final_state.steer)
+        
+        # Turning cost (requires parent)
+        if node.parent is not None:
+            turn_cost = self.calculate_turning_cost(node.parent.state.yaw, final_state.yaw)
+            cusp_cost = self.calculate_cusp_cost(node.parent.state.direction, direction)
+        else:
+            turn_cost = 0.0
+            cusp_cost = 0.0
+        
+        # Path smoothness cost
+        path_cost = self.calculate_path_smoothness_cost(trajectory_states)
+        
+        # Create cost dictionary
+        cost_dict = {
+            'motion': motion_cost,
+            'steer': steer_cost,
+            'turn': turn_cost,
+            'cusp': cusp_cost,
+            'path': path_cost
+        }
+        
+        # Calculate total weighted cost
+        total_cost = (motion_cost + 
+                     self.w_steer * steer_cost + 
+                     self.w_turn * turn_cost + 
+                     self.w_cusp * cusp_cost + 
+                     self.w_path * path_cost)
+        
+        return total_cost, cost_dict
     
     def get_successors(self, node: Node) -> List[Node]:
         """Generate successor nodes using motion primitives"""
@@ -311,39 +388,20 @@ class HybridAStar:
                 if not collision_free:
                     continue
                 
-                # Calculate costs
-                motion_cost = self.velocity * self.simulation_time
-                steer_cost = self.calculate_steering_cost(final_state.steer)
-                
-                if node.parent is not None:
-                    turn_cost = self.calculate_turning_cost(node.parent.state.yaw, 
-                                                           final_state.yaw)
-                    cusp_cost = self.calculate_cusp_cost(node.parent.state.direction, 
-                                                        direction)
-                else:
-                    turn_cost = 0.0
-                    cusp_cost = 0.0
-                
-                # Path smoothness cost
+                # Calculate all costs using the dedicated method
                 trajectory_states = [node.state] + simulated_states
-                path_cost = self.calculate_path_smoothness_cost(trajectory_states)
+                total_cost, cost_dict = self.calculate_total_motion_cost(
+                    node, final_state, direction, trajectory_states)
                 
                 # Total g_cost
-                total_g_cost = (node.g_cost + motion_cost + 
-                              self.w_steer * steer_cost + 
-                              self.w_turn * turn_cost + 
-                              self.w_cusp * cusp_cost + 
-                              self.w_path * path_cost)
+                total_g_cost = node.g_cost + total_cost
                 
                 # Create successor node
                 successor = Node(
                     state=final_state,
                     g_cost=total_g_cost,
                     parent=node,
-                    steer_cost=steer_cost,
-                    turn_cost=turn_cost,
-                    cusp_cost=cusp_cost,
-                    path_cost=path_cost,
+                    costs=cost_dict,
                     trajectory_states=trajectory_states # Store the forward simulation trajectory
                 )
                 
@@ -599,7 +657,7 @@ if __name__ == "__main__":
     planner.set_obstacle_map(obstacle_map, origin_x=-10, origin_y=-10)
     
     # Define start and goal states
-    start = State(x=-5.0, y=-5.0, yaw=np.pi/4, direction=DirectionMode.FORWARD)
+    start = State(x=-5.0, y=-5.0, yaw=np.pi/4, direction=DirectionMode.NONE)  # Start with no direction
     goal = State(x=15.0, y=15.0, yaw=np.pi/2, direction=DirectionMode.FORWARD)
     
     # Plan path
