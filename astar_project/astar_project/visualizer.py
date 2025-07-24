@@ -458,8 +458,7 @@ class HybridAStarVisualizer:
                         ax.plot(traj_x, traj_y, linewidth=1.0, alpha=1, zorder=1)
                         
                         # Add small arrows along trajectory to show direction
-                        # if len(traj_x) > 2:
-                        if False:
+                        if len(traj_x) > 2:
                             mid_idx = len(traj_x) // 2
                             if mid_idx > 0 and mid_idx < len(traj_x) - 1:
                                 dx = traj_x[mid_idx + 1] - traj_x[mid_idx - 1]
