@@ -216,3 +216,4 @@ Desktop.ini
 *.jsonl
 *.jsonl.gz
 *.jsonl.bz2
+logs

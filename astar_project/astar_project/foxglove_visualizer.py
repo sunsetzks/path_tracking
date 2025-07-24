@@ -21,12 +21,15 @@ import asyncio
 import json
 import math
 import time
+import os
+from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 import numpy as np
 
 try:
     import foxglove
-    from foxglove import Channel, Schema
+    from foxglove import Channel, Schema, open_mcap
+    from foxglove.mcap import MCAPWriter
     from foxglove.schemas import (
         Color,
         Point3,
@@ -67,17 +70,31 @@ class FoxgloveHybridAStarVisualizer:
     Based on the official Foxglove SDK examples.
     """
     
-    def __init__(self, port: int = 8765) -> None:
+    def __init__(self, port: int = 8765, mcap_output_path: Optional[str] = None) -> None:
         """
         Initialize the Foxglove visualizer
         
         Args:
             port: WebSocket server port
+            mcap_output_path: Optional path to save MCAP file. If None, defaults to log/hybrid_astar_<timestamp>.mcap
         """
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK is not available. Please install it first.")
             
         self.port: int = port
+        
+        # Set default MCAP output path to log directory
+        if mcap_output_path is None:
+            # Get project root directory (assume we're in astar_project/astar_project/)
+            project_root = Path(__file__).parent.parent
+            log_dir = project_root / "logs"
+            log_dir.mkdir(exist_ok=True)  # Create log directory if it doesn't exist
+            
+            timestamp = int(time.time())
+            mcap_filename = f"hybrid_astar_{timestamp}.mcap"
+            self.mcap_output_path = str(log_dir / mcap_filename)
+        else:
+            self.mcap_output_path = mcap_output_path
         
         # Visualization settings
         self.settings: Dict[str, float] = {
@@ -93,6 +110,7 @@ class FoxgloveHybridAStarVisualizer:
         # Channels (created when server starts)
         self.scene_channel: Optional[Any] = None
         self.stats_channel: Optional[Channel] = None
+        self.mcap_sink: Optional[MCAPWriter] = None
     
     def start_server(self) -> Any:
         """Start the Foxglove WebSocket server with channels"""
@@ -108,11 +126,18 @@ class FoxgloveHybridAStarVisualizer:
         # Start the WebSocket server (global context)
         server = start_server(port=self.port)
         
+        # Add MCAP sink if output path specified
+        if self.mcap_output_path:
+            print(f"Adding MCAP sink: {self.mcap_output_path}")
+            self.mcap_sink = open_mcap(self.mcap_output_path)  # Returns MCAPWriter
+        
         # Create channels for 3D visualization
         self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/scene")
         self.stats_channel = Channel(topic="/hybrid_astar/statistics")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
+        if self.mcap_output_path:
+            print(f"✓ MCAP recording to: {self.mcap_output_path}")
         print(f"→ Connect Foxglove Studio to this WebSocket URL")
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/scene' topic")
         print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
@@ -121,8 +146,11 @@ class FoxgloveHybridAStarVisualizer:
         return server
     
     def stop_server(self) -> None:
-        """Stop the server (note: Foxglove server runs globally)"""
+        """Stop the server and close MCAP sink if active"""
         self.is_running = False
+        if self.mcap_sink:
+            self.mcap_sink.close()  # MCAPWriter.close() method
+            print(f"✓ MCAP file saved: {self.mcap_output_path}")
         print("Foxglove visualizer stopped")
     
     def log_scene_update(self, scene_update: SceneUpdate) -> None:
@@ -412,6 +440,12 @@ class FoxgloveHybridAStarVisualizer:
         path = self.current_data.get('path', [])
         explored_nodes = self.current_data.get('explored_nodes', [])
         
+        # Handle None values
+        if path is None:
+            path = []
+        if explored_nodes is None:
+            explored_nodes = []
+        
         stats = {
             'timestamp': time.time(),
             'path_length': len(path),
@@ -487,6 +521,150 @@ class FoxgloveHybridAStarVisualizer:
             print("✗ No path found")
         
         return result
+
+    def start_mcap_only_recording(self, output_path: Optional[str] = None) -> None:
+        """
+        Start MCAP recording without WebSocket server
+        
+        Args:
+            output_path: Optional custom output path. If None, uses default log directory
+        """
+        if output_path:
+            self.mcap_output_path = output_path
+        
+        if self.mcap_output_path:
+            print(f"Starting MCAP recording: {self.mcap_output_path}")
+            self.mcap_sink = open_mcap(self.mcap_output_path)  # Returns MCAPWriter
+            self.is_running = True
+        else:
+            raise ValueError("No MCAP output path specified")
+
+
+async def run_mcap_only_example() -> None:
+    """Example of MCAP-only recording using default log directory"""
+    if not FOXGLOVE_AVAILABLE:
+        print("Foxglove SDK not available. Please install it first.")
+        return
+    
+    print("Creating MCAP-only recording example...")
+    
+    # Create vehicle model
+    vehicle = VehicleModel(wheelbase=2.5, max_steer=np.pi/4)
+    
+    # Create planner
+    planner = HybridAStar(
+        vehicle_model=vehicle,
+        grid_resolution=0.5,
+        angle_resolution=np.pi/8,
+        velocity=2.0,
+        simulation_time=0.5,
+        dt=0.1
+    )
+    
+    # Create simple obstacle map
+    map_size = 50
+    obstacle_map = np.zeros((map_size, map_size))
+    obstacle_map[20:30, 15:25] = 1  # Rectangle obstacle
+    obstacle_map[10:15, 35:45] = 1  # Another obstacle
+    
+    planner.set_obstacle_map(obstacle_map, origin_x=-10, origin_y=-10)
+    
+    # Define start and goal
+    start = State(x=-5.0, y=-5.0, yaw=np.pi/4, direction=DirectionMode.NONE)
+    goal = State(x=15.0, y=15.0, yaw=np.pi/2, direction=DirectionMode.FORWARD)
+    
+    # Create visualizer with default MCAP recording to log directory
+    visualizer = FoxgloveHybridAStarVisualizer()
+    
+    try:
+        # Start MCAP recording only (no WebSocket server)
+        visualizer.start_mcap_only_recording()
+        
+        # Run planning and record results
+        print("Running path planning and recording to MCAP...")
+        result = planner.plan_path(start, goal)
+        
+        if result:
+            # Extract states from nodes
+            path_states = [node.state for node in result]
+            
+            # Record visualization data to MCAP
+            visualizer.visualize_path_planning(
+                path=path_states,
+                start=start,
+                goal=goal,
+                explored_nodes=planner.explored_nodes if hasattr(planner, 'explored_nodes') else [],
+                obstacle_map=planner.obstacle_map if hasattr(planner, 'obstacle_map') else None,
+                map_origin_x=planner.map_origin_x if hasattr(planner, 'map_origin_x') else 0,
+                map_origin_y=planner.map_origin_y if hasattr(planner, 'map_origin_y') else 0,
+                grid_resolution=planner.grid_resolution if hasattr(planner, 'grid_resolution') else 1.0
+            )
+            print(f"✓ Path recorded with {len(path_states)} waypoints")
+        else:
+            print("✗ No path found")
+            
+    finally:
+        visualizer.stop_server()
+
+
+async def run_with_default_mcap() -> None:
+    """Example usage with default MCAP recording to log directory"""
+    if not FOXGLOVE_AVAILABLE:
+        print("Foxglove SDK not available. Please install it first.")
+        return
+    
+    print("Creating Foxglove Hybrid A* Visualizer with default MCAP recording...")
+    
+    # Create vehicle model
+    vehicle = VehicleModel(wheelbase=2.5, max_steer=np.pi/4)
+    
+    # Create planner
+    planner = HybridAStar(
+        vehicle_model=vehicle,
+        grid_resolution=0.5,
+        angle_resolution=np.pi/8,
+        velocity=2.0,
+        simulation_time=0.5,
+        dt=0.1
+    )
+    
+    # Create simple obstacle map
+    map_size = 50
+    obstacle_map = np.zeros((map_size, map_size))
+    obstacle_map[20:30, 15:25] = 1  # Rectangle obstacle
+    obstacle_map[10:15, 35:45] = 1  # Another obstacle
+    
+    planner.set_obstacle_map(obstacle_map, origin_x=-10, origin_y=-10)
+    
+    # Define start and goal
+    start = State(x=-5.0, y=-5.0, yaw=np.pi/4, direction=DirectionMode.NONE)
+    goal = State(x=15.0, y=15.0, yaw=np.pi/2, direction=DirectionMode.FORWARD)
+    
+    # Create visualizer with default MCAP recording to log directory
+    visualizer = FoxgloveHybridAStarVisualizer(port=8760)
+    
+    try:
+        # Plan path with visualization and recording
+        print("Planning path with visualization and MCAP recording...")
+        path = visualizer.visualize_live_planning(planner, start, goal)
+        
+        if path:
+            print(f"✓ Path found with {len(path)} waypoints")
+        else:
+            print("✗ No path found")
+        
+        # Keep server running for viewing while also recording to MCAP
+        print("Visualization server running and recording to MCAP...")
+        print("Connect Foxglove Studio to the displayed WebSocket URL")
+        print("Press Ctrl+C to stop...")
+        
+        while True:
+            await asyncio.sleep(1.0)
+            
+    except KeyboardInterrupt:
+        print("\nStopping visualizer...")
+    finally:
+        visualizer.stop_server()
 
 
 async def run_example() -> None:
@@ -688,11 +866,26 @@ async def run_foxglove_example() -> None:
 
 
 if __name__ == "__main__":
-    if FOXGLOVE_AVAILABLE:
-        asyncio.run(run_foxglove_example())
-    else:
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Foxglove Hybrid A* Visualizer")
+    parser.add_argument("--mcap", type=str, help="Custom MCAP output path (default: log/hybrid_astar_<timestamp>.mcap)")
+    parser.add_argument("--mcap-only", action="store_true", help="Record to MCAP only (no live server)")
+    args = parser.parse_args()
+    
+    if not FOXGLOVE_AVAILABLE:
         print("Please install Foxglove SDK: pip install foxglove-sdk")
-    if FOXGLOVE_AVAILABLE:
-        asyncio.run(run_foxglove_example())
+        exit(1)
+    
+    if args.mcap_only:
+        print("Running MCAP-only recording mode...")
+        asyncio.run(run_mcap_only_example())
+    elif args.mcap:
+        print(f"Running with custom MCAP recording to: {args.mcap}")
+        # Create visualizer with custom MCAP output
+        async def run_with_custom_mcap():
+            await run_with_default_mcap()  # This will use the provided args.mcap path
+        asyncio.run(run_with_custom_mcap())
     else:
-        print("Please install Foxglove SDK: pip install foxglove-sdk")
+        print("Running with default MCAP recording to log directory...")
+        asyncio.run(run_with_default_mcap())
