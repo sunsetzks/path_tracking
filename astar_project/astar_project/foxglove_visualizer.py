@@ -155,7 +155,7 @@ class FoxgloveHybridAStarVisualizer:
         
         # Channels (created when server starts)
         self.scene_channel: Optional[Any] = None
-        self.stats_channel: Optional[Any] = None
+        self.stats_channel: Optional[Channel] = None
     
     def start_server(self) -> Any:
         """Start the Foxglove WebSocket server with channels"""
@@ -166,12 +166,13 @@ class FoxgloveHybridAStarVisualizer:
         
         # Import required classes
         from foxglove import start_server, Channel
+        from foxglove.channels import SceneUpdateChannel
         
         # Start the WebSocket server (global context)
         server = start_server(port=self.port)
         
         # Create channels for 3D visualization
-        self.scene_channel = Channel(topic="/hybrid_astar/scene")
+        self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/scene")
         self.stats_channel = Channel(topic="/hybrid_astar/statistics")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")

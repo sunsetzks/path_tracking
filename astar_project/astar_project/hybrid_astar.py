@@ -28,6 +28,16 @@ class DirectionMode(Enum):
 
 
 @dataclass
+class Costs:
+    """Cost components for path planning"""
+    distance: float = 0.0   # distance traveled cost
+    steer: float = 0.0      # steering angle cost
+    turn: float = 0.0       # turning cost
+    cusp: float = 0.0       # cusp (direction change) cost
+    smoothness: float = 0.0 # path smoothness cost
+
+
+@dataclass
 class State:
     """Vehicle state representation"""
     x: float
@@ -55,31 +65,25 @@ class Node:
     g_cost: float = 0.0  # cost from start
     h_cost: float = 0.0  # heuristic cost to goal
     parent: Optional['Node'] = None
-    costs: Dict[str, float] = field(default_factory=lambda: {
-        'motion': 0.0,     # basic motion cost
-        'steer': 0.0,      # steering angle cost
-        'turn': 0.0,       # turning cost
-        'cusp': 0.0,       # cusp (direction change) cost
-        'path': 0.0        # path smoothness cost
-    })
+    costs: Costs = field(default_factory=Costs)
     trajectory_states: Optional[List[State]] = None  # forward simulation trajectory from parent to this node
     
     # Backward compatibility properties
     @property
     def steer_cost(self) -> float:
-        return self.costs['steer']
+        return self.costs.steer
     
     @property
     def turn_cost(self) -> float:
-        return self.costs['turn']
+        return self.costs.turn
     
     @property
     def cusp_cost(self) -> float:
-        return self.costs['cusp']
+        return self.costs.cusp
     
     @property
     def path_cost(self) -> float:
-        return self.costs['path']
+        return self.costs.smoothness
     
     @property
     def f_cost(self) -> float:
@@ -185,11 +189,11 @@ class HybridAStar:
         self.simulation_steps = int(simulation_time / dt)
         
         # Cost weights
-        self.w_steer = 10.0      # Steering angle cost weight
-        self.w_turn = 15.0       # Turning cost weight
-        self.w_cusp = 50.0       # Direction change cost weight
-        self.w_path = 5.0        # Path smoothness cost weight
-        self.w_obstacle = 1000.0 # Obstacle cost weight
+        self.w_steer = 10.0         # Steering angle cost weight
+        self.w_turn = 15.0          # Turning cost weight
+        self.w_cusp = 50.0          # Direction change cost weight
+        self.w_smoothness = 5.0     # Path smoothness cost weight
+        self.w_obstacle = 1000.0    # Obstacle cost weight
         
         # Steering angle rates for motion primitives (rad/s)
         self.steer_rates = [-np.pi/2, -np.pi/4, 0, np.pi/4, np.pi/2]
@@ -301,11 +305,11 @@ class HybridAStar:
             
         return smoothness_cost
     
-    def calculate_total_motion_cost(self, node: Node, final_state: State, 
+    def calculate_total_cost(self, node: Node, final_state: State, 
                                   direction: DirectionMode, 
-                                  trajectory_states: List[State]) -> Tuple[float, Dict[str, float]]:
+                                  trajectory_states: List[State]) -> Tuple[float, Costs]:
         """
-        Calculate all motion costs for a given successor state
+        Calculate all cost components for a given successor state
         
         Args:
             node: Parent node
@@ -314,10 +318,10 @@ class HybridAStar:
             trajectory_states: States along the trajectory
             
         Returns:
-            Tuple of (total_motion_cost, cost_dict) where cost_dict contains individual costs
+            Tuple of (total_cost, costs) where costs is a Costs dataclass
         """
         # Calculate individual costs
-        motion_cost = self.velocity * self.simulation_time
+        distance_cost = self.velocity * self.simulation_time
         steer_cost = self.calculate_steering_cost(final_state.steer)
         
         # Turning cost (requires parent)
@@ -329,25 +333,25 @@ class HybridAStar:
             cusp_cost = 0.0
         
         # Path smoothness cost
-        path_cost = self.calculate_path_smoothness_cost(trajectory_states)
+        smoothness_cost = self.calculate_path_smoothness_cost(trajectory_states)
         
-        # Create cost dictionary
-        cost_dict = {
-            'motion': motion_cost,
-            'steer': steer_cost,
-            'turn': turn_cost,
-            'cusp': cusp_cost,
-            'path': path_cost
-        }
+        # Create costs object
+        costs = Costs(
+            distance=distance_cost,
+            steer=steer_cost,
+            turn=turn_cost,
+            cusp=cusp_cost,
+            smoothness=smoothness_cost
+        )
         
         # Calculate total weighted cost
-        total_cost = (motion_cost + 
+        total_cost = (distance_cost + 
                      self.w_steer * steer_cost + 
                      self.w_turn * turn_cost + 
                      self.w_cusp * cusp_cost + 
-                     self.w_path * path_cost)
+                     self.w_smoothness * smoothness_cost)
         
-        return total_cost, cost_dict
+        return total_cost, costs
     
     def get_successors(self, node: Node) -> List[Node]:
         """Generate successor nodes using motion primitives"""
@@ -390,7 +394,7 @@ class HybridAStar:
                 
                 # Calculate all costs using the dedicated method
                 trajectory_states = [node.state] + simulated_states
-                total_cost, cost_dict = self.calculate_total_motion_cost(
+                total_cost, costs = self.calculate_total_cost(
                     node, final_state, direction, trajectory_states)
                 
                 # Total g_cost
@@ -401,7 +405,7 @@ class HybridAStar:
                     state=final_state,
                     g_cost=total_g_cost,
                     parent=node,
-                    costs=cost_dict,
+                    costs=costs,
                     trajectory_states=trajectory_states # Store the forward simulation trajectory
                 )
                 

@@ -112,7 +112,7 @@ def demo_complex_navigation():
     planner.w_steer = 6.0
     planner.w_turn = 8.0
     planner.w_cusp = 60.0
-    planner.w_path = 4.0
+    planner.w_smoothness = 4.0
     
     # Create complex maze
     obstacle_map = ScenarioGenerator.create_maze_scenario()
@@ -156,7 +156,7 @@ def demo_precision_parking():
     planner.w_steer = 3.0      # Low steering penalty
     planner.w_turn = 5.0       # Low turn penalty
     planner.w_cusp = 25.0      # Allow backing up
-    planner.w_path = 1.0       # Less emphasis on smoothness
+    planner.w_smoothness = 1.0       # Less emphasis on smoothness
     
     # Create parking garage
     obstacle_map = ScenarioGenerator.create_parking_garage()
@@ -200,7 +200,7 @@ def demo_highway_merging():
     planner.w_steer = 20.0     # High steering penalty
     planner.w_turn = 25.0      # High turn penalty
     planner.w_cusp = 200.0     # No backing up on highway
-    planner.w_path = 15.0      # High smoothness emphasis
+    planner.w_smoothness = 15.0      # High smoothness emphasis
     
     # Create highway scenario
     obstacle_map = ScenarioGenerator.create_highway_scenario()

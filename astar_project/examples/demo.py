@@ -244,7 +244,7 @@ def demo_basic_navigation() -> bool:
     planner.w_steer = 8.0      # Moderate steering penalty
     planner.w_turn = 12.0      # Turn penalty
     planner.w_cusp = 100.0     # High cusp penalty
-    planner.w_path = 3.0       # Path smoothness
+    planner.w_smoothness = 3.0       # Path smoothness
     
     # Create obstacle map
     obstacle_map: np.ndarray = create_obstacle_map_scenario1()
@@ -289,7 +289,7 @@ def demo_parallel_parking() -> bool:
     planner.w_steer = 5.0      # Lower steering penalty
     planner.w_turn = 8.0       # Lower turn penalty
     planner.w_cusp = 30.0      # Lower cusp penalty to allow reversing
-    planner.w_path = 2.0
+    planner.w_smoothness = 2.0
     
     # Create parking scenario
     obstacle_map: np.ndarray = create_obstacle_map_scenario2()
@@ -333,7 +333,7 @@ def demo_u_turn() -> bool:
     planner.w_steer = 6.0
     planner.w_turn = 10.0
     planner.w_cusp = 40.0  # Allow some direction changes
-    planner.w_path = 4.0
+    planner.w_smoothness = 4.0
     
     # Simple corridor for U-turn
     map_size: int = 40
