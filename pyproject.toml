@@ -61,4 +61,5 @@ addopts = "--cov=PathTracking --cov-report=html --cov-report=term-missing"
 [tool.uv.workspace]
 members = [
     "PathSmoothing",
+    "astar_project",
 ]
