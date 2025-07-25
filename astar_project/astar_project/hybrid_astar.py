@@ -351,12 +351,12 @@ class HybridAStar:
                     continue
                 
                 # Calculate all costs using the dedicated method
-                trajectory_states = [node.state] + simulated_states
                 total_cost, costs = self.calculate_total_cost(
                     node, final_state, direction)
                 
+                trajectory_states = [current_state] + simulated_states
                 # Assert all simulated states have the same direction as the motion primitive
-                assert all(s.direction == direction for s in simulated_states), \
+                assert all(s.direction == direction for s in trajectory_states), \
                     "All simulated states must have the same direction as the motion primitive"
                 
                 # Total g_cost
