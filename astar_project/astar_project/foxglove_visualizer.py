@@ -102,8 +102,8 @@ class FoxgloveHybridAStarVisualizer:
             'exploration_line_thickness': 0.05,
             'path_line_thickness': 0.15,
             'max_exploration_nodes': 100000,  # Limit for performance
-            'exploration_sphere_size': 0.3,  # Size of exploration node spheres
-            'trajectory_line_thickness': 0.03,  # Thickness for simulation trajectory lines
+            'exploration_sphere_size': 0.05,  # Size of exploration node spheres
+            'trajectory_line_thickness': 0.01,  # Thickness for simulation trajectory lines
         }
         
         # Current data
@@ -325,11 +325,8 @@ class FoxgloveHybridAStarVisualizer:
         path: List[State] = self.current_data.get('path', [])
         if len(path) > 1:
             path_lines: List[Point3] = []
-            for i in range(len(path) - 1):
-                path_lines.extend([
-                    Point3(x=float(path[i].x), y=float(path[i].y), z=0.1),
-                    Point3(x=float(path[i+1].x), y=float(path[i+1].y), z=0.1)
-                ])
+            for state in path:
+                path_lines.append(Point3(x=float(state.x), y=float(state.y), z=0.1))
             
             path_entity = SceneEntity(
                 id="final_path",
