@@ -62,4 +62,7 @@ addopts = "--cov=PathTracking --cov-report=html --cov-report=term-missing"
 members = [
     "PathSmoothing",
     "astar_project",
+    "test_ws/learn-3d",
+    "test_ws/ex1",
+    "test_ws",
 ]
