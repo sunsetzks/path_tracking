@@ -297,6 +297,7 @@ class FoxgloveHybridAStarVisualizer:
                         # Color based on direction (green for forward, red for backward)
                         if hasattr(state, 'direction') and str(state.direction) == 'BACKWARD':
                             traj_color = Color(r=1.0, g=0.0, b=0.0, a=0.4)  # Red for backward
+                            print("   • Red spheres = exploration nodes (cost gradient)")
                         else:
                             traj_color = Color(r=0.0, g=1.0, b=0.0, a=0.4)  # Green for forward
                         trajectory_colors.append(traj_color)
