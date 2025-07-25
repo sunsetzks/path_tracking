@@ -7,7 +7,8 @@ be viewed in Foxglove Studio.
 
 Features:
 - Real-time path planning visualization
-- Interactive exploration tree display
+- Interactive exploration nodes displayed as spheres (colored by cost)
+- Node simulation trajectories displayed as lines 
 - Vehicle state visualization with orientation arrows
 - Cost analysis and statistics
 - Obstacle map visualization
@@ -100,7 +101,9 @@ class FoxgloveHybridAStarVisualizer:
         self.settings: Dict[str, float] = {
             'exploration_line_thickness': 0.05,
             'path_line_thickness': 0.15,
-            'max_exploration_nodes': 1000,  # Limit for performance
+            'max_exploration_nodes': 100000,  # Limit for performance
+            'exploration_sphere_size': 0.3,  # Size of exploration node spheres
+            'trajectory_line_thickness': 0.03,  # Thickness for simulation trajectory lines
         }
         
         # Current data
@@ -227,48 +230,103 @@ class FoxgloveHybridAStarVisualizer:
         
         entities: List[SceneEntity] = []
         
-        # 1. Visualize exploration tree as lines
+        # 1. Visualize exploration nodes as spheres and their simulation trajectories as lines
         explored_nodes: List[Node] = self.current_data.get('explored_nodes', [])
         if explored_nodes:
-            lines: List[Point3] = []
-            colors: List[Color] = []
-            
             # Limit nodes for performance
             max_nodes: int = int(self.settings['max_exploration_nodes'])
             if len(explored_nodes) > max_nodes:
                 step = len(explored_nodes) // max_nodes
                 explored_nodes = explored_nodes[::step]
             
+            # 1a. Visualize exploration nodes as spheres
+            spheres: List[SpherePrimitive] = []
             for node in explored_nodes:
-                if node.parent is not None:
-                    # Create line from parent to current node
-                    lines.extend([
-                        Point3(x=float(node.parent.state.x), y=float(node.parent.state.y), z=0.0),
-                        Point3(x=float(node.state.x), y=float(node.state.y), z=0.0)
-                    ])
-                    
-                    # Color based on direction (green for forward, red for backward)
-                    if hasattr(node.state, 'direction') and str(node.state.direction) == 'BACKWARD':
-                        color = Color(r=1.0, g=0.0, b=0.0, a=0.3)  # Red for backward
+                # Color based on f_cost (normalized) for better visualization insight
+                # Use a normalized cost color from blue (low cost) to red (high cost)
+                f_costs = [n.f_cost for n in explored_nodes]
+                if f_costs:
+                    min_cost = min(f_costs)
+                    max_cost = max(f_costs)
+                    if max_cost > min_cost:
+                        normalized_cost = (node.f_cost - min_cost) / (max_cost - min_cost)
                     else:
-                        color = Color(r=0.0, g=1.0, b=0.0, a=0.3)  # Green for forward
-                    colors.extend([color, color])
-            
-            if lines:
-                exploration_entity = SceneEntity(
-                    id="exploration_tree",
-                    lines=[LinePrimitive(
-                        pose=Pose(
-                            position=Vector3(x=0.0, y=0.0, z=0.0),
-                            orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                        ),
-                        thickness=self.settings['exploration_line_thickness'],
-                        scale_invariant=False,
-                        points=lines,
-                        colors=colors
-                    )]
+                        normalized_cost = 0.5
+                else:
+                    normalized_cost = 0.5
+                
+                # Color gradient: blue (low cost) to red (high cost)
+                sphere_color = Color(
+                    r=float(normalized_cost), 
+                    g=0.0, 
+                    b=float(1.0 - normalized_cost), 
+                    a=0.7
                 )
-                entities.append(exploration_entity)
+                
+                spheres.append(SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(node.state.x), y=float(node.state.y), z=0.1),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(
+                        x=self.settings['exploration_sphere_size'], 
+                        y=self.settings['exploration_sphere_size'], 
+                        z=self.settings['exploration_sphere_size']
+                    ),  # Configurable sphere size
+                    color=sphere_color
+                ))
+            
+            if spheres:
+                exploration_nodes_entity = SceneEntity(
+                    id="exploration_nodes",
+                    spheres=spheres
+                )
+                entities.append(exploration_nodes_entity)
+            
+            # 1b. Visualize simulation trajectories as lines
+            trajectory_line_primitives: List[LinePrimitive] = []
+            
+            for node in explored_nodes:
+                if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
+                    # Create separate line primitive for each trajectory to avoid unwanted connections
+                    trajectory_points: List[Point3] = []
+                    trajectory_colors: List[Color] = []
+                    
+                    for i in range(len(node.trajectory_states) - 1):
+                        current_state = node.trajectory_states[i]
+                        next_state = node.trajectory_states[i + 1]
+                        
+                        trajectory_points.extend([
+                            Point3(x=float(current_state.x), y=float(current_state.y), z=0.05),
+                            Point3(x=float(next_state.x), y=float(next_state.y), z=0.05)
+                        ])
+                        
+                        # Color based on direction (green for forward, red for backward)
+                        if hasattr(current_state, 'direction') and str(current_state.direction) == 'BACKWARD':
+                            traj_color = Color(r=1.0, g=0.0, b=0.0, a=0.4)  # Red for backward
+                        else:
+                            traj_color = Color(r=0.0, g=1.0, b=0.0, a=0.4)  # Green for forward
+                        trajectory_colors.extend([traj_color, traj_color])
+                    
+                    if trajectory_points:
+                        # Create individual LinePrimitive for this trajectory
+                        trajectory_line_primitives.append(LinePrimitive(
+                            pose=Pose(
+                                position=Vector3(x=0.0, y=0.0, z=0.0),
+                                orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                            ),
+                            thickness=self.settings['trajectory_line_thickness'],
+                            scale_invariant=False,
+                            points=trajectory_points,
+                            colors=trajectory_colors
+                        ))
+            
+            if trajectory_line_primitives:
+                simulation_trajectories_entity = SceneEntity(
+                    id="simulation_trajectories",
+                    lines=trajectory_line_primitives
+                )
+                entities.append(simulation_trajectories_entity)
         
         # 2. Visualize final path as thick lines
         path: List[State] = self.current_data.get('path', [])
@@ -760,14 +818,30 @@ def matplotlib_fallback_visualization(path: List[State],
                     )
                     ax.add_patch(rect)
     
-    # Plot exploration tree
+    # Plot exploration nodes as circles and their simulation trajectories
     if explored_nodes:
+        # Plot simulation trajectories as lines
         for node in explored_nodes:
-            if node.parent is not None:
-                color = 'green' if node.state.direction == DirectionMode.FORWARD else 'red'
-                ax.plot([node.parent.state.x, node.state.x], 
-                       [node.parent.state.y, node.state.y], 
-                       color=color, alpha=0.3, linewidth=0.5)
+            if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
+                traj_x = [s.x for s in node.trajectory_states]
+                traj_y = [s.y for s in node.trajectory_states]
+                color = 'green' if hasattr(node.trajectory_states[0], 'direction') and node.trajectory_states[0].direction == DirectionMode.FORWARD else 'red'
+                ax.plot(traj_x, traj_y, color=color, alpha=0.3, linewidth=0.8, linestyle='-')
+        
+        # Plot exploration nodes as circles (colored by cost)
+        node_x = [node.state.x for node in explored_nodes]
+        node_y = [node.state.y for node in explored_nodes]
+        
+        # Color by f_cost for better insight
+        f_costs = [node.f_cost for node in explored_nodes]
+        if f_costs:
+            ax.scatter(node_x, node_y, c=f_costs, cmap='coolwarm', s=30, alpha=0.7, 
+                      edgecolors='black', linewidths=0.5, zorder=3,
+                      label=f'Exploration Nodes ({len(explored_nodes)})')
+        else:
+            ax.scatter(node_x, node_y, c='lightblue', s=30, alpha=0.7, 
+                      edgecolors='black', linewidths=0.5, zorder=3,
+                      label=f'Exploration Nodes ({len(explored_nodes)})')
     
     # Plot final path
     if len(path) > 1:
