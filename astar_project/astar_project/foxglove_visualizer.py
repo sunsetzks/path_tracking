@@ -292,21 +292,14 @@ class FoxgloveHybridAStarVisualizer:
                     trajectory_points: List[Point3] = []
                     trajectory_colors: List[Color] = []
                     
-                    for i in range(len(node.trajectory_states) - 1):
-                        current_state = node.trajectory_states[i]
-                        next_state = node.trajectory_states[i + 1]
-                        
-                        trajectory_points.extend([
-                            Point3(x=float(current_state.x), y=float(current_state.y), z=0.05),
-                            Point3(x=float(next_state.x), y=float(next_state.y), z=0.05)
-                        ])
-                        
+                    for state in node.trajectory_states:
+                        trajectory_points.append(Point3(x=float(state.x), y=float(state.y), z=0.05))
                         # Color based on direction (green for forward, red for backward)
-                        if hasattr(current_state, 'direction') and str(current_state.direction) == 'BACKWARD':
+                        if hasattr(state, 'direction') and str(state.direction) == 'BACKWARD':
                             traj_color = Color(r=1.0, g=0.0, b=0.0, a=0.4)  # Red for backward
                         else:
                             traj_color = Color(r=0.0, g=1.0, b=0.0, a=0.4)  # Green for forward
-                        trajectory_colors.extend([traj_color, traj_color])
+                        trajectory_colors.append(traj_color)
                     
                     if trajectory_points:
                         # Create individual LinePrimitive for this trajectory
