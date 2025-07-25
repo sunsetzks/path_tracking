@@ -1,6 +1,6 @@
 """
 Hybrid A* Path Planning Algorithm
-Implementation with steering angle cost, path smoothness, turning cost, 
+Implementation with steering angle cost, turning cost, 
 cusp cost, and forward simulation considering steering angle velocity.
 
 Core algorithm without visualization dependencies.
@@ -34,7 +34,6 @@ class Costs:
     steer: float = 0.0      # steering angle cost
     turn: float = 0.0       # turning cost
     cusp: float = 0.0       # cusp (direction change) cost
-    smoothness: float = 0.0 # path smoothness cost
 
 
 @dataclass
@@ -80,10 +79,6 @@ class Node:
     @property
     def cusp_cost(self) -> float:
         return self.costs.cusp
-    
-    @property
-    def path_cost(self) -> float:
-        return self.costs.smoothness
     
     @property
     def f_cost(self) -> float:
@@ -192,7 +187,6 @@ class HybridAStar:
         self.w_steer = 10.0         # Steering angle cost weight
         self.w_turn = 15.0          # Turning cost weight
         self.w_cusp = 50.0          # Direction change cost weight
-        self.w_smoothness = 5.0     # Path smoothness cost weight
         self.w_obstacle = 1000.0    # Obstacle cost weight
         
         # Steering angle rates for motion primitives (rad/s)
@@ -276,38 +270,8 @@ class HybridAStar:
             return 1.0
         return 0.0
     
-    def calculate_path_smoothness_cost(self, states: List[State]) -> float:
-        """Calculate path smoothness cost based on curvature changes"""
-        if len(states) < 3:
-            return 0.0
-            
-        smoothness_cost = 0.0
-        for i in range(1, len(states) - 1):
-            # Calculate curvature approximation
-            p1 = np.array([states[i-1].x, states[i-1].y])
-            p2 = np.array([states[i].x, states[i].y])
-            p3 = np.array([states[i+1].x, states[i+1].y])
-            
-            # Calculate vectors
-            v1 = p2 - p1
-            v2 = p3 - p2
-            
-            # Avoid division by zero
-            if np.linalg.norm(v1) < 1e-6 or np.linalg.norm(v2) < 1e-6:
-                continue
-                
-            # Calculate angle between vectors (curvature approximation)
-            cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-            cos_angle = np.clip(cos_angle, -1.0, 1.0)
-            angle = np.arccos(cos_angle)
-            
-            smoothness_cost += angle
-            
-        return smoothness_cost
-    
     def calculate_total_cost(self, node: Node, final_state: State, 
-                                  direction: DirectionMode, 
-                                  trajectory_states: List[State]) -> Tuple[float, Costs]:
+                                  direction: DirectionMode) -> Tuple[float, Costs]:
         """
         Calculate all cost components for a given successor state
         
@@ -315,41 +279,35 @@ class HybridAStar:
             node: Parent node
             final_state: Final state after motion
             direction: Direction of motion
-            trajectory_states: States along the trajectory
             
         Returns:
             Tuple of (total_cost, costs) where costs is a Costs dataclass
         """
         # Calculate individual costs
         distance_cost = self.velocity * self.simulation_time
-        steer_cost = self.calculate_steering_cost(final_state.steer)
+        steer_cost = self.calculate_steering_cost(final_state.steer - node.state.steer)
         
         # Turning cost (requires parent)
         if node.parent is not None:
             turn_cost = self.calculate_turning_cost(node.parent.state.yaw, final_state.yaw)
-            cusp_cost = self.calculate_cusp_cost(node.parent.state.direction, direction)
+            cusp_cost = self.calculate_cusp_cost(node.state.direction, direction)
         else:
             turn_cost = 0.0
             cusp_cost = 0.0
-        
-        # Path smoothness cost
-        smoothness_cost = self.calculate_path_smoothness_cost(trajectory_states)
         
         # Create costs object
         costs = Costs(
             distance=distance_cost,
             steer=steer_cost,
             turn=turn_cost,
-            cusp=cusp_cost,
-            smoothness=smoothness_cost
+            cusp=cusp_cost
         )
         
         # Calculate total weighted cost
         total_cost = (distance_cost + 
                      self.w_steer * steer_cost + 
                      self.w_turn * turn_cost + 
-                     self.w_cusp * cusp_cost + 
-                     self.w_smoothness * smoothness_cost)
+                     self.w_cusp * cusp_cost)
         
         return total_cost, costs
     
@@ -395,7 +353,11 @@ class HybridAStar:
                 # Calculate all costs using the dedicated method
                 trajectory_states = [node.state] + simulated_states
                 total_cost, costs = self.calculate_total_cost(
-                    node, final_state, direction, trajectory_states)
+                    node, final_state, direction)
+                
+                # Assert all simulated states have the same direction as the motion primitive
+                assert all(s.direction == direction for s in simulated_states), \
+                    "All simulated states must have the same direction as the motion primitive"
                 
                 # Total g_cost
                 total_g_cost = node.g_cost + total_cost
