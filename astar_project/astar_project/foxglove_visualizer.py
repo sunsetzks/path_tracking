@@ -653,10 +653,11 @@ class FoxgloveHybridAStarVisualizer:
         if result:
             # Extract states from nodes
             path_states = [node.state for node in result]
+            detailed_path_data = planner.extract_detailed_path(result)
             
             # Update visualization with final result
             self.visualize_path_planning(
-                path=path_states,
+                path=detailed_path_data,
                 start=start,
                 goal=goal,
                 explored_nodes=planner.explored_nodes if hasattr(planner, 'explored_nodes') else [],
@@ -1031,25 +1032,5 @@ async def run_foxglove_example() -> None:
 
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Foxglove Hybrid A* Visualizer")
-    parser.add_argument("--mcap", type=str, help="Custom MCAP output path (default: log/hybrid_astar_<timestamp>.mcap)")
-    parser.add_argument("--mcap-only", action="store_true", help="Record to MCAP only (no live server)")
-    args = parser.parse_args()
-    
-    if not FOXGLOVE_AVAILABLE:
-        print("Please install Foxglove SDK: pip install foxglove-sdk")
-        exit(1)
-    
-    if args.mcap_only:
-        print("Running MCAP-only recording mode...")
-        asyncio.run(run_mcap_only_example())
-    elif args.mcap:
-        print(f"Running with custom MCAP recording to: {args.mcap}")
-        # Create visualizer with custom MCAP output
-        async def run_with_custom_mcap():
-            await run_with_default_mcap()  # This will use the provided args.mcap path
-        asyncio.run(run_with_custom_mcap())
-    else:
-        print("Running with default MCAP recording to log directory...")
-        asyncio.run(run_with_default_mcap())
+
+    asyncio.run(run_foxglove_example())
