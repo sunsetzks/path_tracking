@@ -113,11 +113,12 @@ class FoxgloveHybridAStarVisualizer:
             self.mcap_output_path = mcap_output_path
         
         # Visualization settings
-        self.settings: Dict[str, float] = {
+        self.settings: Dict[str, float | bool] = {
             'path_line_thickness': 0.15,
             'max_exploration_nodes': 100000,  # Limit for performance
             'exploration_sphere_size': 0.03,  # Size of exploration node spheres
             'exploration_line_thickness': 0.01,  # Thickness for simulation trajectory lines
+            'show_final_path_arrows': True,  # Whether to show arrows along the final path
         }
         
         # Current data
@@ -414,16 +415,16 @@ class FoxgloveHybridAStarVisualizer:
             SceneUpdate, SceneEntity, LinePrimitive, ArrowPrimitive, 
             Color, Point3, Vector3, Pose, Quaternion
         )
-        
+
         entities: List[SceneEntity] = []
-        
+
         # Visualize final path as thick lines
         path: List[State] = self.current_data.get('path', [])
         if len(path) > 1:
             path_lines: List[Point3] = []
             for state in path:
                 path_lines.append(Point3(x=float(state.x), y=float(state.y), z=0.1))
-            
+
             path_entity = SceneEntity(
                 id="final_path",
                 lines=[LinePrimitive(
@@ -438,39 +439,40 @@ class FoxgloveHybridAStarVisualizer:
                 )]
             )
             entities.append(path_entity)
-            
-            # Vehicle orientation arrows along path
-            arrows: List[ArrowPrimitive] = []
-            step: int = max(1, len(path) // 20)  # Show ~20 arrows
-            for i in range(0, len(path), step):
-                state: State = path[i]
-                # Calculate quaternion from yaw angle
-                yaw: float = state.yaw
-                quat_z: float = math.sin(yaw / 2.0)
-                quat_w: float = math.cos(yaw / 2.0)
-                
-                arrows.append(ArrowPrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(state.x), y=float(state.y), z=0.2),
-                        orientation=Quaternion(x=0.0, y=0.0, z=quat_z, w=quat_w)
-                    ),
-                    shaft_length=0.8,
-                    shaft_diameter=0.1,
-                    head_length=0.2,
-                    head_diameter=0.2,
-                    color=Color(r=0.0, g=0.0, b=1.0, a=0.8)  # Blue
-                ))
-            
-            if arrows:
-                arrow_entity = SceneEntity(
-                    id="path_arrows",
-                    arrows=arrows
-                )
-                entities.append(arrow_entity)
-        
+
+            # Vehicle orientation arrows along path (configurable)
+            if self.settings.get('show_final_path_arrows', True):
+                arrows: List[ArrowPrimitive] = []
+                step: int = max(1, len(path) // 20)  # Show ~20 arrows
+                for i in range(0, len(path), step):
+                    state: State = path[i]
+                    # Calculate quaternion from yaw angle
+                    yaw: float = state.yaw
+                    quat_z: float = math.sin(yaw / 2.0)
+                    quat_w: float = math.cos(yaw / 2.0)
+
+                    arrows.append(ArrowPrimitive(
+                        pose=Pose(
+                            position=Vector3(x=float(state.x), y=float(state.y), z=0.2),
+                            orientation=Quaternion(x=0.0, y=0.0, z=quat_z, w=quat_w)
+                        ),
+                        shaft_length=0.8,
+                        shaft_diameter=0.1,
+                        head_length=0.2,
+                        head_diameter=0.2,
+                        color=Color(r=0.0, g=0.0, b=1.0, a=0.8)  # Blue
+                    ))
+
+                if arrows:
+                    arrow_entity = SceneEntity(
+                        id="path_arrows",
+                        arrows=arrows
+                    )
+                    entities.append(arrow_entity)
+
         if not entities:
             return None
-        
+
         return SceneUpdate(
             deletions=[],
             entities=entities
