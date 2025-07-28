@@ -153,21 +153,21 @@ class FoxgloveHybridAStarVisualizer:
             self.mcap_sink = open_mcap(self.mcap_output_path)  # Returns MCAPWriter
         
         # Create channels for 3D visualization
-        self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/scene")
-        self.path_channel = SceneUpdateChannel(topic="/hybrid_astar/path")
-        self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/exploration")
-        self.start_goal_channel = SceneUpdateChannel(topic="/hybrid_astar/start_goal")
-        self.stats_channel = Channel(topic="/hybrid_astar/statistics")
+        self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/scene")
+        self.path_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/path")
+        self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/exploration")
+        self.start_goal_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/start_goal")
+        self.stats_channel = Channel(topic="/hybrid_astar/visualization/statistics")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
         if self.mcap_output_path:
             print(f"✓ MCAP recording to: {self.mcap_output_path}")
         print(f"→ Connect Foxglove Studio to this WebSocket URL")
-        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/scene' topic")
-        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/path' topic")
-        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/exploration' topic")
-        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/start_goal' topic")
-        print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/scene' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/path' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/exploration' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/start_goal' topic")
+        print(f"→ Add a Plot panel for '/hybrid_astar/visualization/statistics' topic")
         
         return server
     
