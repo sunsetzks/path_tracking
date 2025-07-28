@@ -115,6 +115,7 @@ class FoxgloveHybridAStarVisualizer:
         # Visualization settings
         self.settings: Dict[str, float | bool] = {
             'path_line_thickness': 0.05,
+            'path_alpha': 0.5,  # Final path transparency (1.0=opaque, 0.0=fully transparent)
             'max_exploration_nodes': 100000,  # Limit for performance
             'exploration_sphere_size': 0.03,  # Size of exploration node spheres
             'exploration_line_thickness': 0.01,  # Thickness for simulation trajectory lines
@@ -425,6 +426,7 @@ class FoxgloveHybridAStarVisualizer:
             for state in path:
                 path_lines.append(Point3(x=float(state.x), y=float(state.y), z=0.1))
 
+            path_alpha = self.settings.get('path_alpha', 1.0)
             path_entity = SceneEntity(
                 id="final_path",
                 lines=[LinePrimitive(
@@ -435,7 +437,7 @@ class FoxgloveHybridAStarVisualizer:
                     thickness=self.settings['path_line_thickness'],
                     scale_invariant=False,
                     points=path_lines,
-                    color=Color(r=1.0, g=0.0, b=1.0, a=1.0)  # Magenta
+                    color=Color(r=1.0, g=0.0, b=1.0, a=path_alpha)  # Magenta with configurable alpha
                 )]
             )
             entities.append(path_entity)
