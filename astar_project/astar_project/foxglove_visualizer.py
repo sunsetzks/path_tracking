@@ -122,7 +122,6 @@ class FoxgloveHybridAStarVisualizer:
         
         # Current data
         self.current_data: Dict[str, Any] = {}
-        self.is_running: bool = False
         
         # Channels (created when server starts)
         self.scene_channel: Optional[Any] = None
@@ -168,12 +167,10 @@ class FoxgloveHybridAStarVisualizer:
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/start_goal' topic")
         print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
         
-        self.is_running = True
         return server
     
     def stop_server(self) -> None:
         """Stop the server and close MCAP sink if active"""
-        self.is_running = False
         if self.mcap_sink:
             self.mcap_sink.close()  # MCAPWriter.close() method
             print(f"✓ MCAP file saved: {self.mcap_output_path}")
@@ -181,27 +178,27 @@ class FoxgloveHybridAStarVisualizer:
     
     def log_scene_update(self, scene_update: SceneUpdate) -> None:
         """Log a SceneUpdate to Foxglove"""
-        if self.scene_channel and self.is_running:
+        if self.scene_channel:
             self.scene_channel.log(scene_update)
     
     def log_path_update(self, scene_update: SceneUpdate) -> None:
         """Log a SceneUpdate to the path channel"""
-        if self.path_channel and self.is_running:
+        if self.path_channel:
             self.path_channel.log(scene_update)
     
     def log_exploration_update(self, scene_update: SceneUpdate) -> None:
         """Log a SceneUpdate to the exploration channel"""
-        if self.exploration_channel and self.is_running:
+        if self.exploration_channel:
             self.exploration_channel.log(scene_update)
     
     def log_start_goal_update(self, scene_update: SceneUpdate) -> None:
         """Log a SceneUpdate to the start/goal channel"""
-        if self.start_goal_channel and self.is_running:
+        if self.start_goal_channel:
             self.start_goal_channel.log(scene_update)
     
     def log_statistics(self, stats_dict: Dict[str, Any]) -> None:
         """Log statistics as JSON"""
-        if self.stats_channel and self.is_running:
+        if self.stats_channel:
             self.stats_channel.log(stats_dict)
     
     def visualize_path_planning(self, 
@@ -246,7 +243,7 @@ class FoxgloveHybridAStarVisualizer:
         }
         
         # Start server if not running
-        if not self.is_running:
+        if hasattr(self, 'scene_channel') and self.scene_channel is None:
             self.start_server()
         
         # Create and send separate scene updates
@@ -644,7 +641,7 @@ class FoxgloveHybridAStarVisualizer:
         print("Starting live path planning visualization...")
         
         # Start server if not running
-        if not self.is_running:
+        if hasattr(self, 'scene_channel') and self.scene_channel is None:
             self.start_server()
         
         # Store planner reference
@@ -687,7 +684,6 @@ class FoxgloveHybridAStarVisualizer:
         if self.mcap_output_path:
             print(f"Starting MCAP recording: {self.mcap_output_path}")
             self.mcap_sink = open_mcap(self.mcap_output_path)  # Returns MCAPWriter
-            self.is_running = True
         else:
             raise ValueError("No MCAP output path specified")
 
