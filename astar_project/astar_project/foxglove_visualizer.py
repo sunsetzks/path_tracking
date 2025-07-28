@@ -6,16 +6,24 @@ using the Foxglove WebSocket server. It creates interactive 3D visualizations th
 be viewed in Foxglove Studio.
 
 Features:
-- Real-time path planning visualization
+- Real-time path planning visualization with separated channels
 - Interactive exploration nodes displayed as spheres (colored by cost)
 - Node simulation trajectories displayed as lines 
 - Vehicle state visualization with orientation arrows
+- Dedicated start/goal position visualization channel
 - Cost analysis and statistics
 - Obstacle map visualization
 - Steering angle visualization with color coding
 
+Visualization Channels:
+- /hybrid_astar/scene: Obstacles visualization
+- /hybrid_astar/path: Final planned path with vehicle orientation arrows
+- /hybrid_astar/exploration: Exploration nodes and simulation trajectories
+- /hybrid_astar/start_goal: Start and goal positions with orientation arrows
+- /hybrid_astar/statistics: Path planning statistics
+
 Author: Your Name
-Date: 2025-07-24
+Date: 2025-07-28
 """
 
 import asyncio
@@ -69,9 +77,10 @@ class FoxgloveHybridAStarVisualizer:
     
     This class creates visualization data for Foxglove Studio using 3D primitives and JSON data.
     The visualization is separated into multiple topics for better control:
-    - /hybrid_astar/scene: Obstacles, start, and goal positions
+    - /hybrid_astar/scene: Obstacles visualization
     - /hybrid_astar/path: Final planned path with vehicle orientation arrows
     - /hybrid_astar/exploration: Exploration nodes and simulation trajectories
+    - /hybrid_astar/start_goal: Start and goal positions with orientation arrows
     - /hybrid_astar/statistics: Path planning statistics
     
     Based on the official Foxglove SDK examples.
@@ -120,6 +129,7 @@ class FoxgloveHybridAStarVisualizer:
         self.scene_channel: Optional[Any] = None
         self.path_channel: Optional[Any] = None
         self.exploration_channel: Optional[Any] = None
+        self.start_goal_channel: Optional[Any] = None
         self.stats_channel: Optional[Channel] = None
         self.mcap_sink: Optional[MCAPWriter] = None
     
@@ -146,6 +156,7 @@ class FoxgloveHybridAStarVisualizer:
         self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/scene")
         self.path_channel = SceneUpdateChannel(topic="/hybrid_astar/path")
         self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/exploration")
+        self.start_goal_channel = SceneUpdateChannel(topic="/hybrid_astar/start_goal")
         self.stats_channel = Channel(topic="/hybrid_astar/statistics")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
@@ -155,6 +166,7 @@ class FoxgloveHybridAStarVisualizer:
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/scene' topic")
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/path' topic")
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/exploration' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/start_goal' topic")
         print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
         
         self.is_running = True
@@ -182,6 +194,11 @@ class FoxgloveHybridAStarVisualizer:
         """Log a SceneUpdate to the exploration channel"""
         if self.exploration_channel and self.is_running:
             self.exploration_channel.log(scene_update)
+    
+    def log_start_goal_update(self, scene_update: SceneUpdate) -> None:
+        """Log a SceneUpdate to the start/goal channel"""
+        if self.start_goal_channel and self.is_running:
+            self.start_goal_channel.log(scene_update)
     
     def log_statistics(self, stats_dict: Dict[str, Any]) -> None:
         """Log statistics as JSON"""
@@ -242,7 +259,12 @@ class FoxgloveHybridAStarVisualizer:
         if exploration_scene_update:
             self.log_exploration_update(exploration_scene_update)
         
-        # Create main scene update (obstacles, start/goal)
+        # Create start/goal scene update
+        start_goal_scene_update = self.create_start_goal_scene_update()
+        if start_goal_scene_update:
+            self.log_start_goal_update(start_goal_scene_update)
+        
+        # Create main scene update (obstacles only now)
         scene_update = self.create_scene_update()
         if scene_update:
             self.log_scene_update(scene_update)
@@ -253,74 +275,13 @@ class FoxgloveHybridAStarVisualizer:
             self.log_statistics(stats)
     
     def create_scene_update(self) -> Optional[SceneUpdate]:
-        """Create a Foxglove SceneUpdate with obstacles, start, and goal visualization primitives"""
+        """Create a Foxglove SceneUpdate with obstacles visualization primitives"""
         from foxglove.schemas import (
-            SceneUpdate, SceneEntity, ArrowPrimitive, 
-            CubePrimitive, SpherePrimitive, Color, Point3, Vector3, Pose, Quaternion
+            SceneUpdate, SceneEntity, 
+            CubePrimitive, Color, Vector3, Pose, Quaternion
         )
         
         entities: List[SceneEntity] = []
-        
-        # Visualize start and goal positions
-        start: Optional[State] = self.current_data.get('start')
-        if start:
-            start_yaw: float = start.yaw
-            start_quat_z: float = math.sin(start_yaw / 2.0)
-            start_quat_w: float = math.cos(start_yaw / 2.0)
-            
-            start_entity = SceneEntity(
-                id="start_position",
-                spheres=[SpherePrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
-                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                    ),
-                    size=Vector3(x=0.8, y=0.8, z=0.8),
-                    color=Color(r=0.0, g=1.0, b=0.0, a=1.0)  # Green
-                )],
-                arrows=[ArrowPrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
-                        orientation=Quaternion(x=0.0, y=0.0, z=start_quat_z, w=start_quat_w)
-                    ),
-                    shaft_length=1.2,
-                    shaft_diameter=0.15,
-                    head_length=0.3,
-                    head_diameter=0.3,
-                    color=Color(r=0.0, g=0.8, b=0.0, a=0.9)
-                )]
-            )
-            entities.append(start_entity)
-        
-        goal: Optional[State] = self.current_data.get('goal')
-        if goal:
-            goal_yaw: float = goal.yaw
-            goal_quat_z: float = math.sin(goal_yaw / 2.0)
-            goal_quat_w: float = math.cos(goal_yaw / 2.0)
-            
-            goal_entity = SceneEntity(
-                id="goal_position",
-                spheres=[SpherePrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
-                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                    ),
-                    size=Vector3(x=0.8, y=0.8, z=0.8),
-                    color=Color(r=1.0, g=0.0, b=0.0, a=1.0)  # Red
-                )],
-                arrows=[ArrowPrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
-                        orientation=Quaternion(x=0.0, y=0.0, z=goal_quat_z, w=goal_quat_w)
-                    ),
-                    shaft_length=1.2,
-                    shaft_diameter=0.15,
-                    head_length=0.3,
-                    head_diameter=0.3,
-                    color=Color(r=0.8, g=0.0, b=0.0, a=0.9)
-                )]
-            )
-            entities.append(goal_entity)
         
         # Visualize obstacles as cubes
         obstacle_map: Optional[np.ndarray] = self.current_data.get('obstacle_map')
@@ -363,6 +324,85 @@ class FoxgloveHybridAStarVisualizer:
                     cubes=cubes
                 )
                 entities.append(obstacle_entity)
+        
+        if not entities:
+            return None
+        
+        return SceneUpdate(
+            deletions=[],
+            entities=entities
+        )
+    
+    def create_start_goal_scene_update(self) -> Optional[SceneUpdate]:
+        """Create a SceneUpdate with start and goal position visualization primitives"""
+        from foxglove.schemas import (
+            SceneUpdate, SceneEntity, ArrowPrimitive, 
+            SpherePrimitive, Color, Vector3, Pose, Quaternion
+        )
+        
+        entities: List[SceneEntity] = []
+        
+        # Visualize start position
+        start: Optional[State] = self.current_data.get('start')
+        if start:
+            start_yaw: float = start.yaw
+            start_quat_z: float = math.sin(start_yaw / 2.0)
+            start_quat_w: float = math.cos(start_yaw / 2.0)
+            
+            start_entity = SceneEntity(
+                id="start_position",
+                spheres=[SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=0.8, y=0.8, z=0.8),
+                    color=Color(r=0.0, g=1.0, b=0.0, a=1.0)  # Green
+                )],
+                arrows=[ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(start.x), y=float(start.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=start_quat_z, w=start_quat_w)
+                    ),
+                    shaft_length=1.2,
+                    shaft_diameter=0.15,
+                    head_length=0.3,
+                    head_diameter=0.3,
+                    color=Color(r=0.0, g=0.8, b=0.0, a=0.9)
+                )]
+            )
+            entities.append(start_entity)
+        
+        # Visualize goal position
+        goal: Optional[State] = self.current_data.get('goal')
+        if goal:
+            goal_yaw: float = goal.yaw
+            goal_quat_z: float = math.sin(goal_yaw / 2.0)
+            goal_quat_w: float = math.cos(goal_yaw / 2.0)
+            
+            goal_entity = SceneEntity(
+                id="goal_position",
+                spheres=[SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=0.8, y=0.8, z=0.8),
+                    color=Color(r=1.0, g=0.0, b=0.0, a=1.0)  # Red
+                )],
+                arrows=[ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(goal.x), y=float(goal.y), z=0.3),
+                        orientation=Quaternion(x=0.0, y=0.0, z=goal_quat_z, w=goal_quat_w)
+                    ),
+                    shaft_length=1.2,
+                    shaft_diameter=0.15,
+                    head_length=0.3,
+                    head_diameter=0.3,
+                    color=Color(r=0.8, g=0.0, b=0.0, a=0.9)
+                )]
+            )
+            entities.append(goal_entity)
         
         if not entities:
             return None
