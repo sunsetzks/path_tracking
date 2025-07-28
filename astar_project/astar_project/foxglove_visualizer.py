@@ -102,8 +102,8 @@ class FoxgloveHybridAStarVisualizer:
             'exploration_line_thickness': 0.05,
             'path_line_thickness': 0.15,
             'max_exploration_nodes': 100000,  # Limit for performance
-            'exploration_sphere_size': 0.3,  # Size of exploration node spheres
-            'trajectory_line_thickness': 0.03,  # Thickness for simulation trajectory lines
+            'exploration_sphere_size': 0.03,  # Size of exploration node spheres
+            'trajectory_line_thickness': 0.01,  # Thickness for simulation trajectory lines
         }
         
         # Current data

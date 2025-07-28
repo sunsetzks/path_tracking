@@ -186,7 +186,7 @@ class HybridAStar:
         # Cost weights
         self.w_steer = 10.0         # Steering angle cost weight
         self.w_turn = 15.0          # Turning cost weight
-        self.w_cusp = 50.0          # Direction change cost weight
+        self.w_cusp = 10.0          # Direction change cost weight
         self.w_obstacle = 1000.0    # Obstacle cost weight
         
         # Steering angle rates for motion primitives (rad/s)
