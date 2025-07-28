@@ -651,20 +651,24 @@ class FoxgloveHybridAStarVisualizer:
         result = planner.plan_path(start, goal)
         
         if result:
-            # Extract states from nodes
+            # Convert path nodes to path states
             path_states = [node.state for node in result]
-            detailed_path_data = planner.extract_detailed_path(result)
+            
+            # Get visualization data from planner
+            viz_data = planner.get_visualization_data()
             
             # Update visualization with final result
             self.visualize_path_planning(
-                path=detailed_path_data,
+                path=path_states,
                 start=start,
                 goal=goal,
-                explored_nodes=planner.explored_nodes if hasattr(planner, 'explored_nodes') else [],
-                obstacle_map=planner.obstacle_map if hasattr(planner, 'obstacle_map') else None,
-                map_origin_x=planner.map_origin_x if hasattr(planner, 'map_origin_x') else 0,
-                map_origin_y=planner.map_origin_y if hasattr(planner, 'map_origin_y') else 0,
-                grid_resolution=planner.grid_resolution if hasattr(planner, 'grid_resolution') else 1.0
+                explored_nodes=viz_data.get('explored_nodes', []),
+                simulation_trajectories=viz_data.get('simulation_trajectories', []),
+                obstacle_map=viz_data.get('obstacle_map'),
+                map_origin_x=viz_data.get('map_origin_x', 0),
+                map_origin_y=viz_data.get('map_origin_y', 0),
+                grid_resolution=viz_data.get('grid_resolution', 1.0),
+                vehicle_model=viz_data.get('vehicle_model')
             )
             print(f"✓ Path visualization updated with {len(path_states)} waypoints")
         else:
@@ -734,19 +738,24 @@ async def run_mcap_only_example() -> None:
         result = planner.plan_path(start, goal)
         
         if result:
-            # Extract states from nodes
+            # Convert path nodes to path states
             path_states = [node.state for node in result]
+            
+            # Get visualization data from planner
+            viz_data = planner.get_visualization_data()
             
             # Record visualization data to MCAP
             visualizer.visualize_path_planning(
                 path=path_states,
                 start=start,
                 goal=goal,
-                explored_nodes=planner.explored_nodes if hasattr(planner, 'explored_nodes') else [],
-                obstacle_map=planner.obstacle_map if hasattr(planner, 'obstacle_map') else None,
-                map_origin_x=planner.map_origin_x if hasattr(planner, 'map_origin_x') else 0,
-                map_origin_y=planner.map_origin_y if hasattr(planner, 'map_origin_y') else 0,
-                grid_resolution=planner.grid_resolution if hasattr(planner, 'grid_resolution') else 1.0
+                explored_nodes=viz_data.get('explored_nodes', []),
+                simulation_trajectories=viz_data.get('simulation_trajectories', []),
+                obstacle_map=viz_data.get('obstacle_map'),
+                map_origin_x=viz_data.get('map_origin_x', 0),
+                map_origin_y=viz_data.get('map_origin_y', 0),
+                grid_resolution=viz_data.get('grid_resolution', 1.0),
+                vehicle_model=viz_data.get('vehicle_model')
             )
             print(f"✓ Path recorded with {len(path_states)} waypoints")
         else:
