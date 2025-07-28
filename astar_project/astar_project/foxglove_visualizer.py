@@ -16,11 +16,12 @@ Features:
 - Steering angle visualization with color coding
 
 Visualization Channels:
-- /hybrid_astar/scene: Obstacles visualization
-- /hybrid_astar/path: Final planned path with vehicle orientation arrows
-- /hybrid_astar/exploration: Exploration nodes and simulation trajectories
-- /hybrid_astar/start_goal: Start and goal positions with orientation arrows
-- /hybrid_astar/statistics: Path planning statistics
+- /hybrid_astar/visualization/scene: Obstacles visualization
+- /hybrid_astar/visualization/path: Final planned path with vehicle orientation arrows
+- /hybrid_astar/visualization/exploration: Exploration nodes and simulation trajectories
+- /hybrid_astar/visualization/start_goal: Start and goal positions with orientation arrows
+- /hybrid_astar/visualization/statistics: Path planning statistics
+- /hybrid_astar/visualization/path_data: Raw path data with node structure information
 
 Author: Your Name
 Date: 2025-07-28
@@ -77,11 +78,12 @@ class FoxgloveHybridAStarVisualizer:
     
     This class creates visualization data for Foxglove Studio using 3D primitives and JSON data.
     The visualization is separated into multiple topics for better control:
-    - /hybrid_astar/scene: Obstacles visualization
-    - /hybrid_astar/path: Final planned path with vehicle orientation arrows
-    - /hybrid_astar/exploration: Exploration nodes and simulation trajectories
-    - /hybrid_astar/start_goal: Start and goal positions with orientation arrows
-    - /hybrid_astar/statistics: Path planning statistics
+    - /hybrid_astar/visualization/scene: Obstacles visualization
+    - /hybrid_astar/visualization/path: Final planned path with vehicle orientation arrows
+    - /hybrid_astar/visualization/exploration: Exploration nodes and simulation trajectories
+    - /hybrid_astar/visualization/start_goal: Start and goal positions with orientation arrows
+    - /hybrid_astar/visualization/statistics: Path planning statistics
+    - /hybrid_astar/visualization/path_data: Raw path data with node structure information
     
     Based on the official Foxglove SDK examples.
     """
@@ -131,6 +133,7 @@ class FoxgloveHybridAStarVisualizer:
         self.exploration_channel: Optional[Any] = None
         self.start_goal_channel: Optional[Any] = None
         self.stats_channel: Optional[Channel] = None
+        self.path_data_channel: Optional[Channel] = None
         self.mcap_sink: Optional[MCAPWriter] = None
     
     def start_server(self) -> Any:
@@ -158,6 +161,7 @@ class FoxgloveHybridAStarVisualizer:
         self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/exploration")
         self.start_goal_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/start_goal")
         self.stats_channel = Channel(topic="/hybrid_astar/visualization/statistics")
+        self.path_data_channel = Channel(topic="/hybrid_astar/visualization/path_data")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
         if self.mcap_output_path:
@@ -168,6 +172,7 @@ class FoxgloveHybridAStarVisualizer:
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/exploration' topic")
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/visualization/start_goal' topic")
         print(f"→ Add a Plot panel for '/hybrid_astar/visualization/statistics' topic")
+        print(f"→ Add a Raw Messages panel for '/hybrid_astar/visualization/path_data' topic")
         
         return server
     
@@ -203,6 +208,11 @@ class FoxgloveHybridAStarVisualizer:
         if self.stats_channel:
             self.stats_channel.log(stats_dict)
     
+    def log_path_data(self, path_data: List[Dict[str, Any]]) -> None:
+        """Log path data as JSON with node structure information"""
+        if self.path_data_channel:
+            self.path_data_channel.log(path_data)
+    
     def visualize_path_planning(self, 
                               path: List[State],
                               start: State,
@@ -213,12 +223,13 @@ class FoxgloveHybridAStarVisualizer:
                               map_origin_x: float = 0,
                               map_origin_y: float = 0,
                               grid_resolution: float = 1.0,
-                              vehicle_model: Optional[VehicleModel] = None) -> None:
+                              vehicle_model: Optional[VehicleModel] = None,
+                              path_nodes: Optional[List[Node]] = None) -> None:
         """
         Visualize complete path planning results with 3D primitives
         
         Args:
-            path: Final planned path
+            path: Final planned path (list of states)
             start: Start state
             goal: Goal state
             explored_nodes: Nodes explored during search
@@ -228,6 +239,7 @@ class FoxgloveHybridAStarVisualizer:
             map_origin_y: Map origin Y coordinate
             grid_resolution: Grid resolution
             vehicle_model: Vehicle kinematic model
+            path_nodes: Original path nodes with full information (optional)
         """
         
         # Store current data
@@ -241,7 +253,8 @@ class FoxgloveHybridAStarVisualizer:
             'map_origin_x': map_origin_x,
             'map_origin_y': map_origin_y,
             'grid_resolution': grid_resolution,
-            'vehicle_model': vehicle_model
+            'vehicle_model': vehicle_model,
+            'path_nodes': path_nodes  # Store original nodes for detailed data
         }
         
         # Start server if not running
@@ -271,6 +284,11 @@ class FoxgloveHybridAStarVisualizer:
         stats = self.create_statistics()
         if stats:
             self.log_statistics(stats)
+        
+        # Create and send path data
+        path_data = self.create_path_data()
+        if path_data:
+            self.log_path_data(path_data)
     
     def create_scene_update(self) -> Optional[SceneUpdate]:
         """Create a Foxglove SceneUpdate with obstacles visualization primitives"""
@@ -633,6 +651,107 @@ class FoxgloveHybridAStarVisualizer:
         
         return stats
     
+    def create_path_data(self) -> Optional[List[Dict[str, Any]]]:
+        """Create path data with node structure information"""
+        path: list[State] = self.current_data.get('path', [])
+        path_nodes: list[Node] = self.current_data.get('path_nodes', [])
+        
+        if not path:
+            return None
+
+        path_data = []
+
+        # If we have original path nodes, use their detailed information
+        if path_nodes and len(path_nodes) == len(path):
+            for i, (state, node) in enumerate(zip(path, path_nodes)):
+                node_data = {
+                    'index': i,
+                    'timestamp': time.time(),
+                    'state': {
+                        'x': float(state.x),
+                        'y': float(state.y),
+                        'yaw': float(state.yaw),
+                        'direction': state.direction.name if hasattr(state, 'direction') else 'NONE',
+                        'steer': float(getattr(state, 'steer', 0.0))
+                    },
+                    'costs': {
+                        'g_cost': float(node.g_cost),
+                        'h_cost': float(node.h_cost),
+                        'f_cost': float(node.f_cost),
+                        'distance': float(node.costs.distance) if hasattr(node, 'costs') else 0.0,
+                        'steer': float(node.costs.steer) if hasattr(node, 'costs') else 0.0,
+                        'turn': float(node.costs.turn) if hasattr(node, 'costs') else 0.0,
+                        'cusp': float(node.costs.cusp) if hasattr(node, 'costs') else 0.0
+                    },
+                    'trajectory_length': len(node.trajectory_states) if hasattr(node, 'trajectory_states') and node.trajectory_states else 0
+                }
+                
+                # Add motion information relative to previous node
+                if i > 0:
+                    prev_state = path[i-1]
+                    distance = math.sqrt((state.x - prev_state.x)**2 + (state.y - prev_state.y)**2)
+                    
+                    vehicle_model = self.current_data.get('vehicle_model')
+                    if vehicle_model:
+                        yaw_change = abs(vehicle_model.normalize_angle(state.yaw - prev_state.yaw))
+                    else:
+                        yaw_diff = state.yaw - prev_state.yaw
+                        # Simple angle normalization
+                        while yaw_diff > math.pi:
+                            yaw_diff -= 2 * math.pi
+                        while yaw_diff < -math.pi:
+                            yaw_diff += 2 * math.pi
+                        yaw_change = abs(yaw_diff)
+                    
+                    node_data['motion'] = {
+                        'distance_from_prev': float(distance),
+                        'yaw_change_from_prev': float(yaw_change),
+                        'direction_change': state.direction != prev_state.direction if hasattr(state, 'direction') and hasattr(prev_state, 'direction') else False
+                    }
+                
+                path_data.append(node_data)
+        else:
+            # Fallback: create simplified node data from states only
+            for i, state in enumerate(path):
+                node_data = {
+                    'index': i,
+                    'timestamp': time.time(),
+                    'state': {
+                        'x': float(state.x),
+                        'y': float(state.y),
+                        'yaw': float(state.yaw),
+                        'direction': state.direction.name if hasattr(state, 'direction') else 'NONE',
+                        'steer': float(getattr(state, 'steer', 0.0))
+                    }
+                }
+                
+                # Add motion information relative to previous state
+                if i > 0:
+                    prev_state = path[i-1]
+                    distance = math.sqrt((state.x - prev_state.x)**2 + (state.y - prev_state.y)**2)
+                    
+                    vehicle_model = self.current_data.get('vehicle_model')
+                    if vehicle_model:
+                        yaw_change = abs(vehicle_model.normalize_angle(state.yaw - prev_state.yaw))
+                    else:
+                        yaw_diff = state.yaw - prev_state.yaw
+                        # Simple angle normalization
+                        while yaw_diff > math.pi:
+                            yaw_diff -= 2 * math.pi
+                        while yaw_diff < -math.pi:
+                            yaw_diff += 2 * math.pi
+                        yaw_change = abs(yaw_diff)
+                    
+                    node_data['motion'] = {
+                        'distance_from_prev': float(distance),
+                        'yaw_change_from_prev': float(yaw_change),
+                        'direction_change': state.direction != prev_state.direction if hasattr(state, 'direction') and hasattr(prev_state, 'direction') else False
+                    }
+                
+                path_data.append(node_data)
+        
+        return path_data
+    
     def visualize_live_planning(self, planner: HybridAStar, start: State, goal: State) -> Optional[List[Node]]:
         """
         Visualize live path planning process
@@ -662,7 +781,7 @@ class FoxgloveHybridAStarVisualizer:
             # Get visualization data from planner
             viz_data = planner.get_visualization_data()
             
-            # Update visualization with final result
+            # Update visualization with final result, including original nodes
             self.visualize_path_planning(
                 path=detailed_path,
                 start=start,
@@ -673,7 +792,8 @@ class FoxgloveHybridAStarVisualizer:
                 map_origin_x=viz_data.get('map_origin_x', 0),
                 map_origin_y=viz_data.get('map_origin_y', 0),
                 grid_resolution=viz_data.get('grid_resolution', 1.0),
-                vehicle_model=viz_data.get('vehicle_model')
+                vehicle_model=viz_data.get('vehicle_model'),
+                path_nodes=result  # Pass original node objects for detailed data
             )
             print(f"✓ Path visualization updated with {len(path_states)} waypoints")
         else:
@@ -760,7 +880,8 @@ async def run_mcap_only_example() -> None:
                 map_origin_x=viz_data.get('map_origin_x', 0),
                 map_origin_y=viz_data.get('map_origin_y', 0),
                 grid_resolution=viz_data.get('grid_resolution', 1.0),
-                vehicle_model=viz_data.get('vehicle_model')
+                vehicle_model=viz_data.get('vehicle_model'),
+                path_nodes=result  # Pass original node objects for detailed data
             )
             print(f"✓ Path recorded with {len(path_states)} waypoints")
         else:
