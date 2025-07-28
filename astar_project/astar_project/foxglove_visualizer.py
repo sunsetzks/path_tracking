@@ -114,11 +114,10 @@ class FoxgloveHybridAStarVisualizer:
         
         # Visualization settings
         self.settings: Dict[str, float] = {
-            'exploration_line_thickness': 0.05,
             'path_line_thickness': 0.15,
             'max_exploration_nodes': 100000,  # Limit for performance
             'exploration_sphere_size': 0.03,  # Size of exploration node spheres
-            'trajectory_line_thickness': 0.01,  # Thickness for simulation trajectory lines
+            'exploration_line_thickness': 0.01,  # Thickness for simulation trajectory lines
         }
         
         # Current data
@@ -567,7 +566,7 @@ class FoxgloveHybridAStarVisualizer:
                                 position=Vector3(x=0.0, y=0.0, z=0.0),
                                 orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
                             ),
-                            thickness=self.settings['trajectory_line_thickness'],
+                            thickness=self.settings['exploration_line_thickness'],
                             scale_invariant=False,
                             points=trajectory_points,
                             colors=trajectory_colors
