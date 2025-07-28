@@ -114,11 +114,11 @@ class FoxgloveHybridAStarVisualizer:
         
         # Visualization settings
         self.settings: Dict[str, float | bool] = {
-            'path_line_thickness': 0.15,
+            'path_line_thickness': 0.05,
             'max_exploration_nodes': 100000,  # Limit for performance
             'exploration_sphere_size': 0.03,  # Size of exploration node spheres
             'exploration_line_thickness': 0.01,  # Thickness for simulation trajectory lines
-            'show_final_path_arrows': True,  # Whether to show arrows along the final path
+            'show_final_path_arrows': False,  # Whether to show arrows along the final path
         }
         
         # Current data
