@@ -655,13 +655,14 @@ class FoxgloveHybridAStarVisualizer:
         if result:
             # Convert path nodes to path states
             path_states = [node.state for node in result]
+            detailed_path = planner.extract_detailed_path(result)
             
             # Get visualization data from planner
             viz_data = planner.get_visualization_data()
             
             # Update visualization with final result
             self.visualize_path_planning(
-                path=path_states,
+                path=detailed_path,
                 start=start,
                 goal=goal,
                 explored_nodes=viz_data.get('explored_nodes', []),
