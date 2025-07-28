@@ -68,6 +68,12 @@ class FoxgloveHybridAStarVisualizer:
     Foxglove-based real-time visualizer for Hybrid A* path planning
     
     This class creates visualization data for Foxglove Studio using 3D primitives and JSON data.
+    The visualization is separated into multiple topics for better control:
+    - /hybrid_astar/scene: Obstacles, start, and goal positions
+    - /hybrid_astar/path: Final planned path with vehicle orientation arrows
+    - /hybrid_astar/exploration: Exploration nodes and simulation trajectories
+    - /hybrid_astar/statistics: Path planning statistics
+    
     Based on the official Foxglove SDK examples.
     """
     
@@ -112,6 +118,8 @@ class FoxgloveHybridAStarVisualizer:
         
         # Channels (created when server starts)
         self.scene_channel: Optional[Any] = None
+        self.path_channel: Optional[Any] = None
+        self.exploration_channel: Optional[Any] = None
         self.stats_channel: Optional[Channel] = None
         self.mcap_sink: Optional[MCAPWriter] = None
     
@@ -136,6 +144,8 @@ class FoxgloveHybridAStarVisualizer:
         
         # Create channels for 3D visualization
         self.scene_channel = SceneUpdateChannel(topic="/hybrid_astar/scene")
+        self.path_channel = SceneUpdateChannel(topic="/hybrid_astar/path")
+        self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/exploration")
         self.stats_channel = Channel(topic="/hybrid_astar/statistics")
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
@@ -143,6 +153,8 @@ class FoxgloveHybridAStarVisualizer:
             print(f"✓ MCAP recording to: {self.mcap_output_path}")
         print(f"→ Connect Foxglove Studio to this WebSocket URL")
         print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/scene' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/path' topic")
+        print(f"→ Add a 3D panel and subscribe to '/hybrid_astar/exploration' topic")
         print(f"→ Add a Plot panel for '/hybrid_astar/statistics' topic")
         
         self.is_running = True
@@ -160,6 +172,16 @@ class FoxgloveHybridAStarVisualizer:
         """Log a SceneUpdate to Foxglove"""
         if self.scene_channel and self.is_running:
             self.scene_channel.log(scene_update)
+    
+    def log_path_update(self, scene_update: SceneUpdate) -> None:
+        """Log a SceneUpdate to the path channel"""
+        if self.path_channel and self.is_running:
+            self.path_channel.log(scene_update)
+    
+    def log_exploration_update(self, scene_update: SceneUpdate) -> None:
+        """Log a SceneUpdate to the exploration channel"""
+        if self.exploration_channel and self.is_running:
+            self.exploration_channel.log(scene_update)
     
     def log_statistics(self, stats_dict: Dict[str, Any]) -> None:
         """Log statistics as JSON"""
@@ -211,7 +233,16 @@ class FoxgloveHybridAStarVisualizer:
         if not self.is_running:
             self.start_server()
         
-        # Create and send 3D scene update
+        # Create and send separate scene updates
+        path_scene_update = self.create_path_scene_update()
+        if path_scene_update:
+            self.log_path_update(path_scene_update)
+        
+        exploration_scene_update = self.create_exploration_scene_update()
+        if exploration_scene_update:
+            self.log_exploration_update(exploration_scene_update)
+        
+        # Create main scene update (obstacles, start/goal)
         scene_update = self.create_scene_update()
         if scene_update:
             self.log_scene_update(scene_update)
@@ -222,157 +253,15 @@ class FoxgloveHybridAStarVisualizer:
             self.log_statistics(stats)
     
     def create_scene_update(self) -> Optional[SceneUpdate]:
-        """Create a Foxglove SceneUpdate with 3D visualization primitives"""
+        """Create a Foxglove SceneUpdate with obstacles, start, and goal visualization primitives"""
         from foxglove.schemas import (
-            SceneUpdate, SceneEntity, LinePrimitive, ArrowPrimitive, 
+            SceneUpdate, SceneEntity, ArrowPrimitive, 
             CubePrimitive, SpherePrimitive, Color, Point3, Vector3, Pose, Quaternion
         )
         
         entities: List[SceneEntity] = []
         
-        # 1. Visualize exploration nodes as spheres and their simulation trajectories as lines
-        explored_nodes: List[Node] = self.current_data.get('explored_nodes', [])
-        if explored_nodes:
-            # Limit nodes for performance
-            max_nodes: int = int(self.settings['max_exploration_nodes'])
-            if len(explored_nodes) > max_nodes:
-                step = len(explored_nodes) // max_nodes
-                explored_nodes = explored_nodes[::step]
-            
-            # 1a. Visualize exploration nodes as spheres
-            spheres: List[SpherePrimitive] = []
-            for node in explored_nodes:
-                # Color based on f_cost (normalized) for better visualization insight
-                # Use a normalized cost color from blue (low cost) to red (high cost)
-                f_costs = [n.f_cost for n in explored_nodes]
-                if f_costs:
-                    min_cost = min(f_costs)
-                    max_cost = max(f_costs)
-                    if max_cost > min_cost:
-                        normalized_cost = (node.f_cost - min_cost) / (max_cost - min_cost)
-                    else:
-                        normalized_cost = 0.5
-                else:
-                    normalized_cost = 0.5
-                
-                # Color gradient: blue (low cost) to red (high cost)
-                sphere_color = Color(
-                    r=float(normalized_cost), 
-                    g=0.0, 
-                    b=float(1.0 - normalized_cost), 
-                    a=0.7
-                )
-                
-                spheres.append(SpherePrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(node.state.x), y=float(node.state.y), z=0.1),
-                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                    ),
-                    size=Vector3(
-                        x=self.settings['exploration_sphere_size'], 
-                        y=self.settings['exploration_sphere_size'], 
-                        z=self.settings['exploration_sphere_size']
-                    ),  # Configurable sphere size
-                    color=sphere_color
-                ))
-            
-            if spheres:
-                exploration_nodes_entity = SceneEntity(
-                    id="exploration_nodes",
-                    spheres=spheres
-                )
-                entities.append(exploration_nodes_entity)
-            
-            # 1b. Visualize simulation trajectories as lines
-            trajectory_line_primitives: List[LinePrimitive] = []
-            
-            for node in explored_nodes:
-                if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
-                    # Create separate line primitive for each trajectory to avoid unwanted connections
-                    trajectory_points: List[Point3] = []
-                    trajectory_colors: List[Color] = []
-                    
-                    for state in node.trajectory_states:
-                        trajectory_points.append(Point3(x=float(state.x), y=float(state.y), z=0.05))
-                        # Color based on direction (green for forward, red for backward)
-                        if hasattr(state, 'direction') and state.direction == DirectionMode.BACKWARD:
-                            traj_color = Color(r=1.0, g=0.0, b=0.0, a=0.4)  # Red for backward
-                        else:
-                            traj_color = Color(r=0.0, g=1.0, b=0.0, a=0.4)  # Green for forward
-                        trajectory_colors.append(traj_color)
-                    
-                    if trajectory_points:
-                        # Create individual LinePrimitive for this trajectory
-                        trajectory_line_primitives.append(LinePrimitive(
-                            pose=Pose(
-                                position=Vector3(x=0.0, y=0.0, z=0.0),
-                                orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                            ),
-                            thickness=self.settings['trajectory_line_thickness'],
-                            scale_invariant=False,
-                            points=trajectory_points,
-                            colors=trajectory_colors
-                        ))
-            
-            if trajectory_line_primitives:
-                simulation_trajectories_entity = SceneEntity(
-                    id="simulation_trajectories",
-                    lines=trajectory_line_primitives
-                )
-                entities.append(simulation_trajectories_entity)
-        
-        # 2. Visualize final path as thick lines
-        path: List[State] = self.current_data.get('path', [])
-        if len(path) > 1:
-            path_lines: List[Point3] = []
-            for state in path:
-                path_lines.append(Point3(x=float(state.x), y=float(state.y), z=0.1))
-            
-            path_entity = SceneEntity(
-                id="final_path",
-                lines=[LinePrimitive(
-                    pose=Pose(
-                        position=Vector3(x=0.0, y=0.0, z=0.0),
-                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-                    ),
-                    thickness=self.settings['path_line_thickness'],
-                    scale_invariant=False,
-                    points=path_lines,
-                    color=Color(r=1.0, g=0.0, b=1.0, a=1.0)  # Magenta
-                )]
-            )
-            entities.append(path_entity)
-            
-            # 3. Vehicle orientation arrows along path
-            arrows: List[ArrowPrimitive] = []
-            step: int = max(1, len(path) // 20)  # Show ~20 arrows
-            for i in range(0, len(path), step):
-                state: State = path[i]
-                # Calculate quaternion from yaw angle
-                yaw: float = state.yaw
-                quat_z: float = math.sin(yaw / 2.0)
-                quat_w: float = math.cos(yaw / 2.0)
-                
-                arrows.append(ArrowPrimitive(
-                    pose=Pose(
-                        position=Vector3(x=float(state.x), y=float(state.y), z=0.2),
-                        orientation=Quaternion(x=0.0, y=0.0, z=quat_z, w=quat_w)
-                    ),
-                    shaft_length=0.8,
-                    shaft_diameter=0.1,
-                    head_length=0.2,
-                    head_diameter=0.2,
-                    color=Color(r=0.0, g=0.0, b=1.0, a=0.8)  # Blue
-                ))
-            
-            if arrows:
-                arrow_entity = SceneEntity(
-                    id="path_arrows",
-                    arrows=arrows
-                )
-                entities.append(arrow_entity)
-        
-        # 4. Visualize start and goal positions
+        # Visualize start and goal positions
         start: Optional[State] = self.current_data.get('start')
         if start:
             start_yaw: float = start.yaw
@@ -433,7 +322,7 @@ class FoxgloveHybridAStarVisualizer:
             )
             entities.append(goal_entity)
         
-        # 5. Visualize obstacles as cubes
+        # Visualize obstacles as cubes
         obstacle_map: Optional[np.ndarray] = self.current_data.get('obstacle_map')
         if obstacle_map is not None:
             cubes: List[CubePrimitive] = []
@@ -474,6 +363,182 @@ class FoxgloveHybridAStarVisualizer:
                     cubes=cubes
                 )
                 entities.append(obstacle_entity)
+        
+        if not entities:
+            return None
+        
+        return SceneUpdate(
+            deletions=[],
+            entities=entities
+        )
+    
+    def create_path_scene_update(self) -> Optional[SceneUpdate]:
+        """Create a SceneUpdate with path visualization primitives"""
+        from foxglove.schemas import (
+            SceneUpdate, SceneEntity, LinePrimitive, ArrowPrimitive, 
+            Color, Point3, Vector3, Pose, Quaternion
+        )
+        
+        entities: List[SceneEntity] = []
+        
+        # Visualize final path as thick lines
+        path: List[State] = self.current_data.get('path', [])
+        if len(path) > 1:
+            path_lines: List[Point3] = []
+            for state in path:
+                path_lines.append(Point3(x=float(state.x), y=float(state.y), z=0.1))
+            
+            path_entity = SceneEntity(
+                id="final_path",
+                lines=[LinePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=0.0, y=0.0, z=0.0),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    thickness=self.settings['path_line_thickness'],
+                    scale_invariant=False,
+                    points=path_lines,
+                    color=Color(r=1.0, g=0.0, b=1.0, a=1.0)  # Magenta
+                )]
+            )
+            entities.append(path_entity)
+            
+            # Vehicle orientation arrows along path
+            arrows: List[ArrowPrimitive] = []
+            step: int = max(1, len(path) // 20)  # Show ~20 arrows
+            for i in range(0, len(path), step):
+                state: State = path[i]
+                # Calculate quaternion from yaw angle
+                yaw: float = state.yaw
+                quat_z: float = math.sin(yaw / 2.0)
+                quat_w: float = math.cos(yaw / 2.0)
+                
+                arrows.append(ArrowPrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(state.x), y=float(state.y), z=0.2),
+                        orientation=Quaternion(x=0.0, y=0.0, z=quat_z, w=quat_w)
+                    ),
+                    shaft_length=0.8,
+                    shaft_diameter=0.1,
+                    head_length=0.2,
+                    head_diameter=0.2,
+                    color=Color(r=0.0, g=0.0, b=1.0, a=0.8)  # Blue
+                ))
+            
+            if arrows:
+                arrow_entity = SceneEntity(
+                    id="path_arrows",
+                    arrows=arrows
+                )
+                entities.append(arrow_entity)
+        
+        if not entities:
+            return None
+        
+        return SceneUpdate(
+            deletions=[],
+            entities=entities
+        )
+    
+    def create_exploration_scene_update(self) -> Optional[SceneUpdate]:
+        """Create a SceneUpdate with exploration nodes visualization primitives"""
+        from foxglove.schemas import (
+            SceneUpdate, SceneEntity, LinePrimitive, SpherePrimitive, 
+            Color, Point3, Vector3, Pose, Quaternion
+        )
+        
+        entities: List[SceneEntity] = []
+        
+        # Visualize exploration nodes as spheres and their simulation trajectories as lines
+        explored_nodes: List[Node] = self.current_data.get('explored_nodes', [])
+        if explored_nodes:
+            # Limit nodes for performance
+            max_nodes: int = int(self.settings['max_exploration_nodes'])
+            if len(explored_nodes) > max_nodes:
+                step = len(explored_nodes) // max_nodes
+                explored_nodes = explored_nodes[::step]
+            
+            # Visualize exploration nodes as spheres
+            spheres: List[SpherePrimitive] = []
+            for node in explored_nodes:
+                # Color based on f_cost (normalized) for better visualization insight
+                # Use a normalized cost color from blue (low cost) to red (high cost)
+                f_costs = [n.f_cost for n in explored_nodes]
+                if f_costs:
+                    min_cost = min(f_costs)
+                    max_cost = max(f_costs)
+                    if max_cost > min_cost:
+                        normalized_cost = (node.f_cost - min_cost) / (max_cost - min_cost)
+                    else:
+                        normalized_cost = 0.5
+                else:
+                    normalized_cost = 0.5
+                
+                # Color gradient: blue (low cost) to red (high cost)
+                sphere_color = Color(
+                    r=float(normalized_cost), 
+                    g=0.0, 
+                    b=float(1.0 - normalized_cost), 
+                    a=0.7
+                )
+                
+                spheres.append(SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(node.state.x), y=float(node.state.y), z=0.1),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(
+                        x=self.settings['exploration_sphere_size'], 
+                        y=self.settings['exploration_sphere_size'], 
+                        z=self.settings['exploration_sphere_size']
+                    ),  # Configurable sphere size
+                    color=sphere_color
+                ))
+            
+            if spheres:
+                exploration_nodes_entity = SceneEntity(
+                    id="exploration_nodes",
+                    spheres=spheres
+                )
+                entities.append(exploration_nodes_entity)
+            
+            # Visualize simulation trajectories as lines
+            trajectory_line_primitives: List[LinePrimitive] = []
+            
+            for node in explored_nodes:
+                if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
+                    # Create separate line primitive for each trajectory to avoid unwanted connections
+                    trajectory_points: List[Point3] = []
+                    trajectory_colors: List[Color] = []
+                    
+                    for state in node.trajectory_states:
+                        trajectory_points.append(Point3(x=float(state.x), y=float(state.y), z=0.05))
+                        # Color based on direction (green for forward, red for backward)
+                        if hasattr(state, 'direction') and state.direction == DirectionMode.BACKWARD:
+                            traj_color = Color(r=1.0, g=0.0, b=0.0, a=0.4)  # Red for backward
+                        else:
+                            traj_color = Color(r=0.0, g=1.0, b=0.0, a=0.4)  # Green for forward
+                        trajectory_colors.append(traj_color)
+                    
+                    if trajectory_points:
+                        # Create individual LinePrimitive for this trajectory
+                        trajectory_line_primitives.append(LinePrimitive(
+                            pose=Pose(
+                                position=Vector3(x=0.0, y=0.0, z=0.0),
+                                orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                            ),
+                            thickness=self.settings['trajectory_line_thickness'],
+                            scale_invariant=False,
+                            points=trajectory_points,
+                            colors=trajectory_colors
+                        ))
+            
+            if trajectory_line_primitives:
+                simulation_trajectories_entity = SceneEntity(
+                    id="simulation_trajectories",
+                    lines=trajectory_line_primitives
+                )
+                entities.append(simulation_trajectories_entity)
         
         if not entities:
             return None
