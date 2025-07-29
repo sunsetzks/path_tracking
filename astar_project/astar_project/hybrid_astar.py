@@ -15,6 +15,7 @@ traceback.install()
 import numpy as np
 import heapq
 import math
+import time
 from typing import List, Tuple, Optional, Set, Dict, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
@@ -202,6 +203,11 @@ class HybridAStar:
         # Data for visualization (stored but not processed here)
         self.explored_nodes = []  # Store explored nodes for visualization
         self.simulation_trajectories = []  # Store all simulation trajectories
+        
+        # Timing statistics
+        self.search_start_time = 0.0
+        self.search_end_time = 0.0
+        self.total_search_time = 0.0
     
     def set_obstacle_map(self, obstacle_map: np.ndarray, 
                         origin_x: float = 0, origin_y: float = 0) -> None:
@@ -404,7 +410,7 @@ class HybridAStar:
             
         return list(reversed(path))
     
-    def plan_path(self, start: State, goal: State, 
+    def plan_path(self, start: State, goal: State,
                   max_iterations: int = 10000) -> Optional[List[Node]]:
         """
         Plan path using Hybrid A* algorithm
@@ -417,6 +423,9 @@ class HybridAStar:
         Returns:
             List of nodes representing the path, or None if no path found
         """
+        # Initialize timing
+        self.search_start_time = time.time()
+        
         # Initialize visualization data
         self.explored_nodes = []
         self.simulation_trajectories = []
@@ -480,6 +489,10 @@ class HybridAStar:
                     node_map[successor_key] = successor
                     heapq.heappush(open_list, successor)
         
+        # Record end time and calculate total search time
+        self.search_end_time = time.time()
+        self.total_search_time = self.search_end_time - self.search_start_time
+        
         print(f"No path found after {iterations} iterations")
         return None
     
@@ -512,7 +525,9 @@ class HybridAStar:
             return {
                 'path_found': False,
                 'nodes_explored': len(self.explored_nodes),
-                'trajectories_simulated': len(self.simulation_trajectories)
+                'trajectories_simulated': len(self.simulation_trajectories),
+                'search_time_seconds': self.total_search_time,
+                'nodes_per_second': len(self.explored_nodes) / self.total_search_time if self.total_search_time > 0 else 0
             }
         
         # Basic path statistics - extract states from nodes
@@ -560,7 +575,9 @@ class HybridAStar:
             'max_curvature': max(curvatures) if curvatures else 0,
             'average_curvature': np.mean(curvatures) if curvatures else 0,
             'nodes_explored': len(self.explored_nodes),
-            'trajectories_simulated': len(self.simulation_trajectories)
+            'trajectories_simulated': len(self.simulation_trajectories),
+            'search_time_seconds': self.total_search_time,
+            'nodes_per_second': len(self.explored_nodes) / self.total_search_time if self.total_search_time > 0 else 0
         }
     
     def extract_detailed_path(self, path_nodes: List[Node]) -> List[State]:
@@ -653,4 +670,7 @@ if __name__ == "__main__":
         stats = planner.get_statistics(None)
         print(f"Search Statistics:")
         for key, value in stats.items():
-            print(f"  {key}: {value}")
+            if isinstance(value, float):
+                print(f"  {key}: {value:.3f}")
+            else:
+                print(f"  {key}: {value}")
