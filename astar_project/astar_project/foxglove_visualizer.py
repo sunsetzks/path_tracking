@@ -572,12 +572,12 @@ class FoxgloveHybridAStarVisualizer:
             trajectory_line_primitives: List[LinePrimitive] = []
             
             for node in explored_nodes:
-                if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
+                if hasattr(node, 'trajectory_states') and node.forward_simulation_trajectory and len(node.forward_simulation_trajectory) > 1:
                     # Create separate line primitive for each trajectory to avoid unwanted connections
                     trajectory_points: List[Point3] = []
                     trajectory_colors: List[Color] = []
                     
-                    for state in node.trajectory_states:
+                    for state in node.forward_simulation_trajectory:
                         trajectory_points.append(Point3(x=float(state.x), y=float(state.y), z=0.05))
                         # Color based on direction (green for forward, red for backward)
                         if hasattr(state, 'direction') and state.direction == DirectionMode.BACKWARD:
@@ -691,7 +691,7 @@ class FoxgloveHybridAStarVisualizer:
                         'turn': float(node.costs.turn) if hasattr(node, 'costs') else 0.0,
                         'cusp': float(node.costs.cusp) if hasattr(node, 'costs') else 0.0
                     },
-                    'trajectory_length': len(node.trajectory_states) if hasattr(node, 'trajectory_states') and node.trajectory_states else 0
+                    'trajectory_length': len(node.forward_simulation_trajectory) if hasattr(node, 'trajectory_states') and node.forward_simulation_trajectory else 0
                 }
                 
                 # Add motion information relative to previous node
@@ -1054,10 +1054,10 @@ def matplotlib_fallback_visualization(path: List[State],
     if explored_nodes:
         # Plot simulation trajectories as lines
         for node in explored_nodes:
-            if hasattr(node, 'trajectory_states') and node.trajectory_states and len(node.trajectory_states) > 1:
-                traj_x = [s.x for s in node.trajectory_states]
-                traj_y = [s.y for s in node.trajectory_states]
-                color = 'green' if hasattr(node.trajectory_states[0], 'direction') and node.trajectory_states[0].direction == DirectionMode.FORWARD else 'red'
+            if hasattr(node, 'trajectory_states') and node.forward_simulation_trajectory and len(node.forward_simulation_trajectory) > 1:
+                traj_x = [s.x for s in node.forward_simulation_trajectory]
+                traj_y = [s.y for s in node.forward_simulation_trajectory]
+                color = 'green' if hasattr(node.forward_simulation_trajectory[0], 'direction') and node.forward_simulation_trajectory[0].direction == DirectionMode.FORWARD else 'red'
                 ax.plot(traj_x, traj_y, color=color, alpha=0.3, linewidth=0.8, linestyle='-')
         
         # Plot exploration nodes as circles (colored by cost)

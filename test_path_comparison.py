@@ -108,8 +108,8 @@ def compare_path_methods() -> None:
         # Show trajectory breakdown
         print(f"\nTrajectory breakdown:")
         for i, node in enumerate(path_nodes[1:], 1):
-            if node.trajectory_states:
-                print(f"Node {i}: {len(node.trajectory_states)} trajectory states")
+            if node.forward_simulation_trajectory:
+                print(f"Node {i}: {len(node.forward_simulation_trajectory)} trajectory states")
         
         print(f"\nKey advantages of new method:")
         print(f"1. Preserves vehicle dynamics from forward simulation")

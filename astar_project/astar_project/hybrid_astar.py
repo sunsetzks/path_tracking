@@ -65,7 +65,7 @@ class Node:
     h_cost: float = 0.0  # heuristic cost to goal
     parent: Optional['Node'] = None
     costs: Costs = field(default_factory=Costs)
-    trajectory_states: Optional[List[State]] = None  # forward simulation trajectory from parent to this node
+    forward_simulation_trajectory: Optional[List[State]] = None  # forward simulation trajectory from parent to this node
     
     # Backward compatibility properties
     @property
@@ -368,7 +368,7 @@ class HybridAStar:
                     g_cost=total_g_cost,
                     parent=node,
                     costs=costs,
-                    trajectory_states=trajectory_states # Store the forward simulation trajectory
+                    forward_simulation_trajectory=trajectory_states # Store the forward simulation trajectory
                 )
                 
                 successors.append(successor)
@@ -584,15 +584,15 @@ class HybridAStar:
         # For each subsequent node, add its trajectory states (excluding the first to avoid duplication)
         for i in range(1, len(path_nodes)):
             node = path_nodes[i]
-            if node.trajectory_states:
+            if node.forward_simulation_trajectory:
                 # Assert the first trajectory state matches the previous final state
-                assert node.trajectory_states[0] == prev_final_state, (
+                assert node.forward_simulation_trajectory[0] == prev_final_state, (
                     f"Trajectory mismatch at node {i}: "
-                    f"{node.trajectory_states[0]} != {prev_final_state}"
+                    f"{node.forward_simulation_trajectory[0]} != {prev_final_state}"
                 )
                 # Add all except the first (already added)
-                detailed_path.extend(node.trajectory_states[1:])
-                prev_final_state = node.trajectory_states[-1]
+                detailed_path.extend(node.forward_simulation_trajectory[1:])
+                prev_final_state = node.forward_simulation_trajectory[-1]
 
         return detailed_path
 
@@ -628,7 +628,7 @@ if __name__ == "__main__":
     
     # Plan path
     print("Planning path with Hybrid A*...")
-    path = planner.plan_path(start, goal, max_iterations=5000)
+    path = planner.plan_path(start, goal, max_iterations=50000)
     
     if path:
         print(f"Path found with {len(path)} waypoints")

@@ -436,19 +436,19 @@ class HybridAStarVisualizer:
             for node in explored_nodes:
                 if node.parent is not None:
                     # Use trajectory states if available, otherwise fall back to straight line
-                    if hasattr(node, 'trajectory_states') and node.trajectory_states:
+                    if hasattr(node, 'trajectory_states') and node.forward_simulation_trajectory:
                         # Plot the forward simulation trajectory from parent to this node
                         
                         # Ensure the first node in trajectory_states matches node.parent.state
-                        if (abs(node.trajectory_states[0].x - node.parent.state.x) > 1e-6 or
-                            abs(node.trajectory_states[0].y - node.parent.state.y) > 1e-6):
+                        if (abs(node.forward_simulation_trajectory[0].x - node.parent.state.x) > 1e-6 or
+                            abs(node.forward_simulation_trajectory[0].y - node.parent.state.y) > 1e-6):
                             print("Mismatch in trajectory_states[0] and node.parent.state:")
-                            print("trajectory_states[0]:", node.trajectory_states[0])
+                            print("trajectory_states[0]:", node.forward_simulation_trajectory[0])
                             print("node.parent.state:", node.parent.state)
                             raise AssertionError("First node in trajectory_states does not match node.parent.state")
 
-                        traj_x = [s.x for s in node.trajectory_states]
-                        traj_y = [s.y for s in node.trajectory_states]
+                        traj_x = [s.x for s in node.forward_simulation_trajectory]
+                        traj_y = [s.y for s in node.forward_simulation_trajectory]
                         
                         # Color by cost for better visualization
                         cost_normalized = min(1.0, node.f_cost / 100.0)  # Normalize cost
