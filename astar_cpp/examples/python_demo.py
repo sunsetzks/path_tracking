@@ -115,7 +115,7 @@ def run_detailed_example():
     
     # Set up environment
     obstacle_map = create_test_environment()
-    planner.set_obstacle_map(obstacle_map, -10.0, -10.0)
+    planner.set_obstacle_map([], -10.0, -10.0)
     
     # Define start and goal
     start = ha.State(-5.0, -5.0, np.pi/6, ha.DirectionMode.NONE, 0.0)
@@ -127,7 +127,7 @@ def run_detailed_example():
     # Plan path
     print("\nPlanning path...")
     start_time = time.time()
-    path = planner.plan_path(start, goal, 5000)
+    path = planner.plan_path(start, goal, 50000)
     end_time = time.time()
     
     duration = (end_time - start_time) * 1000
