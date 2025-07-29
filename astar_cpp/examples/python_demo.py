@@ -63,7 +63,7 @@ def run_performance_comparison():
     
     start = ha.State(-8.0, -8.0, np.pi/4, ha.DirectionMode.NONE, 0.0)
     goal = ha.State(15.0, 15.0, np.pi/2, ha.DirectionMode.FORWARD, 0.0)
-    
+
     print(f"{'Config':<10} {'Time (ms)':<12} {'Waypoints':<12} {'Distance':<12} {'Explored':<12}")
     print("-" * 60)
     
