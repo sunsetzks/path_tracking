@@ -108,8 +108,10 @@ class FoxgloveHybridAStarVisualizer:
             log_dir = project_root / "logs"
             log_dir.mkdir(exist_ok=True)  # Create log directory if it doesn't exist
             
-            timestamp = int(time.time())
-            mcap_filename = f"hybrid_astar_{timestamp}.mcap"
+            # Use formatted date instead of timestamp
+            current_time = time.time()
+            formatted_date = time.strftime("%Y%m%d_%H%M%S", time.localtime(current_time))
+            mcap_filename = f"hybrid_astar_{formatted_date}.mcap"
             self.mcap_output_path = str(log_dir / mcap_filename)
         else:
             self.mcap_output_path = mcap_output_path
