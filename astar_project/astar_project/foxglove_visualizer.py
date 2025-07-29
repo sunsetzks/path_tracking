@@ -213,25 +213,24 @@ class FoxgloveHybridAStarVisualizer:
         if self.path_data_channel:
             self.path_data_channel.log(path_data)
     
-    def visualize_path_planning(self, 
-                              path: List[State],
+    def visualize_path_planning(self,
                               start: State,
                               goal: State,
+                              path_nodes: Optional[List[Node]] = None,
                               explored_nodes: Optional[List[Node]] = None,
                               simulation_trajectories: Optional[List[Any]] = None,
                               obstacle_map: Optional[np.ndarray] = None,
                               map_origin_x: float = 0,
                               map_origin_y: float = 0,
                               grid_resolution: float = 1.0,
-                              vehicle_model: Optional[VehicleModel] = None,
-                              path_nodes: Optional[List[Node]] = None) -> None:
+                              vehicle_model: Optional[VehicleModel] = None) -> None:
         """
         Visualize complete path planning results with 3D primitives
         
         Args:
-            path: Final planned path (list of states)
             start: Start state
             goal: Goal state
+            path_nodes: Final planned path nodes with full information (optional)
             explored_nodes: Nodes explored during search
             simulation_trajectories: Forward simulation trajectories
             obstacle_map: 2D obstacle map
@@ -239,8 +238,15 @@ class FoxgloveHybridAStarVisualizer:
             map_origin_y: Map origin Y coordinate
             grid_resolution: Grid resolution
             vehicle_model: Vehicle kinematic model
-            path_nodes: Original path nodes with full information (optional)
         """
+        
+        # Extract path states from nodes using the proper method if available, otherwise use empty list
+        if path_nodes and hasattr(self, 'planner') and hasattr(self.planner, 'extract_detailed_path'):
+            # Use the planner's extract_detailed_path method for more detailed path
+            path = self.planner.extract_detailed_path(path_nodes)
+        else:
+            # Fallback: extract states directly from nodes
+            path = [node.state for node in path_nodes] if path_nodes else []
         
         # Store current data
         self.current_data = {
@@ -783,17 +789,16 @@ class FoxgloveHybridAStarVisualizer:
             
             # Update visualization with final result, including original nodes
             self.visualize_path_planning(
-                path=detailed_path,
                 start=start,
                 goal=goal,
+                path_nodes=result,  # Pass original node objects for detailed data
                 explored_nodes=viz_data.get('explored_nodes', []),
                 simulation_trajectories=viz_data.get('simulation_trajectories', []),
                 obstacle_map=viz_data.get('obstacle_map'),
                 map_origin_x=viz_data.get('map_origin_x', 0),
                 map_origin_y=viz_data.get('map_origin_y', 0),
                 grid_resolution=viz_data.get('grid_resolution', 1.0),
-                vehicle_model=viz_data.get('vehicle_model'),
-                path_nodes=result  # Pass original node objects for detailed data
+                vehicle_model=viz_data.get('vehicle_model')
             )
             print(f"✓ Path visualization updated with {len(path_states)} waypoints")
         else:
@@ -871,17 +876,16 @@ async def run_mcap_only_example() -> None:
             
             # Record visualization data to MCAP
             visualizer.visualize_path_planning(
-                path=path_states,
                 start=start,
                 goal=goal,
+                path_nodes=result,  # Pass original node objects for detailed data
                 explored_nodes=viz_data.get('explored_nodes', []),
                 simulation_trajectories=viz_data.get('simulation_trajectories', []),
                 obstacle_map=viz_data.get('obstacle_map'),
                 map_origin_x=viz_data.get('map_origin_x', 0),
                 map_origin_y=viz_data.get('map_origin_y', 0),
                 grid_resolution=viz_data.get('grid_resolution', 1.0),
-                vehicle_model=viz_data.get('vehicle_model'),
-                path_nodes=result  # Pass original node objects for detailed data
+                vehicle_model=viz_data.get('vehicle_model')
             )
             print(f"✓ Path recorded with {len(path_states)} waypoints")
         else:

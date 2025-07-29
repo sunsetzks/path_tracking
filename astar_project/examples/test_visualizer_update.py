@@ -69,9 +69,9 @@ def visualize_planning_result(planner: HybridAStar, path: Optional[List[Node]], 
         
         # Use the visualize_path_planning method
         visualizer.visualize_path_planning(
-            path=path_states,
             start=start,
             goal=goal,
+            path_nodes=path,  # Pass original node objects for detailed data
             explored_nodes=viz_data['explored_nodes'],
             simulation_trajectories=viz_data['simulation_trajectories'],
             obstacle_map=viz_data['obstacle_map'],
@@ -315,9 +315,9 @@ def test_foxglove_fallback():
             
             # Use the visualize_path_planning method
             visualizer.visualize_path_planning(
-                path=path_states,
                 start=start,
                 goal=goal,
+                path_nodes=path_nodes,  # Pass original node objects for detailed data
                 explored_nodes=viz_data['explored_nodes'],
                 simulation_trajectories=viz_data['simulation_trajectories'],
                 obstacle_map=viz_data['obstacle_map'],
