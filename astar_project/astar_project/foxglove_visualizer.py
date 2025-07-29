@@ -163,7 +163,56 @@ class FoxgloveHybridAStarVisualizer:
         self.exploration_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/exploration")
         self.start_goal_channel = SceneUpdateChannel(topic="/hybrid_astar/visualization/start_goal")
         self.stats_channel = Channel(topic="/hybrid_astar/visualization/statistics")
-        self.path_data_channel = Channel(topic="/hybrid_astar/visualization/path_data")
+        # Define schema for path data channel
+        path_data_schema = {
+            "type": "object",
+            "name": "PathData",
+            "description": "Detailed path node information with costs and motion data",
+            "properties": {
+                "index": {"type": "number", "description": "Node index in the path"},
+                "timestamp": {"type": "number", "description": "Timestamp when this data was created"},
+                "state": {
+                    "type": "object",
+                    "description": "Vehicle state information",
+                    "properties": {
+                        "x": {"type": "number", "description": "X coordinate"},
+                        "y": {"type": "number", "description": "Y coordinate"},
+                        "yaw": {"type": "number", "description": "Yaw angle in radians"},
+                        "direction": {"type": "string", "description": "Direction of movement"},
+                        "steer": {"type": "number", "description": "Steering angle"}
+                    },
+                    "required": ["x", "y", "yaw", "direction", "steer"]
+                },
+                "costs": {
+                    "type": "object",
+                    "description": "Cost information for path planning",
+                    "properties": {
+                        "g_cost": {"type": "number", "description": "Cost from start"},
+                        "h_cost": {"type": "number", "description": "Heuristic cost to goal"},
+                        "f_cost": {"type": "number", "description": "Total cost (g + h)"},
+                        "distance": {"type": "number", "description": "Distance cost component"},
+                        "steer": {"type": "number", "description": "Steering cost component"},
+                        "turn": {"type": "number", "description": "Turning cost component"},
+                        "cusp": {"type": "number", "description": "Cusp cost component"}
+                    },
+                    "required": ["g_cost", "h_cost", "f_cost"]
+                },
+                "trajectory_length": {"type": "number", "description": "Length of forward simulation trajectory"},
+                "motion": {
+                    "type": "object",
+                    "description": "Motion information relative to previous node",
+                    "properties": {
+                        "distance_from_prev": {"type": "number", "description": "Distance from previous node"},
+                        "yaw_change_from_prev": {"type": "number", "description": "Yaw change from previous node"},
+                        "direction_change": {"type": "boolean", "description": "Whether direction changed from previous node"}
+                    },
+                    "required": ["distance_from_prev", "yaw_change_from_prev", "direction_change"]
+                }
+            },
+            "required": ["index", "timestamp", "state", "costs", "trajectory_length"]
+        }
+        
+        self.path_data_channel = Channel(topic="/hybrid_astar/visualization/path_data", schema=path_data_schema)
         
         print(f"✓ Foxglove server started on ws://localhost:{self.port}")
         if self.mcap_output_path:
@@ -670,7 +719,7 @@ class FoxgloveHybridAStarVisualizer:
         path_data = []
 
         # If we have original path nodes, use their detailed information
-        if path_nodes and len(path_nodes) == len(path):
+        if path_nodes:
             for i, (state, node) in enumerate(zip(path, path_nodes)):
                 node_data = {
                     'index': i,
