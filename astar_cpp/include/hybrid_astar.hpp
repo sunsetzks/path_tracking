@@ -178,7 +178,8 @@ private:
     double map_origin_x_ = 0.0;
     double map_origin_y_ = 0.0;
     
-    // Visualization data
+    // Debug and visualization data
+    bool debug_enabled_ = false;
     std::vector<std::shared_ptr<Node>> explored_nodes_;
     std::vector<std::vector<State>> simulation_trajectories_;
 
@@ -235,6 +236,10 @@ public:
     double get_map_origin_y() const { return map_origin_y_; }
     double get_grid_resolution() const { return grid_resolution_; }
     const VehicleModel& get_vehicle_model() const { return vehicle_model_; }
+    
+    // Debug control methods
+    bool is_debug_enabled() const { return debug_enabled_; }
+    void set_debug_enabled(bool enabled) { debug_enabled_ = enabled; }
 
 private:
     /**

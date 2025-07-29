@@ -422,9 +422,9 @@ class HybridAStar:
         self.simulation_trajectories = []
         
         # Initialize
-        open_list = []
+        open_list: list[Node] = []
         closed_set: Set[Tuple[int, int, int, int]] = set()
-        node_map = {}
+        node_map: dict[Tuple[int, int, int, int], Node] = {}
         
         # Create start node
         start_node = Node(state=start, g_cost=0.0)

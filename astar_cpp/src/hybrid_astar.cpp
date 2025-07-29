@@ -199,10 +199,13 @@ std::vector<std::shared_ptr<Node>> HybridAStar::get_successors(const std::shared
             
             State final_state = simulated_states.back();
             
-            // Store simulation trajectory for visualization
+            // Store simulation trajectory for visualization (only if debug is enabled)
             std::vector<State> trajectory = {current_state};
             trajectory.insert(trajectory.end(), simulated_states.begin(), simulated_states.end());
-            simulation_trajectories_.push_back(trajectory);
+            
+            if (debug_enabled_) {
+                simulation_trajectories_.push_back(trajectory);
+            }
             
             // Check collision for all states in trajectory
             bool collision_free = true;
@@ -304,8 +307,10 @@ std::optional<std::vector<std::shared_ptr<Node>>> HybridAStar::plan_path(
         
         closed_set.insert(current_key);
         
-        // Store explored node for visualization
-        explored_nodes_.push_back(current_node);
+        // Store explored node for visualization (only if debug is enabled)
+        if (debug_enabled_) {
+            explored_nodes_.push_back(current_node);
+        }
         
         // Check if goal reached
         if (is_goal_reached(current_node->state, goal)) {
