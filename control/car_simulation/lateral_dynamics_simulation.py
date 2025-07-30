@@ -1,6 +1,6 @@
 """
 Vehicle Lateral Dynamics Simulation with Center of Mass Reference
-车辆横向动力学仿真 - 以质心为参考点
+Vehicle Lateral Dynamics Simulation - Center of Mass Reference
 
 This simulation demonstrates the lateral dynamics equations:
 1. Lateral force balance: m(v_y_dot + v_x * psi_dot) = F_yf * cos(delta) + F_yr
@@ -357,8 +357,8 @@ def main():
         print(f"Scenario {i+1} completed.\n")
     
     print("=== Key Insights from the Simulation ===")
-    print("1. 横向力平衡方程 shows how lateral forces create lateral acceleration")
-    print("2. 横摆力矩平衡方程 shows how tire forces create yaw motion")
+    print("1. Lateral force balance equation shows how lateral forces create lateral acceleration")
+    print("2. Yaw moment balance equation shows how tire forces create yaw motion")
     print("3. The coupling between v_y and ψ̇ creates complex vehicle dynamics")
     print("4. Tire slip angles determine the lateral forces generated")
     print("5. Vehicle stability depends on the balance between front and rear forces")

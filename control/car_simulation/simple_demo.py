@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 def demonstrate_lateral_dynamics():
     """Demonstrate the physical meaning of lateral dynamics equations"""
     
-    print("=== 横向动力学方程物理意义演示 ===\n")
+    print("=== Lateral Dynamics Equations Physical Meaning Demo ===\n")
     
     # Vehicle parameters
     m = 1500.0      # 车辆质量 [kg]
@@ -21,69 +21,69 @@ def demonstrate_lateral_dynamics():
     l_f = 1.2       # 质心到前轴距离 [m]
     l_r = 1.6       # 质心到后轴距离 [m]
     
-    print(f"车辆参数:")
-    print(f"  质量 m = {m} kg")
-    print(f"  横摆转动惯量 I_z = {I_z} kg*m²")
-    print(f"  前轴距离 l_f = {l_f} m")
-    print(f"  后轴距离 l_r = {l_r} m\n")
+    print(f"Vehicle Parameters:")
+    print(f"  Mass m = {m} kg")
+    print(f"  Yaw moment of inertia I_z = {I_z} kg*m²")
+    print(f"  Front axle distance l_f = {l_f} m")
+    print(f"  Rear axle distance l_r = {l_r} m\n")
     
     # Scenario: Constant speed turn
     v_x = 20.0      # 纵向速度 [m/s]
     delta = 0.1     # 转向角 [rad] ≈ 5.7°
     
-    print(f"场景：恒速转弯")
-    print(f"  纵向速度 v_x = {v_x} m/s")
-    print(f"  转向角 δ = {delta:.3f} rad = {np.degrees(delta):.1f}°\n")
+    print(f"Scenario: Constant Speed Turn")
+    print(f"  Longitudinal speed v_x = {v_x} m/s")
+    print(f"  Steering angle δ = {delta:.3f} rad = {np.degrees(delta):.1f}°\n")
     
     # Simulate steady-state conditions
-    print("=== 稳态分析 ===")
+    print("=== Steady-State Analysis ===")
     
     # For steady-state circular motion, we can calculate required forces
     # Assume steady-state: v̇_y = 0, ψ̈ = 0
     # This gives us: v_x * ψ̇ = (F_yf + F_yr) / m
     
     # For a simple analysis, assume equal front and rear forces
-    R = 50.0  # 转弯半径 [m]
-    psi_dot = v_x / R  # 横摆角速度
+    R = 50.0  # Turning radius [m]
+    psi_dot = v_x / R  # Yaw rate
     
     # Required lateral acceleration for circular motion
     a_y_required = v_x * psi_dot
     F_total_required = m * a_y_required
     
-    print(f"稳态圆周运动分析:")
-    print(f"  转弯半径 R = {R} m")
-    print(f"  横摆角速度 ψ̇ = {psi_dot:.3f} rad/s = {np.degrees(psi_dot):.1f}°/s")
-    print(f"  所需横向加速度 a_y = {a_y_required:.2f} m/s²")
-    print(f"  所需总横向力 F_total = {F_total_required:.0f} N\n")
+    print(f"Steady-State Circular Motion Analysis:")
+    print(f"  Turning radius R = {R} m")
+    print(f"  Yaw rate ψ̇ = {psi_dot:.3f} rad/s = {np.degrees(psi_dot):.1f}°/s")
+    print(f"  Required lateral acceleration a_y = {a_y_required:.2f} m/s²")
+    print(f"  Required total lateral force F_total = {F_total_required:.0f} N\n")
     
     # Demonstrate force distribution
-    print("=== 力分布分析 ===")
+    print("=== Force Distribution Analysis ===")
     
     # Simple force distribution (assuming no slip angles for now)
-    F_yf = F_total_required * 0.6  # 前轮承担60%
-    F_yr = F_total_required * 0.4  # 后轮承担40%
+    F_yf = F_total_required * 0.6  # Front wheels take 60%
+    F_yr = F_total_required * 0.4  # Rear wheels take 40%
     
-    print(f"假设力分布:")
-    print(f"  前轮侧向力 F_yf = {F_yf:.0f} N")
-    print(f"  后轮侧向力 F_yr = {F_yr:.0f} N")
+    print(f"Assumed Force Distribution:")
+    print(f"  Front lateral force F_yf = {F_yf:.0f} N")
+    print(f"  Rear lateral force F_yr = {F_yr:.0f} N")
     
     # Check equation 1: m(v̇_y + v_x ψ̇) = F_yf cos(δ) + F_yr
     left_side = m * (0 + v_x * psi_dot)  # v̇_y = 0 for steady state
     right_side = F_yf * np.cos(delta) + F_yr
     
-    print(f"\n方程1验证: m(v̇_y + v_x ψ̇) = F_yf cos(δ) + F_yr")
-    print(f"  左边: {left_side:.0f} N")
-    print(f"  右边: {right_side:.0f} N")
-    print(f"  误差: {abs(left_side - right_side):.0f} N")
+    print(f"\nEquation 1 Verification: m(v̇_y + v_x ψ̇) = F_yf cos(δ) + F_yr")
+    print(f"  Left side: {left_side:.0f} N")
+    print(f"  Right side: {right_side:.0f} N")
+    print(f"  Error: {abs(left_side - right_side):.0f} N")
     
     # Check equation 2: I_z ψ̈ = l_f F_yf cos(δ) - l_r F_yr
     left_side_2 = I_z * 0  # ψ̈ = 0 for steady state
     right_side_2 = l_f * F_yf * np.cos(delta) - l_r * F_yr
     
-    print(f"\n方程2验证: I_z ψ̈ = l_f F_yf cos(δ) - l_r F_yr")
-    print(f"  左边: {left_side_2:.0f} N*m")
-    print(f"  右边: {right_side_2:.0f} N*m")
-    print(f"  误差: {abs(left_side_2 - right_side_2):.0f} N*m")
+    print(f"\nEquation 2 Verification: I_z ψ̈ = l_f F_yf cos(δ) - l_r F_yr")
+    print(f"  Left side: {left_side_2:.0f} N*m")
+    print(f"  Right side: {right_side_2:.0f} N*m")
+    print(f"  Error: {abs(left_side_2 - right_side_2):.0f} N*m")
     
     return v_x, delta, psi_dot, F_yf, F_yr
 
@@ -101,20 +101,20 @@ def create_force_diagram():
     ax1.set_ylim(-1, 4)
     ax1.set_aspect('equal')
     ax1.grid(True, alpha=0.3)
-    ax1.set_title('车辆受力图 (俯视图)', fontsize=14)
+    ax1.set_title('Vehicle Force Diagram (Top View)', fontsize=14)
     
     # Vehicle outline
     vehicle_x = [-l_r, l_f, l_f, -l_r, -l_r]
     vehicle_y = [-0.8, -0.8, 0.8, 0.8, -0.8]
-    ax1.plot(vehicle_x, vehicle_y, 'k-', linewidth=2, label='车身')
+    ax1.plot(vehicle_x, vehicle_y, 'k-', linewidth=2, label='Vehicle Body')
     
     # Center of mass
-    ax1.plot(0, 0, 'ro', markersize=8, label='质心')
+    ax1.plot(0, 0, 'ro', markersize=8, label='Center of Mass')
     ax1.text(0.1, 0.1, 'CG', fontsize=12)
     
     # Axles
-    ax1.plot([l_f, l_f], [-1, 1], 'b-', linewidth=3, label='前轴')
-    ax1.plot([-l_r, -l_r], [-1, 1], 'g-', linewidth=3, label='后轴')
+    ax1.plot([l_f, l_f], [-1, 1], 'b-', linewidth=3, label='Front Axle')
+    ax1.plot([-l_r, -l_r], [-1, 1], 'g-', linewidth=3, label='Rear Axle')
     
     # Forces
     F_scale = 0.002
@@ -156,7 +156,7 @@ def create_force_diagram():
     ax2.set_ylim(-2, 2)
     ax2.set_aspect('equal')
     ax2.grid(True, alpha=0.3)
-    ax2.set_title('横摆力矩图', fontsize=14)
+    ax2.set_title('Yaw Moment Diagram', fontsize=14)
     
     # Vehicle outline (simplified)
     ax2.plot(vehicle_x, vehicle_y, 'k-', linewidth=2)
@@ -188,7 +188,7 @@ def create_force_diagram():
     
     # Net moment
     net_moment = l_f * F_yf - l_r * F_yr
-    ax2.text(0, 1.5, f'净力矩 = M_f - M_r = {net_moment:.0f} N·m', 
+    ax2.text(0, 1.5, f'Net Moment = M_f - M_r = {net_moment:.0f} N·m',
              ha='center', fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow"))
     
     plt.tight_layout()
@@ -197,7 +197,7 @@ def create_force_diagram():
 def demonstrate_dynamic_response():
     """Demonstrate how the vehicle responds to steering input"""
     
-    print("\n=== 动态响应演示 ===")
+    print("\n=== Dynamic Response Demonstration ===")
     
     # Time simulation
     dt = 0.01
@@ -209,8 +209,8 @@ def demonstrate_dynamic_response():
     I_z = 2500.0
     l_f = 1.2
     l_r = 1.6
-    C_f = 80000.0  # 前轮侧偏刚度
-    C_r = 80000.0  # 后轮侧偏刚度
+    C_f = 80000.0  # Front tire cornering stiffness
+    C_r = 80000.0  # Rear tire cornering stiffness
     
     # Initial conditions
     v_x = 20.0
@@ -257,35 +257,35 @@ def demonstrate_dynamic_response():
     
     # Plot results
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle('车辆横向动力学响应', fontsize=16)
+    fig.suptitle('Vehicle Lateral Dynamics Response', fontsize=16)
     
     # Steering input
     axes[0, 0].plot(time, delta * 180 / np.pi, 'k-', linewidth=2)
-    axes[0, 0].set_title('转向角输入')
-    axes[0, 0].set_xlabel('时间 [s]')
-    axes[0, 0].set_ylabel('转向角 [deg]')
+    axes[0, 0].set_title('Steering Angle Input')
+    axes[0, 0].set_xlabel('Time [s]')
+    axes[0, 0].set_ylabel('Steering Angle [deg]')
     axes[0, 0].grid(True)
     
     # Lateral velocity response
     axes[0, 1].plot(time, v_y_history, 'b-', linewidth=2)
-    axes[0, 1].set_title('横向速度响应')
-    axes[0, 1].set_xlabel('时间 [s]')
+    axes[0, 1].set_title('Lateral Velocity Response')
+    axes[0, 1].set_xlabel('Time [s]')
     axes[0, 1].set_ylabel('v_y [m/s]')
     axes[0, 1].grid(True)
     
     # Yaw rate response
     axes[1, 0].plot(time, psi_dot_history * 180 / np.pi, 'r-', linewidth=2)
-    axes[1, 0].set_title('横摆角速度响应')
-    axes[1, 0].set_xlabel('时间 [s]')
+    axes[1, 0].set_title('Yaw Rate Response')
+    axes[1, 0].set_xlabel('Time [s]')
     axes[1, 0].set_ylabel('ψ̇ [deg/s]')
     axes[1, 0].grid(True)
     
     # Tire forces
-    axes[1, 1].plot(time, F_yf_history / 1000, 'b-', linewidth=2, label='前轮')
-    axes[1, 1].plot(time, F_yr_history / 1000, 'g-', linewidth=2, label='后轮')
-    axes[1, 1].set_title('轮胎侧向力')
-    axes[1, 1].set_xlabel('时间 [s]')
-    axes[1, 1].set_ylabel('力 [kN]')
+    axes[1, 1].plot(time, F_yf_history / 1000, 'b-', linewidth=2, label='Front')
+    axes[1, 1].plot(time, F_yr_history / 1000, 'g-', linewidth=2, label='Rear')
+    axes[1, 1].set_title('Tire Lateral Forces')
+    axes[1, 1].set_xlabel('Time [s]')
+    axes[1, 1].set_ylabel('Force [kN]')
     axes[1, 1].legend()
     axes[1, 1].grid(True)
     
@@ -306,23 +306,23 @@ def main():
     fig2 = demonstrate_dynamic_response()
     plt.show()
     
-    print("\n=== 总结：横向动力学方程的作用 ===")
-    print("1. 方程1 (横向力平衡): 描述横向力如何产生横向加速度")
-    print("   - 左边: m(v̇_y + v_x ψ̇) 是横向惯性力")
-    print("   - 右边: F_yf cos(δ) + F_yr 是轮胎提供的横向力")
-    print("   - 物理意义: 轮胎力必须平衡惯性力才能维持运动")
+    print("\n=== Summary: Role of Lateral Dynamics Equations ===")
+    print("1. Equation 1 (Lateral Force Balance): Describes how lateral forces create lateral acceleration")
+    print("   - Left side: m(v̇_y + v_x ψ̇) is the lateral inertial force")
+    print("   - Right side: F_yf cos(δ) + F_yr is the lateral force provided by tires")
+    print("   - Physical meaning: Tire forces must balance inertial forces to maintain motion")
     print()
-    print("2. 方程2 (横摆力矩平衡): 描述轮胎力如何产生横摆运动")
-    print("   - 左边: I_z ψ̈ 是横摆角加速度产生的惯性力矩")
-    print("   - 右边: l_f F_yf cos(δ) - l_r F_yr 是前后轮力矩差")
-    print("   - 物理意义: 前后轮力矩差决定车辆的旋转趋势")
+    print("2. Equation 2 (Yaw Moment Balance): Describes how tire forces create yaw motion")
+    print("   - Left side: I_z ψ̈ is the inertial moment from yaw angular acceleration")
+    print("   - Right side: l_f F_yf cos(δ) - l_r F_yr is the moment difference between front and rear")
+    print("   - Physical meaning: Front-rear moment difference determines vehicle rotation tendency")
     print()
-    print("3. 实际应用:")
-    print("   - 车辆稳定性控制 (ESP/VSC)")
-    print("   - 转向系统设计")
-    print("   - 轮胎性能分析")
-    print("   - 自动驾驶路径跟踪")
-    print("   - 车辆动力学仿真")
+    print("3. Practical Applications:")
+    print("   - Vehicle Stability Control (ESP/VSC)")
+    print("   - Steering system design")
+    print("   - Tire performance analysis")
+    print("   - Autonomous vehicle path tracking")
+    print("   - Vehicle dynamics simulation")
 
 if __name__ == "__main__":
     main() 
