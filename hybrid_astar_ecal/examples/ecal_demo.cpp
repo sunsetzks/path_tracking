@@ -71,15 +71,16 @@ int main() {
         std::cerr << "Failed to initialize eCAL publisher" << std::endl;
         return 1;
     }
-    
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     // Publish initial status
-    viz_pub.publish_planning_status(1, "Starting planning", 0, 1000); // Status 1 = PLANNING
+    viz_pub.publish_planning_status(1, "Starting planning", 0, 100000); // Status 1 = PLANNING
     
     // Plan path with status updates
     std::cout << "\nPlanning path..." << std::endl;
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    auto path_nodes = planner.plan_path(start_state, goal_state, 1000);
+    auto path_nodes = planner.plan_path(start_state, goal_state, 100000);
     
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -128,7 +129,7 @@ int main() {
     // Keep publishing for a while to allow Foxglove to receive the data
     std::cout << "\nKeeping eCAL connection alive for 5 seconds..." << std::endl;
     for (int i = 0; i < 5; ++i) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(100));
         std::cout << "." << std::flush;
     }
     std::cout << std::endl;

@@ -31,6 +31,7 @@ HybridAStar::HybridAStar(const PlanningConfig& config)
     : config_(config)
     , vehicle_model_(config.wheelbase, config.max_steer)
     , simulation_steps_(static_cast<int>(config.simulation_time / config.dt))
+    , debug_enabled_(config.debug_enabled)
 {
     // Initialize steering angle rates for motion primitives (rad/s)
     steer_rates_ = {-M_PI/2, -M_PI/4, 0, M_PI/4, M_PI/2};
