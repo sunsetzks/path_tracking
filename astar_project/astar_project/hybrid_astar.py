@@ -157,14 +157,16 @@ class VehicleModel:
 class HybridAStar:
     """Hybrid A* path planning algorithm"""
     
-    def __init__(self, 
+    def __init__(self,
                  vehicle_model: VehicleModel,
                  grid_resolution: float = 1.0,
                  angle_resolution: float = np.pi/8,
                  steer_resolution: float = np.pi/16,
                  velocity: float = 2.0,
                  simulation_time: float = 1.0,
-                 dt: float = 0.1) -> None:
+                 dt: float = 0.1,
+                 position_tolerance: float = 1.0,
+                 angle_tolerance: float = np.pi/6) -> None:
         """
         Args:
             vehicle_model: Vehicle kinematic model
@@ -174,6 +176,8 @@ class HybridAStar:
             velocity: Fixed linear velocity for simulation (m/s)
             simulation_time: Forward simulation time (s)
             dt: Simulation time step (s)
+            position_tolerance: Position tolerance for goal reaching (m)
+            angle_tolerance: Angle tolerance for goal reaching (rad)
         """
         self.vehicle_model = vehicle_model
         self.grid_resolution = grid_resolution
@@ -208,6 +212,10 @@ class HybridAStar:
         self.search_start_time = 0.0
         self.search_end_time = 0.0
         self.total_search_time = 0.0
+        
+        # Goal tolerance settings
+        self.position_tolerance = position_tolerance
+        self.angle_tolerance = angle_tolerance
     
     def set_obstacle_map(self, obstacle_map: np.ndarray, 
                         origin_x: float = 0, origin_y: float = 0) -> None:
@@ -389,15 +397,13 @@ class HybridAStar:
         grid_steer = int(state.steer / self.steer_resolution)
         return (grid_x, grid_y, grid_yaw, grid_steer)
     
-    def is_goal_reached(self, current: State, goal: State, 
-                       position_tolerance: float = 1.0, 
-                       angle_tolerance: float = np.pi/6) -> bool:
+    def is_goal_reached(self, current: State, goal: State) -> bool:
         """Check if goal is reached within tolerances"""
         position_error = np.sqrt((current.x - goal.x)**2 + (current.y - goal.y)**2)
         angle_error = abs(self.vehicle_model.normalize_angle(current.yaw - goal.yaw))
         
-        return (position_error <= position_tolerance and 
-                angle_error <= angle_tolerance)
+        return (position_error <= self.position_tolerance and
+                angle_error <= self.angle_tolerance)
     
     def reconstruct_path(self, goal_node: Node) -> List[Node]:
         """Reconstruct path from goal node to start"""
@@ -642,7 +648,9 @@ if __name__ == "__main__":
         angle_resolution=np.pi/8,
         velocity=2.0,
         simulation_time=0.5,
-        dt=0.1
+        dt=0.1,
+        position_tolerance=0.5,
+        angle_tolerance=np.pi/12  # 15 degrees tolerance
     )
     
     # Create simple obstacle map (optional)
