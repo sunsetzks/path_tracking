@@ -115,6 +115,7 @@ public:
         double exploration_sphere_size = 0.03;
         double exploration_line_thickness = 0.01;
         bool show_final_path_arrows = false;
+        bool show_node_forward_trajectories = true;  // New option to show forward simulation trajectories
     };
     
     /**

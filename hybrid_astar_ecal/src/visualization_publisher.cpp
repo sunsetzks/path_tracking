@@ -215,17 +215,53 @@ foxglove::SceneUpdate VisualizationPublisher::create_path_scene_update(
         entity->set_frame_id("map");
         *entity->mutable_timestamp() = get_current_timestamp();
         
-        // Create path line
-        std::vector<foxglove::Point3> points;
-        for (const auto& state : path) {
-            points.push_back(create_point3(state.x, state.y, 0.0));
+        // Create path segments with color coding by direction
+        std::vector<foxglove::Point3> current_segment;
+        DirectionMode current_direction = DirectionMode::NONE;
+        
+        for (size_t i = 0; i < path.size(); ++i) {
+            const auto& state = path[i];
+            foxglove::Point3 point = create_point3(state.x, state.y, 0.0);
+            
+            // If direction changes or this is the first point, start/continue segment
+            if (state.direction != current_direction) {
+                // Finish previous segment if it has multiple points
+                if (current_segment.size() > 1) {
+                    auto line = entity->add_lines();
+                    foxglove::Color segment_color;
+                    if (current_direction == DirectionMode::FORWARD) {
+                        segment_color = create_color(0.0, 1.0, 0.0, settings_.path_alpha);  // Green for forward
+                    } else if (current_direction == DirectionMode::BACKWARD) {
+                        segment_color = create_color(1.0, 0.0, 0.0, settings_.path_alpha);  // Red for backward
+                    } else {
+                        segment_color = create_color(1.0, 0.0, 1.0, settings_.path_alpha);  // Magenta for unknown (original color)
+                    }
+                    *line = create_line(current_segment, settings_.path_line_thickness, segment_color);
+                }
+                
+                // Start new segment
+                current_segment.clear();
+                current_direction = state.direction;
+            }
+            
+            current_segment.push_back(point);
         }
         
-        auto path_line = entity->add_lines();
-        *path_line = create_line(points, settings_.path_line_thickness, 
-                                create_color(1.0, 0.0, 1.0, settings_.path_alpha));
+        // Finish last segment
+        if (current_segment.size() > 1) {
+            auto line = entity->add_lines();
+            foxglove::Color segment_color;
+            if (current_direction == DirectionMode::FORWARD) {
+                segment_color = create_color(0.0, 1.0, 0.0, settings_.path_alpha);  // Green for forward
+            } else if (current_direction == DirectionMode::BACKWARD) {
+                segment_color = create_color(1.0, 0.0, 0.0, settings_.path_alpha);  // Red for backward
+            } else {
+                segment_color = create_color(1.0, 0.0, 1.0, settings_.path_alpha);  // Magenta for unknown (original color)
+            }
+            *line = create_line(current_segment, settings_.path_line_thickness, segment_color);
+        }
         
-        // Add vehicle orientation arrows if enabled
+        // Add vehicle orientation arrows if enabled (also color-coded by direction)
         if (settings_.show_final_path_arrows) {
             int step = std::max(1, static_cast<int>(path.size()) / 20);
             for (size_t i = 0; i < path.size(); i += step) {
@@ -235,7 +271,15 @@ foxglove::SceneUpdate VisualizationPublisher::create_path_scene_update(
                 arrow->set_shaft_diameter(0.05);
                 arrow->set_head_length(0.2);
                 arrow->set_head_diameter(0.1);
-                *arrow->mutable_color() = create_color(1.0, 0.5, 0.0, 0.8);
+                
+                // Color arrows by direction
+                if (path[i].direction == DirectionMode::FORWARD) {
+                    *arrow->mutable_color() = create_color(0.0, 0.8, 0.0, 0.9);  // Green for forward
+                } else if (path[i].direction == DirectionMode::BACKWARD) {
+                    *arrow->mutable_color() = create_color(0.8, 0.0, 0.0, 0.9);  // Red for backward
+                } else {
+                    *arrow->mutable_color() = create_color(1.0, 0.5, 0.0, 0.8);  // Orange for unknown (original color)
+                }
             }
         }
     }
@@ -285,7 +329,38 @@ foxglove::SceneUpdate VisualizationPublisher::create_exploration_scene_update(
         }
     }
     
-    // Visualization for simulation trajectories as lines
+    // Visualization for each node's forward simulation trajectory as lines
+    if (settings_.show_node_forward_trajectories) {
+        for (size_t i = 0; i < max_nodes; ++i) {
+            const auto& node = explored_nodes[i];
+            const auto& trajectory = node->forward_simulation_trajectory;
+            
+            if (trajectory.size() > 1) {
+                // Convert trajectory to points
+                std::vector<foxglove::Point3> points;
+                for (const auto& state : trajectory) {
+                    points.push_back(create_point3(state.x, state.y, 0.0));
+                }
+                
+                // Determine color based on the first point's direction (entire trajectory has same direction)
+                foxglove::Color trajectory_color;
+                if (trajectory[0].direction == DirectionMode::FORWARD) {
+                    trajectory_color = create_color(0.0, 0.8, 0.0, 0.3);  // Green for forward
+                } else if (trajectory[0].direction == DirectionMode::BACKWARD) {
+                    trajectory_color = create_color(0.8, 0.0, 0.0, 0.3);  // Red for backward
+                } else {
+                    trajectory_color = create_color(0.5, 0.5, 0.5, 0.3);  // Gray for unknown
+                }
+                
+                // Create the line for the entire trajectory
+                auto line = entity->add_lines();
+                *line = create_line(points, settings_.exploration_line_thickness * 0.8, trajectory_color);
+            }
+        }
+    }
+    
+    // Also visualize the original simulation trajectories if available (for backward compatibility)
+    // These are shown in blue with lower opacity
     for (size_t i = 0; i < std::min(simulation_trajectories.size(), max_nodes); ++i) {
         const auto& trajectory = simulation_trajectories[i];
         if (trajectory.size() > 1) {
@@ -295,8 +370,8 @@ foxglove::SceneUpdate VisualizationPublisher::create_exploration_scene_update(
             }
             
             auto line = entity->add_lines();
-            *line = create_line(points, settings_.exploration_line_thickness,
-                               create_color(0.0, 0.5, 1.0, 0.3));
+            *line = create_line(points, settings_.exploration_line_thickness * 0.6,
+                               create_color(0.0, 0.5, 1.0, 0.2));
         }
     }
     

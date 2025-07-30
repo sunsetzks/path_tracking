@@ -54,9 +54,9 @@ int main() {
     start_state.direction = DirectionMode::FORWARD;
     
     State goal_state;
-    goal_state.x = 3.0;
-    goal_state.y = 3.0;
-    goal_state.yaw = 0.0;
+    goal_state.x = -3.0;
+    goal_state.y = -3.0;
+    goal_state.yaw = 1.0;
     goal_state.steer = 0.0;
     goal_state.direction = DirectionMode::FORWARD;
     

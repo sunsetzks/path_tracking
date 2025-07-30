@@ -100,8 +100,30 @@ struct VisualizationSettings {
     double exploration_sphere_size = 0.03;   // 搜索节点球体大小
     double exploration_line_thickness = 0.01; // 轨迹线条粗细
     bool show_final_path_arrows = false;     // 是否显示路径方向箭头
+    bool show_node_forward_trajectories = true; // 是否显示节点前向仿真轨迹
 };
 ```
+
+### 颜色编码方案
+
+系统使用方向相关的颜色编码来区分不同的运动模式：
+
+#### 最终路径 (Final Path)
+- **绿色线条**: 前向行驶段 (DirectionMode::FORWARD)
+- **红色线条**: 倒退行驶段 (DirectionMode::BACKWARD)  
+- **洋红色线条**: 未知方向段 (DirectionMode::NONE)
+
+#### 节点前向仿真轨迹 (Node Forward Trajectories)
+- **绿色线条**: 前向仿真轨迹，透明度 0.3
+- **红色线条**: 倒退仿真轨迹，透明度 0.3
+- **灰色线条**: 未知方向轨迹，透明度 0.3
+
+**优化说明**: 由于每条前向仿真轨迹只有一个方向，系统只检查轨迹第一个点的方向来确定整条轨迹的颜色，提高了性能和代码简洁性。
+
+#### 方向箭头 (Direction Arrows)
+- **绿色箭头**: 前向行驶方向
+- **红色箭头**: 倒退行驶方向
+- **橙色箭头**: 未知方向 (备用颜色)
 
 ## 示例程序
 
