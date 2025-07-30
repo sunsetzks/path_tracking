@@ -216,3 +216,4 @@ Desktop.ini
 logs/
 log/
 
+hybrid_astar_cpp/compile_commands.json
