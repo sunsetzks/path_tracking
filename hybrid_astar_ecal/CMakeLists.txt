@@ -30,6 +30,7 @@ set(CORE_SOURCES
     src/common_types.cpp
     src/vehicle_model.cpp
     src/obstacle_map.cpp
+    src/collision_detector.cpp
     src/hybrid_astar.cpp
 )
 

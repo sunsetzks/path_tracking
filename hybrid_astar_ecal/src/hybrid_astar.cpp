@@ -32,36 +32,23 @@ HybridAStar::HybridAStar(const PlanningConfig& config)
     , vehicle_model_(config.wheelbase, config.max_steer)
     , simulation_steps_(static_cast<int>(config.simulation_time / config.dt))
     , debug_enabled_(config.debug_enabled)
+    , collision_detector_(nullptr)
 {
     // Initialize steering angle rates for motion primitives (rad/s)
     steer_rates_ = {-M_PI/2, -M_PI/4, 0, M_PI/4, M_PI/2};
 }
 
-void HybridAStar::set_obstacle_map(const std::vector<std::vector<int>>& obstacle_map,
-                                  double origin_x, double origin_y) {
-    obstacle_map_ = obstacle_map;
-    map_height_ = static_cast<int>(obstacle_map_.size());
-    map_width_ = obstacle_map_.empty() ? 0 : static_cast<int>(obstacle_map_[0].size());
-    map_origin_x_ = origin_x;
-    map_origin_y_ = origin_y;
+void HybridAStar::set_collision_detector(std::shared_ptr<CollisionDetector> collision_detector) {
+    collision_detector_ = collision_detector;
 }
 
 bool HybridAStar::is_collision_free(const State& state) const {
-    if (obstacle_map_.empty()) {
+    if (!collision_detector_) {
+        // No collision detector set, assume collision-free
         return true;
     }
     
-    // Convert world coordinates to grid coordinates
-    int grid_x = static_cast<int>((state.x - map_origin_x_) / config_.grid_resolution);
-    int grid_y = static_cast<int>((state.y - map_origin_y_) / config_.grid_resolution);
-    
-    // Check bounds
-    if (grid_x < 0 || grid_x >= map_width_ || grid_y < 0 || grid_y >= map_height_) {
-        return false;
-    }
-    
-    // Check obstacle
-    return obstacle_map_[grid_y][grid_x] == 0;
+    return collision_detector_->is_collision_free(state);
 }
 
 double HybridAStar::heuristic_cost(const State& state, const State& goal) const {
@@ -200,11 +187,8 @@ std::vector<std::shared_ptr<Node>> HybridAStar::get_successors(const std::shared
             
             // Check collision for all states in trajectory
             bool collision_free = true;
-            for (const auto& state : simulated_states) {
-                if (!is_collision_free(state)) {
-                    collision_free = false;
-                    break;
-                }
+            if (collision_detector_) {
+                collision_free = collision_detector_->is_trajectory_collision_free(simulated_states);
             }
             
             if (!collision_free) {

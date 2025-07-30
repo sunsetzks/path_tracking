@@ -5,11 +5,48 @@
 ## 功能特性
 
 - ✅ 完整的Hybrid A*路径规划算法
+- ✅ **灵活的碰撞检测接口** - 支持网格地图、几何形状和自定义检测器
 - ✅ eCAL中间件集成支持
 - ✅ Foxglove Studio可视化
 - ✅ Protobuf消息协议
 - ✅ 实时规划状态发布
 - ✅ 完整的可视化数据流
+
+## 新特性：模块化碰撞检测
+
+从v2.0开始，我们引入了灵活的碰撞检测接口，替代了硬编码的障碍物地图方式：
+
+### 快速开始
+```cpp
+#include "hybrid_astar.hpp"
+#include "collision_detector.hpp"
+
+// 创建规划器
+HybridAStar planner(config);
+
+// 方式1：网格地图碰撞检测
+auto grid_detector = std::make_shared<GridCollisionDetector>(
+    obstacle_map, grid_resolution, origin_x, origin_y);
+planner.set_collision_detector(grid_detector);
+
+// 方式2：几何形状碰撞检测
+auto geometric_detector = std::make_shared<GeometricCollisionDetector>(vehicle_radius);
+geometric_detector->add_circle_obstacle(x, y, radius);
+geometric_detector->add_rectangle_obstacle(x_min, y_min, x_max, y_max);
+planner.set_collision_detector(geometric_detector);
+
+// 方式3：自定义碰撞检测
+class MyDetector : public CollisionDetector {
+    bool is_collision_free(const State& state) const override {
+        // 你的碰撞检测逻辑
+        return true;
+    }
+};
+auto custom_detector = std::make_shared<MyDetector>();
+planner.set_collision_detector(custom_detector);
+```
+
+📖 详细文档：[碰撞检测接口](COLLISION_DETECTION.md) | [迁移指南](MIGRATION_GUIDE.md)
 
 ## 系统架构
 

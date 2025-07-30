@@ -4,6 +4,7 @@
  */
 
 #include "hybrid_astar.hpp"
+#include "collision_detector.hpp"
 #include "obstacle_map.hpp"
 #include "visualization_publisher.hpp"
 #include <iostream>
@@ -40,10 +41,12 @@ int main() {
         obstacle_map[i][8] = 1; // Vertical wall
     }
     
-    // Set obstacle map
+    // Set collision detector
     double map_origin_x = -5.0;
     double map_origin_y = -5.0;
-    planner.set_obstacle_map(obstacle_map, map_origin_x, map_origin_y);
+    auto collision_detector = std::make_shared<GridCollisionDetector>(
+        obstacle_map, config.grid_resolution, map_origin_x, map_origin_y);
+    planner.set_collision_detector(collision_detector);
     
     // Define start and goal states
     State start_state;

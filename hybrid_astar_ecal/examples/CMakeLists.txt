@@ -7,12 +7,9 @@ find_package(Protobuf REQUIRED)
 
 # List of example executables and their source files
 set(EXAMPLES
+    collision_detector_example
     demo
     ecal_demo
-    integrated_planner_demo
-    scene_update_visualization_example
-    simple_demo
-    timing_demo
 )
 
 # Create executables for each example
@@ -58,26 +55,6 @@ endif()
 # eCAL demo (with eCAL specific features)
 if(TARGET ecal_demo)
     target_compile_definitions(ecal_demo PRIVATE ECAL_DEMO_VERSION)
-endif()
-
-# Integrated planner demo (might need additional libraries)
-if(TARGET integrated_planner_demo)
-    target_compile_definitions(integrated_planner_demo PRIVATE INTEGRATED_DEMO_VERSION)
-endif()
-
-# Scene update visualization example
-if(TARGET scene_update_visualization_example)
-    target_compile_definitions(scene_update_visualization_example PRIVATE SCENE_VIZ_VERSION)
-endif()
-
-# Simple demo (minimal dependencies)
-if(TARGET simple_demo)
-    target_compile_definitions(simple_demo PRIVATE SIMPLE_DEMO_VERSION)
-endif()
-
-# Timing demo (for performance testing)
-if(TARGET timing_demo)
-    target_compile_definitions(timing_demo PRIVATE TIMING_DEMO_VERSION)
 endif()
 
 # Create a custom target to build all examples

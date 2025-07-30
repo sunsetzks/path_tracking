@@ -7,6 +7,7 @@
 
 #include "common_types.hpp"
 #include "vehicle_model.hpp"
+#include "collision_detector.hpp"
 #include <vector>
 #include <memory>
 #include <queue>
@@ -31,13 +32,10 @@ public:
     explicit HybridAStar(const PlanningConfig& config);
     
     /**
-     * @brief Set obstacle map for collision checking
-     * @param obstacle_map 2D grid map (0=free, 1=occupied)
-     * @param origin_x Map origin x coordinate (m)
-     * @param origin_y Map origin y coordinate (m)
+     * @brief Set collision detector for collision checking
+     * @param collision_detector Shared pointer to collision detector implementation
      */
-    void set_obstacle_map(const std::vector<std::vector<int>>& obstacle_map,
-                          double origin_x, double origin_y);
+    void set_collision_detector(std::shared_ptr<CollisionDetector> collision_detector);
     
     /**
      * @brief Plan path from start to goal
@@ -102,12 +100,8 @@ private:
     std::vector<double> steer_rates_;
     int simulation_steps_;
     
-    // Obstacle map
-    std::vector<std::vector<int>> obstacle_map_;
-    int map_width_ = 0;
-    int map_height_ = 0;
-    double map_origin_x_ = 0.0;
-    double map_origin_y_ = 0.0;
+    // Collision detection
+    std::shared_ptr<CollisionDetector> collision_detector_;
     
     // Visualization data
     std::vector<std::shared_ptr<Node>> explored_nodes_;
