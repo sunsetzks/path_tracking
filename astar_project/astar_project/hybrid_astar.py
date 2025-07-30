@@ -463,6 +463,9 @@ class HybridAStar:
             
             # Check if goal reached
             if self.is_goal_reached(current_node.state, goal):
+                # Record end time and calculate total search time before returning
+                self.search_end_time = time.time()
+                self.total_search_time = self.search_end_time - self.search_start_time
                 print(f"Path found in {iterations} iterations")
                 return self.reconstruct_path(current_node)
             
@@ -510,6 +513,19 @@ class HybridAStar:
             'map_origin_y': self.map_origin_y,
             'grid_resolution': self.grid_resolution,
             'vehicle_model': self.vehicle_model
+        }
+    
+    def get_timing_stats(self) -> Dict[str, float]:
+        """Get timing statistics directly from the planner
+        
+        Returns:
+            Dictionary containing timing information
+        """
+        return {
+            'search_time_seconds': self.total_search_time,
+            'nodes_per_second': len(self.explored_nodes) / self.total_search_time if self.total_search_time > 0 else 0,
+            'start_time': self.search_start_time,
+            'end_time': self.search_end_time
         }
     
     def get_statistics(self, path: Optional[List[Node]]) -> Dict[str, Any]:
@@ -656,6 +672,15 @@ if __name__ == "__main__":
         for key, value in stats.items():
             if isinstance(value, float):
                 print(f"  {key}: {value:.3f}")
+            else:
+                print(f"  {key}: {value}")
+        
+        # Print timing statistics separately for clarity
+        timing_stats = planner.get_timing_stats()
+        print(f"\nTiming Statistics:")
+        for key, value in timing_stats.items():
+            if isinstance(value, float):
+                print(f"  {key}: {value:.6f}")
             else:
                 print(f"  {key}: {value}")
         

@@ -8,10 +8,10 @@ be viewed in Foxglove Studio.
 Features:
 - Real-time path planning visualization with separated channels
 - Interactive exploration nodes displayed as spheres (colored by cost)
-- Node simulation trajectories displayed as lines 
+- Node simulation trajectories displayed as lines
 - Vehicle state visualization with orientation arrows
 - Dedicated start/goal position visualization channel
-- Cost analysis and statistics
+- Cost analysis and statistics including search timing
 - Obstacle map visualization
 - Steering angle visualization with color coding
 
@@ -20,7 +20,7 @@ Visualization Channels:
 - /hybrid_astar/visualization/path: Final planned path with vehicle orientation arrows
 - /hybrid_astar/visualization/exploration: Exploration nodes and simulation trajectories
 - /hybrid_astar/visualization/start_goal: Start and goal positions with orientation arrows
-- /hybrid_astar/visualization/statistics: Path planning statistics
+- /hybrid_astar/visualization/statistics: Path planning statistics including search timing and performance metrics
 - /hybrid_astar/visualization/path_data: Raw path data with node structure information
 
 Author: Your Name
@@ -667,7 +667,8 @@ class FoxgloveHybridAStarVisualizer:
         """Create statistics data"""
         path = self.current_data.get('path', [])
         explored_nodes = self.current_data.get('explored_nodes', [])
-        
+        planner: Optional[HybridAStar] = getattr(self, 'planner', None)
+
         # Handle None values
         if path is None:
             path = []
@@ -681,8 +682,15 @@ class FoxgloveHybridAStarVisualizer:
             'total_distance': 0.0,
             'max_steering_angle': 0.0,
             'avg_steering_angle': 0.0,
-            'direction_changes': 0
+            'direction_changes': 0,
+            'search_time_seconds': 0.0,
+            'nodes_per_second': 0.0
         }
+        
+        # Add timing statistics if planner is available
+        if planner and hasattr(planner, 'total_search_time'):
+            stats['search_time_seconds'] = planner.total_search_time
+            stats['nodes_per_second'] = len(explored_nodes) / planner.total_search_time if planner.total_search_time > 0 else 0
         
         if len(path) > 1:
             # Calculate total distance
