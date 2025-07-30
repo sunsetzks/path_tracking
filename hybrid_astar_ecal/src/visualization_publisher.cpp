@@ -175,7 +175,7 @@ foxglove::SceneUpdate VisualizationPublisher::create_start_goal_scene_update(
     auto start_sphere = entity->add_spheres();
     *start_sphere->mutable_pose() = create_pose(start.x, start.y, 0.0, 0.0);
     *start_sphere->mutable_size() = create_vector3(0.5, 0.5, 0.5);
-    *start_sphere->mutable_color() = create_color(0.0, 1.0, 0.0, 1.0);
+    *start_sphere->mutable_color() = create_color(0.0, 1.0, 0.0, settings_.start_goal_alpha);
     
     // Start orientation arrow
     auto start_arrow = entity->add_arrows();
@@ -184,13 +184,13 @@ foxglove::SceneUpdate VisualizationPublisher::create_start_goal_scene_update(
     start_arrow->set_shaft_diameter(0.1);
     start_arrow->set_head_length(0.3);
     start_arrow->set_head_diameter(0.2);
-    *start_arrow->mutable_color() = create_color(0.0, 0.8, 0.0, 1.0);
+    *start_arrow->mutable_color() = create_color(0.0, 0.8, 0.0, settings_.start_goal_alpha);
     
     // Goal position as red sphere
     auto goal_sphere = entity->add_spheres();
     *goal_sphere->mutable_pose() = create_pose(goal.x, goal.y, 0.0, 0.0);
     *goal_sphere->mutable_size() = create_vector3(0.5, 0.5, 0.5);
-    *goal_sphere->mutable_color() = create_color(1.0, 0.0, 0.0, 1.0);
+    *goal_sphere->mutable_color() = create_color(1.0, 0.0, 0.0, settings_.start_goal_alpha);
     
     // Goal orientation arrow
     auto goal_arrow = entity->add_arrows();
@@ -199,7 +199,7 @@ foxglove::SceneUpdate VisualizationPublisher::create_start_goal_scene_update(
     goal_arrow->set_shaft_diameter(0.1);
     goal_arrow->set_head_length(0.3);
     goal_arrow->set_head_diameter(0.2);
-    *goal_arrow->mutable_color() = create_color(0.8, 0.0, 0.0, 1.0);
+    *goal_arrow->mutable_color() = create_color(0.8, 0.0, 0.0, settings_.start_goal_alpha);
     
     return scene_update;
 }

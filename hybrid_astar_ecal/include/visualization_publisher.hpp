@@ -111,6 +111,7 @@ public:
     struct VisualizationSettings {
         double path_line_thickness = 0.05;
         double path_alpha = 0.5;
+        double start_goal_alpha = 0.5;  // Transparency for start and goal markers
         int max_exploration_nodes = 100000;
         double exploration_sphere_size = 0.03;
         double exploration_line_thickness = 0.01;
