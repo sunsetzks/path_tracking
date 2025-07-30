@@ -219,22 +219,44 @@ def demonstrate_dynamic_response():
     
     # Steering input (step input)
     delta = np.zeros_like(time)
-    delta[time >= 1.0] = 0.05  # 0.05 rad step at t=1s
+    # Fast change in steering angle instead of step input
+    transition_time = 0.1  # 100ms transition time
+    transition_start = 1.0
+    transition_end = transition_start + transition_time
+    
+    # Create smooth transition using sigmoid-like function
+    for i, t in enumerate(time):
+        if t >= transition_end:
+            delta[i] = 0.05
+        elif t >= transition_start:
+            # Smooth transition from 0 to 0.05
+            progress = (t - transition_start) / transition_time
+            # Use sigmoid-like function for smooth transition
+            smooth_progress = 0.5 * (1 + np.tanh(6 * (progress - 0.5)))
+            delta[i] = 0.05 * smooth_progress
+        else:
+            delta[i] = 0.0
     
     # Arrays to store results
     v_y_history = np.zeros_like(time)
     psi_dot_history = np.zeros_like(time)
     F_yf_history = np.zeros_like(time)
     F_yr_history = np.zeros_like(time)
+    alpha_f_history = np.zeros_like(time)
+    alpha_r_history = np.zeros_like(time)
+    slip_ratio_history = np.zeros_like(time)
     
     # Simple integration (Euler method)
     for i, t in enumerate(time):
-        # Calculate slip angles (simplified)
+        # Calculate slip angles
         if abs(v_x) > 0.1:
             alpha_f = delta[i] - np.arctan2(v_y + l_f * psi_dot, v_x)
             alpha_r = -np.arctan2(v_y - l_r * psi_dot, v_x)
         else:
             alpha_f = alpha_r = 0.0
+        
+        # Calculate slip ratio (simplified)
+        slip_ratio = abs(v_y) / (abs(v_x) + 0.1)  # Avoid division by zero
         
         # Calculate tire forces
         F_yf = C_f * alpha_f
@@ -245,6 +267,9 @@ def demonstrate_dynamic_response():
         psi_dot_history[i] = psi_dot
         F_yf_history[i] = F_yf
         F_yr_history[i] = F_yr
+        alpha_f_history[i] = alpha_f
+        alpha_r_history[i] = alpha_r
+        slip_ratio_history[i] = slip_ratio
         
         # Calculate derivatives using the lateral dynamics equations
         v_y_dot = (F_yf * np.cos(delta[i]) + F_yr) / m - v_x * psi_dot
@@ -255,39 +280,105 @@ def demonstrate_dynamic_response():
             v_y += v_y_dot * dt
             psi_dot += psi_dot_dot * dt
     
+    # Print key results
+    print(f"\nKey Simulation Results:")
+    print(f"  Steering input: {delta[time >= 1.0][0]:.3f} rad = {np.degrees(delta[time >= 1.0][0]):.1f}°")
+    print(f"  Maximum lateral velocity: {np.max(np.abs(v_y_history)):.2f} m/s")
+    print(f"  Maximum yaw rate: {np.max(np.abs(psi_dot_history)):.3f} rad/s = {np.degrees(np.max(np.abs(psi_dot_history))):.1f}°/s")
+    print(f"  Maximum front slip angle: {np.degrees(np.max(np.abs(alpha_f_history))):.2f}°")
+    print(f"  Maximum rear slip angle: {np.degrees(np.max(np.abs(alpha_r_history))):.2f}°")
+    print(f"  Maximum slip ratio: {np.max(slip_ratio_history):.3f}")
+    print(f"  Maximum front tire force: {np.max(np.abs(F_yf_history))/1000:.1f} kN")
+    print(f"  Maximum rear tire force: {np.max(np.abs(F_yr_history))/1000:.1f} kN")
+    
+    # Calculate steady-state values
+    steady_state_start = int(0.8 * len(time))  # Last 20% of simulation
+    v_y_ss = np.mean(v_y_history[steady_state_start:])
+    psi_dot_ss = np.mean(psi_dot_history[steady_state_start:])
+    alpha_f_ss = np.mean(alpha_f_history[steady_state_start:])
+    alpha_r_ss = np.mean(alpha_r_history[steady_state_start:])
+    
+    print(f"\nSteady-State Values (t > {time[steady_state_start]:.1f}s):")
+    print(f"  Lateral velocity: {v_y_ss:.2f} m/s")
+    print(f"  Yaw rate: {psi_dot_ss:.3f} rad/s = {np.degrees(psi_dot_ss):.1f}°/s")
+    print(f"  Front slip angle: {np.degrees(alpha_f_ss):.2f}°")
+    print(f"  Rear slip angle: {np.degrees(alpha_r_ss):.2f}°")
+    
+    # Calculate vehicle response characteristics
+    settling_time_idx = np.where(np.abs(v_y_history - v_y_ss) < 0.02 * np.max(np.abs(v_y_history)))[0]
+    if len(settling_time_idx) > 0:
+        settling_time = time[settling_time_idx[0]]
+        print(f"  Lateral velocity settling time: {settling_time:.2f} s")
+    
     # Plot results
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle('Vehicle Lateral Dynamics Response', fontsize=16)
+    fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+    fig.suptitle('Vehicle Lateral Dynamics Response - Enhanced Analysis', fontsize=16)
     
     # Steering input
     axes[0, 0].plot(time, delta * 180 / np.pi, 'k-', linewidth=2)
+    axes[0, 0].axvline(x=1.0, color='r', linestyle='--', alpha=0.7, label='Step input')
     axes[0, 0].set_title('Steering Angle Input')
     axes[0, 0].set_xlabel('Time [s]')
     axes[0, 0].set_ylabel('Steering Angle [deg]')
     axes[0, 0].grid(True)
+    axes[0, 0].legend()
     
     # Lateral velocity response
-    axes[0, 1].plot(time, v_y_history, 'b-', linewidth=2)
+    axes[0, 1].plot(time, v_y_history, 'b-', linewidth=2, label='v_y')
+    axes[0, 1].axhline(y=v_y_ss, color='r', linestyle='--', alpha=0.7, label='Steady-state')
     axes[0, 1].set_title('Lateral Velocity Response')
     axes[0, 1].set_xlabel('Time [s]')
     axes[0, 1].set_ylabel('v_y [m/s]')
     axes[0, 1].grid(True)
+    axes[0, 1].legend()
     
     # Yaw rate response
-    axes[1, 0].plot(time, psi_dot_history * 180 / np.pi, 'r-', linewidth=2)
+    axes[1, 0].plot(time, psi_dot_history * 180 / np.pi, 'r-', linewidth=2, label='ψ̇')
+    axes[1, 0].axhline(y=np.degrees(psi_dot_ss), color='r', linestyle='--', alpha=0.7, label='Steady-state')
     axes[1, 0].set_title('Yaw Rate Response')
     axes[1, 0].set_xlabel('Time [s]')
-    axes[1, 0].set_ylabel('ψ̇ [deg/s]')
+    axes[1, 0].set_ylabel('Yaw Rate [deg/s]')
     axes[1, 0].grid(True)
+    axes[1, 0].legend()
+    
+    # Slip angles
+    axes[1, 1].plot(time, np.degrees(alpha_f_history), 'b-', linewidth=2, label='Front (α_f)')
+    axes[1, 1].plot(time, np.degrees(alpha_r_history), 'g-', linewidth=2, label='Rear (α_r)')
+    axes[1, 1].axhline(y=np.degrees(alpha_f_ss), color='b', linestyle='--', alpha=0.7)
+    axes[1, 1].axhline(y=np.degrees(alpha_r_ss), color='g', linestyle='--', alpha=0.7)
+    axes[1, 1].set_title('Tire Slip Angles')
+    axes[1, 1].set_xlabel('Time [s]')
+    axes[1, 1].set_ylabel('Slip Angle [deg]')
+    axes[1, 1].grid(True)
+    axes[1, 1].legend()
     
     # Tire forces
-    axes[1, 1].plot(time, F_yf_history / 1000, 'b-', linewidth=2, label='Front')
-    axes[1, 1].plot(time, F_yr_history / 1000, 'g-', linewidth=2, label='Rear')
-    axes[1, 1].set_title('Tire Lateral Forces')
-    axes[1, 1].set_xlabel('Time [s]')
-    axes[1, 1].set_ylabel('Force [kN]')
-    axes[1, 1].legend()
-    axes[1, 1].grid(True)
+    axes[2, 0].plot(time, F_yf_history / 1000, 'b-', linewidth=2, label='Front')
+    axes[2, 0].plot(time, F_yr_history / 1000, 'g-', linewidth=2, label='Rear')
+    axes[2, 0].set_title('Tire Lateral Forces')
+    axes[2, 0].set_xlabel('Time [s]')
+    axes[2, 0].set_ylabel('Force [kN]')
+    axes[2, 0].grid(True)
+    axes[2, 0].legend()
+    
+    # Slip ratio and vehicle dynamics
+    ax_slip = axes[2, 1]
+    ax_slip.plot(time, slip_ratio_history, 'm-', linewidth=2, label='Slip Ratio')
+    ax_slip.set_xlabel('Time [s]')
+    ax_slip.set_ylabel('Slip Ratio', color='m')
+    ax_slip.tick_params(axis='y', labelcolor='m')
+    ax_slip.grid(True, alpha=0.3)
+    
+    # Add vehicle yaw angle on secondary y-axis
+    yaw_angle = np.cumsum(psi_dot_history) * dt
+    ax_yaw = ax_slip.twinx()
+    ax_yaw.plot(time, np.degrees(yaw_angle), 'c-', linewidth=2, label='Yaw Angle')
+    ax_yaw.set_ylabel('Yaw Angle [deg]', color='c')
+    ax_yaw.tick_params(axis='y', labelcolor='c')
+    
+    axes[2, 1].set_title('Slip Ratio and Vehicle Yaw')
+    axes[2, 1].legend(loc='upper left')
+    ax_yaw.legend(loc='upper right')
     
     plt.tight_layout()
     return fig
@@ -299,11 +390,43 @@ def main():
     v_x, delta, psi_dot, F_yf, F_yr = demonstrate_lateral_dynamics()
     
     # Create visual diagrams
-    fig1 = create_force_diagram()
-    plt.show()
+    # fig1 = create_force_diagram()
+    # plt.show()
     
     # Dynamic response demonstration
     fig2 = demonstrate_dynamic_response()
+    
+    # Maximize the figure window using a simple approach
+    try:
+        # Set a large figure size to simulate maximization
+        fig2.set_size_inches(16, 10)  # Large size that should fill most screens
+        
+        # Try to maximize the window using platform-specific methods
+        try:
+            manager = plt.get_current_fig_manager()
+            if manager:
+                # Try different maximization methods
+                try:
+                    # Windows
+                    manager.window.state('zoomed')  # type: ignore
+                except:
+                    try:
+                        # Qt
+                        manager.window.showMaximized()  # type: ignore
+                    except:
+                        try:
+                            # Linux
+                            manager.window.attributes('-zoomed', True)  # type: ignore
+                        except:
+                            pass
+        except:
+            # If any error occurs during maximization, just continue
+            pass
+            
+    except:
+        # If maximization fails, continue without error
+        pass
+    
     plt.show()
     
     print("\n=== Summary: Role of Lateral Dynamics Equations ===")
