@@ -118,7 +118,7 @@ if(eCAL_FOUND AND Protobuf_FOUND)
     )
     
     # Install targets
-    install(TARGETS hybrid_astar_core hybrid_astar_visualization hybrid_astar_ecal_demo
+    install(TARGETS hybrid_astar_core hybrid_astar_visualization hybrid_astar_ecal_demo hybrid_astar_demo_with_viz
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
@@ -128,8 +128,17 @@ else()
     message(STATUS "Building standalone version (eCAL or Protobuf not found)")
     
     # Simple demo executable (standalone)
-    add_executable(hybrid_astar_demo
+    add_executable(hybrid_astar_simple_demo
         examples/simple_demo.cpp
+    )
+    
+    target_link_libraries(hybrid_astar_simple_demo
+        hybrid_astar_core
+    )
+    
+    # Conditional demo executable (compatible with both modes)
+    add_executable(hybrid_astar_demo
+        examples/demo.cpp
     )
     
     target_link_libraries(hybrid_astar_demo
@@ -137,7 +146,7 @@ else()
     )
     
     # Install targets
-    install(TARGETS hybrid_astar_core hybrid_astar_demo
+    install(TARGETS hybrid_astar_core hybrid_astar_simple_demo hybrid_astar_demo
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
