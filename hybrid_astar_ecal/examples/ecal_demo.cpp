@@ -100,10 +100,10 @@ int main() {
         }
         
         // Publish complete planning result
-        viz_pub.publish_planning_result(
+        viz_pub.visualize_path_planning(
             start_state, goal_state,
             path_nodes, planner.get_explored_nodes(),
-            detailed_path, statistics,
+            detailed_path, {}, // empty simulation trajectories
             obstacle_map, map_origin_x, map_origin_y, config.grid_resolution,
             duration.count()
         );

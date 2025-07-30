@@ -1,22 +1,21 @@
 /**
  * @file visualization_publisher.cpp
- * @brief Implementation of eCAL-based visualization publisher (stub version)
+ * @brief Implementation of eCAL-based visualization publisher using Foxglove SceneUpdate
  */
 
 #include "visualization_publisher.hpp"
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+#include <limits>
+#include <ctime>
+#include <chrono>
 
 namespace hybrid_astar {
 
 VisualizationPublisher::VisualizationPublisher(const std::string& node_name)
-    : node_name_(node_name), initialized_(false) {
-#ifndef ECAL_PROTOBUF_AVAILABLE
-    planning_result_pub_ = nullptr;
-    planning_status_pub_ = nullptr;
-    obstacle_map_pub_ = nullptr;
-    path_pub_ = nullptr;
-    markers_pub_ = nullptr;
-#endif
+    : node_name_(node_name), initialized_(false), settings_() {
 }
 
 VisualizationPublisher::~VisualizationPublisher() {
@@ -24,56 +23,53 @@ VisualizationPublisher::~VisualizationPublisher() {
 }
 
 bool VisualizationPublisher::initialize() {
-#ifdef ECAL_PROTOBUF_AVAILABLE
     try {
         // Initialize eCAL
         eCAL::Initialize(0, nullptr, node_name_.c_str());
         
-        // Create publishers
-        planning_result_pub_ = std::make_unique<eCAL::protobuf::CPublisher<hybrid_astar::PlanningResult>>("planning_result");
-        planning_status_pub_ = std::make_unique<eCAL::protobuf::CPublisher<hybrid_astar::PlanningStatus>>("planning_status");
-        obstacle_map_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::Grid>>("obstacle_map");
-        path_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::Path>>("planned_path");
-        markers_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::MarkerArray>>("planning_markers");
+        // Create separate publishers for different visualization channels
+        scene_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>>("/hybrid_astar/visualization/scene");
+        path_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>>("/hybrid_astar/visualization/path");
+        exploration_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>>("/hybrid_astar/visualization/exploration");
+        start_goal_pub_ = std::make_unique<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>>("/hybrid_astar/visualization/start_goal");
+        statistics_pub_ = std::make_unique<eCAL::string::CPublisher<std::string>>("/hybrid_astar/visualization/statistics");
         
         initialized_ = true;
-        std::cout << "eCAL visualization publisher initialized successfully" << std::endl;
+        std::cout << "✓ eCAL SceneUpdate visualization publisher initialized successfully" << std::endl;
+        std::cout << "→ Channels created:" << std::endl;
+        std::cout << "  - /hybrid_astar/visualization/scene (obstacles)" << std::endl;
+        std::cout << "  - /hybrid_astar/visualization/path (final path)" << std::endl;
+        std::cout << "  - /hybrid_astar/visualization/exploration (search nodes)" << std::endl;
+        std::cout << "  - /hybrid_astar/visualization/start_goal (start/goal positions)" << std::endl;
+        std::cout << "  - /hybrid_astar/visualization/statistics (JSON data)" << std::endl;
         return true;
         
     } catch (const std::exception& e) {
-        std::cerr << "Failed to initialize eCAL publisher: " << e.what() << std::endl;
+        std::cerr << "Failed to initialize eCAL SceneUpdate publisher: " << e.what() << std::endl;
         return false;
     }
-#else
-    std::cout << "eCAL visualization publisher: stub mode (eCAL not available)" << std::endl;
-    initialized_ = true;
-    return true;
-#endif
 }
-
 void VisualizationPublisher::shutdown() {
     if (initialized_) {
-#ifdef ECAL_PROTOBUF_AVAILABLE
-        planning_result_pub_.reset();
-        planning_status_pub_.reset();
-        obstacle_map_pub_.reset();
+        scene_pub_.reset();
         path_pub_.reset();
-        markers_pub_.reset();
+        exploration_pub_.reset();
+        start_goal_pub_.reset();
+        statistics_pub_.reset();
         
         eCAL::Finalize();
-#endif
         initialized_ = false;
-        std::cout << "eCAL visualization publisher shutdown" << std::endl;
+        std::cout << "eCAL SceneUpdate visualization publisher shutdown" << std::endl;
     }
 }
 
-void VisualizationPublisher::publish_planning_result(
+void VisualizationPublisher::visualize_path_planning(
     const State& start_state,
     const State& goal_state,
     const std::optional<std::vector<std::shared_ptr<Node>>>& path_nodes,
     const std::vector<std::shared_ptr<Node>>& explored_nodes,
     const std::vector<State>& detailed_path,
-    const std::unordered_map<std::string, double>& statistics,
+    const std::vector<std::vector<State>>& simulation_trajectories,
     const std::vector<std::vector<int>>& obstacle_map,
     double map_origin_x, double map_origin_y, double grid_resolution,
     double planning_time_ms) {
@@ -83,20 +79,28 @@ void VisualizationPublisher::publish_planning_result(
         return;
     }
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // Full implementation with eCAL (will be implemented when protobuf is available)
-    std::cout << "Publishing planning result with eCAL..." << std::endl;
-#else
-    // Stub implementation
-    std::cout << "Visualization Publisher (stub): Publishing planning result" << std::endl;
-    std::cout << "  - Start: (" << start_state.x << ", " << start_state.y << ", " << start_state.yaw << ")" << std::endl;
-    std::cout << "  - Goal: (" << goal_state.x << ", " << goal_state.y << ", " << goal_state.yaw << ")" << std::endl;
-    std::cout << "  - Path found: " << (path_nodes.has_value() ? "Yes" : "No") << std::endl;
-    std::cout << "  - Explored nodes: " << explored_nodes.size() << std::endl;
-    std::cout << "  - Detailed path points: " << detailed_path.size() << std::endl;
-    std::cout << "  - Planning time: " << planning_time_ms << " ms" << std::endl;
-    std::cout << "  - Map size: " << obstacle_map.size() << "x" << (obstacle_map.empty() ? 0 : obstacle_map[0].size()) << std::endl;
-#endif
+    try {
+        // Create and publish separate scene updates
+        auto obstacle_scene = create_scene_update(obstacle_map, map_origin_x, map_origin_y, grid_resolution);
+        scene_pub_->Send(obstacle_scene);
+        
+        auto start_goal_scene = create_start_goal_scene_update(start_state, goal_state);
+        start_goal_pub_->Send(start_goal_scene);
+        
+        auto path_scene = create_path_scene_update(detailed_path);
+        path_pub_->Send(path_scene);
+        
+        auto exploration_scene = create_exploration_scene_update(explored_nodes, simulation_trajectories);
+        exploration_pub_->Send(exploration_scene);
+        
+        auto statistics = create_statistics(detailed_path, explored_nodes, planning_time_ms);
+        statistics_pub_->Send(statistics);
+        
+        std::cout << "Published complete path planning visualization" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error publishing visualization: " << e.what() << std::endl;
+    }
 }
 
 void VisualizationPublisher::publish_planning_status(
@@ -107,76 +111,369 @@ void VisualizationPublisher::publish_planning_status(
     
     if (!initialized_) return;
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // Full implementation with eCAL
-    std::cout << "Publishing planning status with eCAL..." << std::endl;
-#else
-    // Stub implementation
-    std::cout << "Visualization Publisher (stub): Status=" << status << ", Message=" << message;
-    if (max_iterations > 0) {
-        std::cout << ", Progress=" << current_iteration << "/" << max_iterations;
+    // Create status as JSON
+    std::ostringstream json_stream;
+    json_stream << "{"
+                << "\"status\": " << status << ","
+                << "\"message\": \"" << message << "\","
+                << "\"current_iteration\": " << current_iteration << ","
+                << "\"max_iterations\": " << max_iterations << ","
+                << "\"timestamp\": " << std::time(nullptr)
+                << "}";
+    
+    statistics_pub_->Send(json_stream.str());
+    std::cout << "Published planning status with eCAL" << std::endl;
+}
+
+// Implementation of SceneUpdate creation methods
+
+foxglove::SceneUpdate VisualizationPublisher::create_scene_update(
+    const std::vector<std::vector<int>>& obstacle_map,
+    double map_origin_x, double map_origin_y, double grid_resolution) {
+    
+    foxglove::SceneUpdate scene_update;
+    
+    if (!obstacle_map.empty()) {
+        auto entity = scene_update.add_entities();
+        entity->set_id("obstacles");
+        entity->set_frame_id("map");
+        *entity->mutable_timestamp() = get_current_timestamp();
+        
+        int height = obstacle_map.size();
+        int width = obstacle_map[0].size();
+        
+        // Create cubes for obstacles
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                if (obstacle_map[y][x] > 0) {
+                    auto cube = entity->add_cubes();
+                    
+                    double world_x = map_origin_x + x * grid_resolution;
+                    double world_y = map_origin_y + y * grid_resolution;
+                    
+                    *cube->mutable_pose() = create_pose(world_x, world_y, 0.5, 0.0);
+                    *cube->mutable_size() = create_vector3(grid_resolution, grid_resolution, 1.0);
+                    *cube->mutable_color() = create_color(0.5, 0.5, 0.5, 0.8);
+                }
+            }
+        }
     }
-    std::cout << std::endl;
-#endif
-}
-
-void VisualizationPublisher::publish_obstacle_map(
-    const std::vector<std::vector<int>>& obstacle_map,
-    double origin_x, double origin_y, double grid_resolution) {
     
-    if (!initialized_) return;
+    return scene_update;
+}
+
+foxglove::SceneUpdate VisualizationPublisher::create_start_goal_scene_update(
+    const State& start, const State& goal) {
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // Full implementation with eCAL
-    std::cout << "Publishing obstacle map with eCAL..." << std::endl;
-#else
-    // Stub implementation
-    std::cout << "Visualization Publisher (stub): Publishing obstacle map (" 
-              << obstacle_map.size() << "x" << (obstacle_map.empty() ? 0 : obstacle_map[0].size()) 
-              << ") at origin (" << origin_x << ", " << origin_y << ") with resolution " << grid_resolution << std::endl;
-#endif
+    foxglove::SceneUpdate scene_update;
+    auto entity = scene_update.add_entities();
+    entity->set_id("start_goal");
+    entity->set_frame_id("map");
+    *entity->mutable_timestamp() = get_current_timestamp();
+    
+    // Start position as green sphere
+    auto start_sphere = entity->add_spheres();
+    *start_sphere->mutable_pose() = create_pose(start.x, start.y, 0.0, 0.0);
+    *start_sphere->mutable_size() = create_vector3(0.5, 0.5, 0.5);
+    *start_sphere->mutable_color() = create_color(0.0, 1.0, 0.0, 1.0);
+    
+    // Start orientation arrow
+    auto start_arrow = entity->add_arrows();
+    *start_arrow->mutable_pose() = create_pose(start.x, start.y, 0.0, start.yaw);
+    start_arrow->set_shaft_length(1.2);
+    start_arrow->set_shaft_diameter(0.1);
+    start_arrow->set_head_length(0.3);
+    start_arrow->set_head_diameter(0.2);
+    *start_arrow->mutable_color() = create_color(0.0, 0.8, 0.0, 1.0);
+    
+    // Goal position as red sphere
+    auto goal_sphere = entity->add_spheres();
+    *goal_sphere->mutable_pose() = create_pose(goal.x, goal.y, 0.0, 0.0);
+    *goal_sphere->mutable_size() = create_vector3(0.5, 0.5, 0.5);
+    *goal_sphere->mutable_color() = create_color(1.0, 0.0, 0.0, 1.0);
+    
+    // Goal orientation arrow
+    auto goal_arrow = entity->add_arrows();
+    *goal_arrow->mutable_pose() = create_pose(goal.x, goal.y, 0.0, goal.yaw);
+    goal_arrow->set_shaft_length(1.2);
+    goal_arrow->set_shaft_diameter(0.1);
+    goal_arrow->set_head_length(0.3);
+    goal_arrow->set_head_diameter(0.2);
+    *goal_arrow->mutable_color() = create_color(0.8, 0.0, 0.0, 1.0);
+    
+    return scene_update;
 }
 
-// Stub implementations for helper functions
-void* VisualizationPublisher::get_current_time() const {
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // Will return actual foxglove::Time when available
-    return nullptr;
-#else
-    return nullptr;
-#endif
+foxglove::SceneUpdate VisualizationPublisher::create_path_scene_update(
+    const std::vector<State>& path) {
+    
+    foxglove::SceneUpdate scene_update;
+    
+    if (path.size() > 1) {
+        auto entity = scene_update.add_entities();
+        entity->set_id("final_path");
+        entity->set_frame_id("map");
+        *entity->mutable_timestamp() = get_current_timestamp();
+        
+        // Create path line
+        std::vector<foxglove::Point3> points;
+        for (const auto& state : path) {
+            points.push_back(create_point3(state.x, state.y, 0.0));
+        }
+        
+        auto path_line = entity->add_lines();
+        *path_line = create_line(points, settings_.path_line_thickness, 
+                                create_color(1.0, 0.0, 1.0, settings_.path_alpha));
+        
+        // Add vehicle orientation arrows if enabled
+        if (settings_.show_final_path_arrows) {
+            int step = std::max(1, static_cast<int>(path.size()) / 20);
+            for (size_t i = 0; i < path.size(); i += step) {
+                auto arrow = entity->add_arrows();
+                *arrow->mutable_pose() = create_pose(path[i].x, path[i].y, 0.0, path[i].yaw);
+                arrow->set_shaft_length(0.8);
+                arrow->set_shaft_diameter(0.05);
+                arrow->set_head_length(0.2);
+                arrow->set_head_diameter(0.1);
+                *arrow->mutable_color() = create_color(1.0, 0.5, 0.0, 0.8);
+            }
+        }
+    }
+    
+    return scene_update;
 }
 
-void* VisualizationPublisher::state_to_proto(const State& state) const {
-    return nullptr;
+foxglove::SceneUpdate VisualizationPublisher::create_exploration_scene_update(
+    const std::vector<std::shared_ptr<Node>>& explored_nodes,
+    const std::vector<std::vector<State>>& simulation_trajectories) {
+    
+    foxglove::SceneUpdate scene_update;
+    auto entity = scene_update.add_entities();
+    entity->set_id("exploration");
+    entity->set_frame_id("map");
+    *entity->mutable_timestamp() = get_current_timestamp();
+    
+    // Limit number of nodes to avoid overwhelming visualization
+    size_t max_nodes = std::min(static_cast<size_t>(settings_.max_exploration_nodes), explored_nodes.size());
+    
+    // Visualization for exploration nodes as spheres (colored by cost)
+    if (!explored_nodes.empty()) {
+        // Find min/max costs for color mapping
+        double min_cost = std::numeric_limits<double>::max();
+        double max_cost = std::numeric_limits<double>::min();
+        
+        for (size_t i = 0; i < max_nodes; ++i) {
+            min_cost = std::min(min_cost, explored_nodes[i]->f_cost());
+            max_cost = std::max(max_cost, explored_nodes[i]->f_cost());
+        }
+        
+        double cost_range = max_cost - min_cost;
+        if (cost_range < 1e-6) cost_range = 1.0; // Avoid division by zero
+        
+        for (size_t i = 0; i < max_nodes; ++i) {
+            auto sphere = entity->add_spheres();
+            const auto& node = explored_nodes[i];
+            
+            *sphere->mutable_pose() = create_pose(node->state.x, node->state.y, 0.0, 0.0);
+            *sphere->mutable_size() = create_vector3(settings_.exploration_sphere_size, 
+                                                    settings_.exploration_sphere_size, 
+                                                    settings_.exploration_sphere_size);
+            
+            // Color by cost: blue (low cost) to red (high cost)
+            double normalized_cost = (node->f_cost() - min_cost) / cost_range;
+            *sphere->mutable_color() = create_color(normalized_cost, 0.0, 1.0 - normalized_cost, 0.6);
+        }
+    }
+    
+    // Visualization for simulation trajectories as lines
+    for (size_t i = 0; i < std::min(simulation_trajectories.size(), max_nodes); ++i) {
+        const auto& trajectory = simulation_trajectories[i];
+        if (trajectory.size() > 1) {
+            std::vector<foxglove::Point3> points;
+            for (const auto& state : trajectory) {
+                points.push_back(create_point3(state.x, state.y, 0.0));
+            }
+            
+            auto line = entity->add_lines();
+            *line = create_line(points, settings_.exploration_line_thickness,
+                               create_color(0.0, 0.5, 1.0, 0.3));
+        }
+    }
+    
+    return scene_update;
 }
 
-void* VisualizationPublisher::node_to_proto(const std::shared_ptr<Node>& node) const {
-    return nullptr;
+std::string VisualizationPublisher::create_statistics(
+    const std::vector<State>& path,
+    const std::vector<std::shared_ptr<Node>>& explored_nodes,
+    double planning_time_ms) {
+    
+    // Calculate path statistics
+    double total_distance = 0.0;
+    double max_steering_angle = 0.0;
+    double avg_steering_angle = 0.0;
+    int direction_changes = 0;
+    
+    if (path.size() > 1) {
+        for (size_t i = 1; i < path.size(); ++i) {
+            double dx = path[i].x - path[i-1].x;
+            double dy = path[i].y - path[i-1].y;
+            total_distance += std::sqrt(dx*dx + dy*dy);
+            
+            // Assuming we have steering angle in the state (if available)
+            // This would need to be adapted based on actual State structure
+            if (path[i].steer != 0.0) {
+                max_steering_angle = std::max(max_steering_angle, std::abs(path[i].steer));
+                avg_steering_angle += std::abs(path[i].steer);
+            }
+        }
+        avg_steering_angle /= path.size();
+    }
+    
+    double nodes_per_second = planning_time_ms > 0 ? (explored_nodes.size() * 1000.0) / planning_time_ms : 0.0;
+    
+    // Create JSON statistics
+    std::ostringstream json_stream;
+    json_stream << std::fixed << std::setprecision(3);
+    json_stream << "{"
+                << "\"timestamp\": " << std::time(nullptr) << ","
+                << "\"path_length\": " << path.size() << ","
+                << "\"nodes_explored\": " << explored_nodes.size() << ","
+                << "\"total_distance\": " << total_distance << ","
+                << "\"max_steering_angle\": " << max_steering_angle << ","
+                << "\"avg_steering_angle\": " << avg_steering_angle << ","
+                << "\"direction_changes\": " << direction_changes << ","
+                << "\"search_time_seconds\": " << (planning_time_ms / 1000.0) << ","
+                << "\"nodes_per_second\": " << nodes_per_second
+                << "}";
+    
+    return json_stream.str();
 }
 
-void* VisualizationPublisher::create_obstacle_map_grid(
-    const std::vector<std::vector<int>>& obstacle_map,
-    double origin_x, double origin_y, double grid_resolution) const {
-    return nullptr;
+// Helper function implementations
+
+google::protobuf::Timestamp VisualizationPublisher::get_current_timestamp() const {
+    google::protobuf::Timestamp timestamp;
+    auto now = std::chrono::system_clock::now();
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+    auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch() % std::chrono::seconds(1)).count();
+    
+    timestamp.set_seconds(seconds);
+    timestamp.set_nanos(static_cast<int32_t>(nanos));
+    return timestamp;
 }
 
-void* VisualizationPublisher::create_path_message(const std::vector<State>& states) const {
-    return nullptr;
+foxglove::Color VisualizationPublisher::create_color(double r, double g, double b, double a) const {
+    foxglove::Color color;
+    color.set_r(r);
+    color.set_g(g);
+    color.set_b(b);
+    color.set_a(a);
+    return color;
 }
 
-void* VisualizationPublisher::create_exploration_markers(
-    const std::vector<std::shared_ptr<Node>>& explored_nodes) const {
-    return nullptr;
+foxglove::Point3 VisualizationPublisher::create_point3(double x, double y, double z) const {
+    foxglove::Point3 point;
+    point.set_x(x);
+    point.set_y(y);
+    point.set_z(z);
+    return point;
 }
 
-void* VisualizationPublisher::create_vehicle_markers(
-    const State& start_state, const State& goal_state) const {
-    return nullptr;
+foxglove::Vector3 VisualizationPublisher::create_vector3(double x, double y, double z) const {
+    foxglove::Vector3 vector;
+    vector.set_x(x);
+    vector.set_y(y);
+    vector.set_z(z);
+    return vector;
 }
 
-void* VisualizationPublisher::yaw_to_quaternion(double yaw) const {
-    return nullptr;
+foxglove::Quaternion VisualizationPublisher::yaw_to_quaternion(double yaw) const {
+    foxglove::Quaternion quat;
+    double half_yaw = yaw * 0.5;
+    quat.set_x(0.0);
+    quat.set_y(0.0);
+    quat.set_z(std::sin(half_yaw));
+    quat.set_w(std::cos(half_yaw));
+    return quat;
+}
+
+foxglove::Pose VisualizationPublisher::create_pose(double x, double y, double z, double yaw) const {
+    foxglove::Pose pose;
+    auto position = pose.mutable_position();
+    position->set_x(x);
+    position->set_y(y);
+    position->set_z(z);
+    
+    auto orientation = pose.mutable_orientation();
+    auto quat = yaw_to_quaternion(yaw);
+    orientation->set_x(quat.x());
+    orientation->set_y(quat.y());
+    orientation->set_z(quat.z());
+    orientation->set_w(quat.w());
+    
+    return pose;
+}
+
+foxglove::ArrowPrimitive VisualizationPublisher::create_arrow(
+    const foxglove::Pose& pose, 
+    double shaft_length, double shaft_diameter,
+    double head_length, double head_diameter,
+    const foxglove::Color& color) const {
+    
+    foxglove::ArrowPrimitive arrow;
+    *arrow.mutable_pose() = pose;
+    arrow.set_shaft_length(shaft_length);
+    arrow.set_shaft_diameter(shaft_diameter);
+    arrow.set_head_length(head_length);
+    arrow.set_head_diameter(head_diameter);
+    *arrow.mutable_color() = color;
+    return arrow;
+}
+
+foxglove::SpherePrimitive VisualizationPublisher::create_sphere(
+    const foxglove::Pose& pose,
+    const foxglove::Vector3& size,
+    const foxglove::Color& color) const {
+    
+    foxglove::SpherePrimitive sphere;
+    *sphere.mutable_pose() = pose;
+    *sphere.mutable_size() = size;
+    *sphere.mutable_color() = color;
+    return sphere;
+}
+
+foxglove::LinePrimitive VisualizationPublisher::create_line(
+    const std::vector<foxglove::Point3>& points,
+    double thickness,
+    const foxglove::Color& color,
+    foxglove::LinePrimitive::Type type) const {
+    
+    foxglove::LinePrimitive line;
+    line.set_type(type);
+    line.set_thickness(thickness);
+    *line.mutable_color() = color;
+    
+    // Set pose to origin since points are in world coordinates
+    *line.mutable_pose() = create_pose(0, 0, 0, 0);
+    
+    for (const auto& point : points) {
+        *line.add_points() = point;
+    }
+    
+    return line;
+}
+
+foxglove::CubePrimitive VisualizationPublisher::create_cube(
+    const foxglove::Pose& pose,
+    const foxglove::Vector3& size,
+    const foxglove::Color& color) const {
+    
+    foxglove::CubePrimitive cube;
+    *cube.mutable_pose() = pose;
+    *cube.mutable_size() = size;
+    *cube.mutable_color() = color;
+    return cube;
 }
 
 } // namespace hybrid_astar

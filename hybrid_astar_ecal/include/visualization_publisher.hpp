@@ -1,6 +1,6 @@
 /**
  * @file visualization_publisher.hpp
- * @brief eCAL-based visualization publisher for Hybrid A* planning
+ * @brief eCAL-based visualization publisher for Hybrid A* planning using Foxglove SceneUpdate
  */
 
 #pragma once
@@ -8,30 +8,41 @@
 #include "common_types.hpp"
 #include <memory>
 #include <string>
-#include <chrono>
 #include <optional>
-#include <unordered_map>
 #include <vector>
+#include <cmath>
 
-// Forward declarations to avoid include dependencies when protobuf is not available
-#ifdef ECAL_PROTOBUF_AVAILABLE
-#include "hybrid_astar.pb.h"
-#include "foxglove/Grid.pb.h"
-#include "foxglove/Path.pb.h" 
-#include "foxglove/MarkerArray.pb.h"
-#include "foxglove/Time.pb.h"
+// eCAL and Foxglove protobuf includes
+#include "foxglove/SceneUpdate.pb.h"
+#include "foxglove/LinePrimitive.pb.h"
+#include "foxglove/SpherePrimitive.pb.h"
+#include "foxglove/ArrowPrimitive.pb.h"
+#include "foxglove/CubePrimitive.pb.h"
+#include "foxglove/Color.pb.h"
+#include "foxglove/Point3.pb.h"
+#include "foxglove/Vector3.pb.h"
+#include "foxglove/Pose.pb.h"
+#include "foxglove/Quaternion.pb.h"
 #include <ecal/ecal.h>
 #include <ecal/msg/protobuf/publisher.h>
-#endif
+#include <ecal/msg/string/publisher.h>
+#include <google/protobuf/timestamp.pb.h>
+#include <google/protobuf/duration.pb.h>
 
 namespace hybrid_astar {
 
-// Forward declarations for foxglove types (they are in ::foxglove namespace)
-class PlanningResult;
-class PlanningStatus;
-
 /**
- * @brief Publisher for Hybrid A* visualization data using eCAL and Foxglove
+ * @brief Publisher for Hybrid A* visualization data using eCAL and Foxglove SceneUpdate
+ * 
+ * This class provides real-time visualization capabilities similar to the Python FoxgloveHybridAStarVisualizer
+ * using SceneUpdate proto messages with separate channels for different visualization components.
+ * 
+ * Visualization Channels:
+ * - /hybrid_astar/visualization/scene: Obstacles visualization
+ * - /hybrid_astar/visualization/path: Final planned path with vehicle orientation arrows
+ * - /hybrid_astar/visualization/exploration: Exploration nodes and simulation trajectories
+ * - /hybrid_astar/visualization/start_goal: Start and goal positions with orientation arrows
+ * - /hybrid_astar/visualization/statistics: Path planning statistics (JSON)
  */
 class VisualizationPublisher {
 public:
@@ -57,23 +68,26 @@ public:
     void shutdown();
     
     /**
-     * @brief Publish complete planning result
+     * @brief Visualize complete path planning results with separate SceneUpdate messages
      * @param start_state Start state
      * @param goal_state Goal state
-     * @param path_nodes Optional planning result
+     * @param path_nodes Optional planning result nodes
      * @param explored_nodes Explored nodes during planning
      * @param detailed_path Detailed state sequence
-     * @param statistics Planning statistics
-     * @param obstacle_map Obstacle map
+     * @param simulation_trajectories Forward simulation trajectories
+     * @param obstacle_map 2D obstacle map
+     * @param map_origin_x Map origin X coordinate
+     * @param map_origin_y Map origin Y coordinate
+     * @param grid_resolution Grid resolution
      * @param planning_time_ms Planning time in milliseconds
      */
-    void publish_planning_result(
+    void visualize_path_planning(
         const State& start_state,
         const State& goal_state,
         const std::optional<std::vector<std::shared_ptr<Node>>>& path_nodes,
         const std::vector<std::shared_ptr<Node>>& explored_nodes,
         const std::vector<State>& detailed_path,
-        const std::unordered_map<std::string, double>& statistics,
+        const std::vector<std::vector<State>>& simulation_trajectories,
         const std::vector<std::vector<int>>& obstacle_map,
         double map_origin_x, double map_origin_y, double grid_resolution,
         double planning_time_ms);
@@ -86,81 +100,102 @@ public:
      * @param max_iterations Maximum iterations
      */
     void publish_planning_status(
-        int status,  // Simplified to int to avoid enum dependency
+        int status,
         const std::string& message,
         int current_iteration = 0,
         int max_iterations = 0);
     
     /**
-     * @brief Publish obstacle map only
+     * @brief Settings for visualization
      */
-    void publish_obstacle_map(
-        const std::vector<std::vector<int>>& obstacle_map,
-        double origin_x, double origin_y, double grid_resolution);
+    struct VisualizationSettings {
+        double path_line_thickness = 0.05;
+        double path_alpha = 0.5;
+        int max_exploration_nodes = 100000;
+        double exploration_sphere_size = 0.03;
+        double exploration_line_thickness = 0.01;
+        bool show_final_path_arrows = false;
+    };
+    
+    /**
+     * @brief Update visualization settings
+     */
+    void update_settings(const VisualizationSettings& settings) { settings_ = settings; }
 
 private:
     std::string node_name_;
     bool initialized_;
+    VisualizationSettings settings_;
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // eCAL publishers - only compiled when protobuf is available
-    std::unique_ptr<eCAL::protobuf::CPublisher<hybrid_astar::PlanningResult>> planning_result_pub_;
-    std::unique_ptr<eCAL::protobuf::CPublisher<hybrid_astar::PlanningStatus>> planning_status_pub_;
-    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::Grid>> obstacle_map_pub_;
-    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::Path>> path_pub_;
-    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::MarkerArray>> markers_pub_;
-#else
-    // Placeholder members for when eCAL is not available
-    void* planning_result_pub_;
-    void* planning_status_pub_;
-    void* obstacle_map_pub_;
-    void* path_pub_;
-    void* markers_pub_;
-#endif
+    // eCAL publishers for separate visualization channels
+    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>> scene_pub_;           // Obstacles
+    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>> path_pub_;            // Final path
+    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>> exploration_pub_;     // Exploration nodes
+    std::unique_ptr<eCAL::protobuf::CPublisher<foxglove::SceneUpdate>> start_goal_pub_;      // Start/goal positions
+    std::unique_ptr<eCAL::string::CPublisher<std::string>> statistics_pub_;                  // JSON statistics
     
     /**
-     * @brief Get current timestamp in Foxglove format
+     * @brief Create SceneUpdate for obstacles visualization
      */
-    void* get_current_time() const;  // Return void* when protobuf not available
+    foxglove::SceneUpdate create_scene_update(const std::vector<std::vector<int>>& obstacle_map,
+                                             double map_origin_x, double map_origin_y, double grid_resolution);
     
     /**
-     * @brief Convert State to VehicleState protobuf message
+     * @brief Create SceneUpdate for start and goal position visualization
      */
-    void* state_to_proto(const State& state) const;
+    foxglove::SceneUpdate create_start_goal_scene_update(const State& start, const State& goal);
     
     /**
-     * @brief Convert planning node to protobuf message
+     * @brief Create SceneUpdate for path visualization
      */
-    void* node_to_proto(const std::shared_ptr<Node>& node) const;
+    foxglove::SceneUpdate create_path_scene_update(const std::vector<State>& path);
     
     /**
-     * @brief Create obstacle map grid message
+     * @brief Create SceneUpdate for exploration nodes visualization
      */
-    void* create_obstacle_map_grid(
-        const std::vector<std::vector<int>>& obstacle_map,
-        double origin_x, double origin_y, double grid_resolution) const;
+    foxglove::SceneUpdate create_exploration_scene_update(
+        const std::vector<std::shared_ptr<Node>>& explored_nodes,
+        const std::vector<std::vector<State>>& simulation_trajectories);
     
     /**
-     * @brief Create path visualization message
+     * @brief Create statistics data as JSON string
      */
-    void* create_path_message(const std::vector<State>& states) const;
+    std::string create_statistics(const std::vector<State>& path,
+                                 const std::vector<std::shared_ptr<Node>>& explored_nodes,
+                                 double planning_time_ms);
     
     /**
-     * @brief Create exploration markers
+     * @brief Helper functions for creating Foxglove primitives
      */
-    void* create_exploration_markers(
-        const std::vector<std::shared_ptr<Node>>& explored_nodes) const;
+    google::protobuf::Timestamp get_current_timestamp() const;
     
-    /**
-     * @brief Create vehicle markers for start and goal
-     */
-    void* create_vehicle_markers(
-        const State& start_state, const State& goal_state) const;
+    foxglove::Color create_color(double r, double g, double b, double a = 1.0) const;
     
-    /**
-     * @brief Convert yaw angle to quaternion
-     */
-    void* yaw_to_quaternion(double yaw) const;
+    foxglove::Point3 create_point3(double x, double y, double z = 0.0) const;
+    
+    foxglove::Vector3 create_vector3(double x, double y, double z) const;
+    
+    foxglove::Quaternion yaw_to_quaternion(double yaw) const;
+    
+    foxglove::Pose create_pose(double x, double y, double z, double yaw) const;
+    
+    foxglove::ArrowPrimitive create_arrow(const foxglove::Pose& pose, 
+                                         double shaft_length, double shaft_diameter,
+                                         double head_length, double head_diameter,
+                                         const foxglove::Color& color) const;
+    
+    foxglove::SpherePrimitive create_sphere(const foxglove::Pose& pose,
+                                           const foxglove::Vector3& size,
+                                           const foxglove::Color& color) const;
+    
+    foxglove::LinePrimitive create_line(const std::vector<foxglove::Point3>& points,
+                                       double thickness,
+                                       const foxglove::Color& color,
+                                       foxglove::LinePrimitive::Type type = foxglove::LinePrimitive::LINE_STRIP) const;
+    
+    foxglove::CubePrimitive create_cube(const foxglove::Pose& pose,
+                                       const foxglove::Vector3& size,
+                                       const foxglove::Color& color) const;
 };
 
 } // namespace hybrid_astar

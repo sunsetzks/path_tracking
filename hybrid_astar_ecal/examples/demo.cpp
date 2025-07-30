@@ -1,12 +1,10 @@
 /**
  * @file demo.cpp
- * @brief Demo with visualization support when available
+ * @brief Demo with eCAL visualization support
  */
 
 #include "hybrid_astar.hpp"
-#ifdef ECAL_PROTOBUF_AVAILABLE
 #include "visualization_publisher.hpp"
-#endif
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -68,14 +66,10 @@ int main() {
     std::cout << "Start: (" << start_state.x << ", " << start_state.y << ", " << start_state.yaw << ")" << std::endl;
     std::cout << "Goal: (" << goal_state.x << ", " << goal_state.y << ", " << goal_state.yaw << ")" << std::endl;
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
-    // Initialize visualization publisher when available
+    // Initialize visualization publisher
     VisualizationPublisher viz_pub("hybrid_astar_demo");
     viz_pub.initialize();
     std::cout << "Visualization enabled (eCAL)" << std::endl;
-#else
-    std::cout << "Running without visualization (eCAL not available)" << std::endl;
-#endif
     
     // Plan path
     std::cout << "\nPlanning path..." << std::endl;
@@ -101,16 +95,14 @@ int main() {
             std::cout << "  " << key << ": " << value << std::endl;
         }
         
-#ifdef ECAL_PROTOBUF_AVAILABLE
-        // Publish visualization when available
-        viz_pub.publish_planning_result(
+        // Publish visualization
+        viz_pub.visualize_path_planning(
             start_state, goal_state,
             path_nodes, planner.get_explored_nodes(),
-            detailed_path, statistics,
+            detailed_path, {}, // empty simulation trajectories
             obstacle_map, map_origin_x, map_origin_y, config.grid_resolution,
             duration.count()
         );
-#endif
         
         // Print first few path points
         std::cout << "\nFirst 5 path points:" << std::endl;
@@ -121,17 +113,13 @@ int main() {
         
     } else {
         std::cout << "No path found!" << std::endl;
-#ifdef ECAL_PROTOBUF_AVAILABLE
         viz_pub.publish_planning_status(3, "Planning failed", 0, 1000);
-#endif
     }
     
     std::cout << "Planning time: " << duration.count() << " ms" << std::endl;
     std::cout << "Explored nodes: " << planner.get_explored_nodes().size() << std::endl;
     
-#ifdef ECAL_PROTOBUF_AVAILABLE
     viz_pub.shutdown();
-#endif
     
     std::cout << "\nDemo completed." << std::endl;
     return 0;
