@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package hybrid_astar;
+
+import "foxglove/Time.proto";
+import "foxglove/Grid.proto";
+import "foxglove/Path.proto";
+import "foxglove/MarkerArray.proto";
+
+// Vehicle state message
+message VehicleState {
+  double x = 1;                    // position x (m)
+  double y = 2;                    // position y (m)
+  double yaw = 3;                  // heading angle (rad)
+  double steering_angle = 4;       // steering angle (rad)
+  int32 direction = 5;             // 0=NONE, 1=FORWARD, 2=BACKWARD
+}
+
+// Planning node with costs
+message PlanningNode {
+  VehicleState state = 1;
+  double g_cost = 2;               // cost from start
+  double h_cost = 3;               // heuristic cost to goal
+  double f_cost = 4;               // total cost
+  
+  // Individual cost components
+  double distance_cost = 5;
+  double steering_cost = 6;
+  double turning_cost = 7;
+  double cusp_cost = 8;
+  
+  repeated VehicleState trajectory = 9;  // detailed trajectory
+}
+
+// Planning statistics
+message PlanningStatistics {
+  foxglove.Time timestamp = 1;
+  
+  bool path_found = 2;
+  int32 iterations = 3;
+  int32 nodes_explored = 4;
+  int32 trajectories_simulated = 5;
+  
+  double total_distance = 6;
+  double max_steering_angle = 7;
+  double average_steering_angle = 8;
+  double steering_utilization = 9;
+  int32 direction_changes = 10;
+  double max_curvature = 11;
+  double average_curvature = 12;
+  double planning_time_ms = 13;
+}
+
+// Complete planning result
+message PlanningResult {
+  foxglove.Time timestamp = 1;
+  string frame_id = 2;
+  
+  VehicleState start_state = 3;
+  VehicleState goal_state = 4;
+  
+  repeated PlanningNode path_nodes = 5;      // final path
+  repeated PlanningNode explored_nodes = 6;  // all explored nodes
+  repeated VehicleState detailed_path = 7;   // detailed state sequence
+  
+  PlanningStatistics statistics = 8;
+  
+  // Visualization data
+  foxglove.Grid obstacle_map = 9;
+  foxglove.Path planned_path = 10;
+  foxglove.MarkerArray exploration_markers = 11;
+  foxglove.MarkerArray vehicle_markers = 12;
+}
+
+// Real-time planning status
+message PlanningStatus {
+  foxglove.Time timestamp = 1;
+  
+  enum Status {
+    IDLE = 0;
+    PLANNING = 1;
+    SUCCESS = 2;
+    FAILED = 3;
+    INTERRUPTED = 4;
+  }
+  
+  Status status = 2;
+  string message = 3;
+  int32 current_iteration = 4;
+  int32 max_iterations = 5;
+  double progress_percent = 6;
+}

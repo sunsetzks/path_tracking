@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package foxglove;
+
+// A timestamp with nanosecond precision
+message Time {
+  // Seconds since epoch
+  uint64 sec = 1;
+  
+  // Nanoseconds since the last second
+  uint32 nsec = 2;
+}

@@ -1,0 +1,45 @@
+{
+  "name": "hybrid-astar-ecal",
+  "version": "1.0.0",
+  "description": "Pure C++ Hybrid A* path planning with eCAL visualization",
+  "keywords": [
+    "path-planning",
+    "hybrid-astar",
+    "ecal",
+    "foxglove",
+    "robotics",
+    "autonomous-driving"
+  ],
+  "author": "Path Planning Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sunsetzks/path_tracking.git",
+    "directory": "hybrid_astar_ecal"
+  },
+  "scripts": {
+    "build": "./build.sh",
+    "clean": "rm -rf build",
+    "demo": "cd build && ./hybrid_astar_demo"
+  },
+  "dependencies": {
+    "cmake": ">=3.16",
+    "gcc": ">=9.0",
+    "threads": "*"
+  },
+  "optionalDependencies": {
+    "ecal": ">=5.0.0",
+    "protobuf": ">=3.0.0",
+    "eigen3": ">=3.3.0"
+  },
+  "devDependencies": {
+    "foxglove-studio": "*"
+  },
+  "config": {
+    "cmake_build_type": "Debug",
+    "cpp_standard": 17
+  },
+  "engines": {
+    "cmake": ">=3.16"
+  }
+}

@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package foxglove;
+
+import "foxglove/Time.proto";
+import "foxglove/Pose.proto";
+import "foxglove/Vector3.proto";
+import "foxglove/Color.proto";
+import "foxglove/Point3.proto";
+
+// A visualization marker
+message Marker {
+  // Timestamp
+  Time timestamp = 1;
+  
+  // Frame ID
+  string frame_id = 2;
+  
+  // Namespace for organizing markers
+  string ns = 3;
+  
+  // Unique identifier
+  int32 id = 4;
+  
+  // Marker type
+  int32 type = 5;
+  
+  // Action (ADD=0, MODIFY=0, DELETE=2, DELETEALL=3)
+  int32 action = 6;
+  
+  // Pose of the marker
+  Pose pose = 7;
+  
+  // Scale
+  Vector3 scale = 8;
+  
+  // Color
+  Color color = 9;
+  
+  // Points for line strips, line lists, etc.
+  repeated Point3 points = 10;
+  
+  // Text for text markers
+  string text = 11;
+  
+  // Line width
+  double line_width = 12;
+}
+
+// Array of markers
+message MarkerArray {
+  repeated Marker markers = 1;
+}

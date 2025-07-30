@@ -1,0 +1,22 @@
+# Requirements for building and testing the hybrid_astar_cpp package
+
+# Core dependencies
+numpy>=1.20.0
+pybind11>=2.6.0
+
+# Build dependencies
+setuptools>=45
+wheel
+build
+
+# Testing dependencies
+pytest>=6.0
+pytest-benchmark
+
+# Optional dependencies for examples and visualization
+matplotlib>=3.3.0
+
+# Development dependencies
+black>=21.0.0
+isort>=5.0.0
+flake8>=3.8.0

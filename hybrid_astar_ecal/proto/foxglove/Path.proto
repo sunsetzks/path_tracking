@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package foxglove;
+
+import "foxglove/Time.proto";
+import "foxglove/Pose.proto";
+import "foxglove/Color.proto";
+
+// A sequence of poses connected by line segments
+message Path {
+  // Timestamp of path
+  Time timestamp = 1;
+  
+  // Frame ID
+  string frame_id = 2;
+  
+  // Sequence of poses
+  repeated Pose poses = 3;
+  
+  // Color of the path
+  Color color = 4;
+  
+  // Line width for rendering
+  double line_width = 5;
+}
