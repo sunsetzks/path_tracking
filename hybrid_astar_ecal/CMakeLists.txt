@@ -145,8 +145,17 @@ else()
         hybrid_astar_core
     )
     
+    # Timing performance demo
+    add_executable(hybrid_astar_timing_demo
+        examples/timing_demo.cpp
+    )
+    
+    target_link_libraries(hybrid_astar_timing_demo
+        hybrid_astar_core
+    )
+    
     # Install targets
-    install(TARGETS hybrid_astar_core hybrid_astar_simple_demo hybrid_astar_demo
+    install(TARGETS hybrid_astar_core hybrid_astar_simple_demo hybrid_astar_demo hybrid_astar_timing_demo
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib

@@ -15,6 +15,7 @@
 #include <optional>
 #include <tuple>
 #include <functional>
+#include <chrono>
 
 namespace hybrid_astar {
 
@@ -84,6 +85,13 @@ public:
     void set_debug_enabled(bool enabled) {
         debug_enabled_ = enabled;
     }
+    
+    /**
+     * @brief Get last planning time in milliseconds
+     */
+    double get_last_planning_time_ms() const {
+        return last_planning_time_ms_;
+    }
 
 private:
     // Configuration
@@ -105,6 +113,10 @@ private:
     std::vector<std::shared_ptr<Node>> explored_nodes_;
     std::vector<std::vector<State>> simulation_trajectories_;
     bool debug_enabled_ = false;
+    
+    // Performance timing
+    mutable std::chrono::steady_clock::time_point planning_start_time_;
+    mutable double last_planning_time_ms_ = 0.0;
     
     /**
      * @brief Check if state is collision-free

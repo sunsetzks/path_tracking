@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <chrono>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -77,6 +78,9 @@ double HybridAStar::heuristic_cost(const State& state, const State& goal) const 
 std::optional<std::vector<std::shared_ptr<Node>>> HybridAStar::plan_path(
     const State& start, const State& goal, int max_iterations) {
     
+    // Start timing
+    planning_start_time_ = std::chrono::steady_clock::now();
+    
     if (max_iterations <= 0) {
         max_iterations = config_.max_iterations;
     }
@@ -124,7 +128,14 @@ std::optional<std::vector<std::shared_ptr<Node>>> HybridAStar::plan_path(
         
         // Check if goal reached
         if (is_goal_reached(current_node->state, goal)) {
+            // End timing
+            auto planning_end_time = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                planning_end_time - planning_start_time_);
+            last_planning_time_ms_ = duration.count() / 1000.0;
+            
             std::cout << "Path found in " << iterations << " iterations" << std::endl;
+            std::cout << "Planning time: " << last_planning_time_ms_ << " ms" << std::endl;
             return reconstruct_path(current_node);
         }
         
@@ -156,7 +167,14 @@ std::optional<std::vector<std::shared_ptr<Node>>> HybridAStar::plan_path(
         }
     }
     
+    // End timing for no path found case
+    auto planning_end_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        planning_end_time - planning_start_time_);
+    last_planning_time_ms_ = duration.count() / 1000.0;
+    
     std::cout << "No path found after " << iterations << " iterations" << std::endl;
+    std::cout << "Planning time: " << last_planning_time_ms_ << " ms" << std::endl;
     return std::nullopt;
 }
 
@@ -294,6 +312,7 @@ std::unordered_map<std::string, double> HybridAStar::get_statistics(
         stats["path_found"] = 0.0;
         stats["nodes_explored"] = static_cast<double>(explored_nodes_.size());
         stats["trajectories_simulated"] = static_cast<double>(simulation_trajectories_.size());
+        stats["planning_time_ms"] = last_planning_time_ms_;
         return stats;
     }
     
@@ -336,6 +355,7 @@ std::unordered_map<std::string, double> HybridAStar::get_statistics(
     stats["steering_utilization"] = vehicle_model_.max_steer() > 0 ? max_steer / vehicle_model_.max_steer() : 0.0;
     stats["direction_changes"] = static_cast<double>(direction_changes);
     stats["nodes_explored"] = static_cast<double>(explored_nodes_.size());
+    stats["planning_time_ms"] = last_planning_time_ms_;
     
     return stats;
 }
