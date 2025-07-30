@@ -215,71 +215,65 @@ foxglove::SceneUpdate VisualizationPublisher::create_path_scene_update(
         entity->set_frame_id("map");
         *entity->mutable_timestamp() = get_current_timestamp();
         
-        // Create path segments with color coding by direction
+        // Helper function to get segment color
+        auto get_color = [this](DirectionMode direction) -> foxglove::Color {
+            if (direction == DirectionMode::FORWARD) {
+                return create_color(0.0, 1.0, 0.0, settings_.path_alpha);  // Green
+            } else if (direction == DirectionMode::BACKWARD) {
+                return create_color(1.0, 0.0, 0.0, settings_.path_alpha);  // Red
+            }
+            return create_color(0.5, 0.5, 0.5, settings_.path_alpha);  // Gray for unknown
+        };
+        
+        // Create path segments by direction (skip NONE directions)
         std::vector<foxglove::Point3> current_segment;
         DirectionMode current_direction = DirectionMode::NONE;
         
-        for (size_t i = 0; i < path.size(); ++i) {
-            const auto& state = path[i];
+        for (const auto& state : path) {
+            // Skip NONE directions
+            if (state.direction == DirectionMode::NONE) continue;
+            
             foxglove::Point3 point = create_point3(state.x, state.y, 0.0);
             
-            // If direction changes or this is the first point, start/continue segment
+            // Start new segment if direction changes
             if (state.direction != current_direction) {
-                // Finish previous segment if it has multiple points
+                // Save previous segment if valid
                 if (current_segment.size() > 1) {
                     auto line = entity->add_lines();
-                    foxglove::Color segment_color;
-                    if (current_direction == DirectionMode::FORWARD) {
-                        segment_color = create_color(0.0, 1.0, 0.0, settings_.path_alpha);  // Green for forward
-                    } else if (current_direction == DirectionMode::BACKWARD) {
-                        segment_color = create_color(1.0, 0.0, 0.0, settings_.path_alpha);  // Red for backward
-                    } else {
-                        segment_color = create_color(1.0, 0.0, 1.0, settings_.path_alpha);  // Magenta for unknown (original color)
-                    }
-                    *line = create_line(current_segment, settings_.path_line_thickness, segment_color);
+                    *line = create_line(current_segment, settings_.path_line_thickness, get_color(current_direction));
                 }
                 
-                // Start new segment
-                current_segment.clear();
+                // Start new segment - if we have a previous segment, add the last point to ensure continuity
+                if (!current_segment.empty()) {
+                    current_segment = {current_segment.back(), point};  // Add connecting point
+                } else {
+                    current_segment = {point};
+                }
                 current_direction = state.direction;
+            } else {
+                current_segment.push_back(point);
             }
-            
-            current_segment.push_back(point);
         }
         
-        // Finish last segment
+        // Save final segment
         if (current_segment.size() > 1) {
             auto line = entity->add_lines();
-            foxglove::Color segment_color;
-            if (current_direction == DirectionMode::FORWARD) {
-                segment_color = create_color(0.0, 1.0, 0.0, settings_.path_alpha);  // Green for forward
-            } else if (current_direction == DirectionMode::BACKWARD) {
-                segment_color = create_color(1.0, 0.0, 0.0, settings_.path_alpha);  // Red for backward
-            } else {
-                segment_color = create_color(1.0, 0.0, 1.0, settings_.path_alpha);  // Magenta for unknown (original color)
-            }
-            *line = create_line(current_segment, settings_.path_line_thickness, segment_color);
+            *line = create_line(current_segment, settings_.path_line_thickness, get_color(current_direction));
         }
         
-        // Add vehicle orientation arrows if enabled (also color-coded by direction)
+        // Add orientation arrows if enabled
         if (settings_.show_final_path_arrows) {
             int step = std::max(1, static_cast<int>(path.size()) / 20);
             for (size_t i = 0; i < path.size(); i += step) {
+                if (path[i].direction == DirectionMode::NONE) continue;  // Skip NONE directions
+                
                 auto arrow = entity->add_arrows();
                 *arrow->mutable_pose() = create_pose(path[i].x, path[i].y, 0.0, path[i].yaw);
                 arrow->set_shaft_length(0.8);
                 arrow->set_shaft_diameter(0.05);
                 arrow->set_head_length(0.2);
                 arrow->set_head_diameter(0.1);
-                
-                // Color arrows by direction
-                if (path[i].direction == DirectionMode::FORWARD) {
-                    *arrow->mutable_color() = create_color(0.0, 0.8, 0.0, 0.9);  // Green for forward
-                } else if (path[i].direction == DirectionMode::BACKWARD) {
-                    *arrow->mutable_color() = create_color(0.8, 0.0, 0.0, 0.9);  // Red for backward
-                } else {
-                    *arrow->mutable_color() = create_color(1.0, 0.5, 0.0, 0.8);  // Orange for unknown (original color)
-                }
+                *arrow->mutable_color() = get_color(path[i].direction);
             }
         }
     }
