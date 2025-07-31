@@ -1,14 +1,12 @@
-# Examples CMakeLists.txt
+# eCAL Examples CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
 
 # Find required packages
 find_package(eCAL REQUIRED)
 find_package(Protobuf REQUIRED)
 
-# List of example executables and their source files
+# Only eCAL-specific examples
 set(EXAMPLES
-    collision_detector_example
-    demo
     ecal_demo
 )
 
@@ -20,11 +18,28 @@ foreach(EXAMPLE ${EXAMPLES})
         add_executable(${EXAMPLE} ${EXAMPLE_SOURCE})
         
         # Link required libraries
-        target_link_libraries(${EXAMPLE}
-            hybrid_astar_core
-            hybrid_astar_visualization
-            eCAL::core
-            ${Protobuf_LIBRARIES}
+        if(TARGET hybrid_astar_core::hybrid_astar_core)
+            target_link_libraries(${EXAMPLE}
+                hybrid_astar_core::hybrid_astar_core
+                hybrid_astar_visualization
+                hybrid_astar_proto
+                eCAL::core
+                ${Protobuf_LIBRARIES}
+            )
+        else()
+            # If built as subdirectory
+            target_link_libraries(${EXAMPLE}
+                hybrid_astar_core
+                hybrid_astar_visualization
+                hybrid_astar_proto
+                eCAL::core
+                ${Protobuf_LIBRARIES}
+            )
+        endif()
+        
+        # Include directories for workspace builds
+        target_include_directories(${EXAMPLE} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../hybrid_astar_core/include
         )
         
         # Set C++ standard
@@ -38,19 +53,11 @@ foreach(EXAMPLE ${EXAMPLES})
             RUNTIME DESTINATION bin/examples
         )
         
-        message(STATUS "Added example: ${EXAMPLE}")
+        message(STATUS "Added eCAL example: ${EXAMPLE}")
     else()
         message(WARNING "Example source file not found: ${EXAMPLE_SOURCE}")
     endif()
 endforeach()
-
-# Special handling for examples that might need additional dependencies
-# or different linking requirements
-
-# Demo executable (basic example)
-if(TARGET demo)
-    target_compile_definitions(demo PRIVATE DEMO_VERSION)
-endif()
 
 # eCAL demo (with eCAL specific features)
 if(TARGET ecal_demo)
@@ -58,23 +65,10 @@ if(TARGET ecal_demo)
 endif()
 
 # Create a custom target to build all examples
-add_custom_target(build_all_examples
+add_custom_target(build_all_ecal_examples
     DEPENDS ${EXAMPLES}
-    COMMENT "Building all hybrid A* examples"
+    COMMENT "Building all hybrid A* eCAL examples"
 )
-
-# Add option to build examples separately
-option(BUILD_EXAMPLES "Build example executables" ON)
-
-if(NOT BUILD_EXAMPLES)
-    message(STATUS "Examples are disabled. Use -DBUILD_EXAMPLES=ON to enable.")
-    # Remove all example targets if disabled
-    foreach(EXAMPLE ${EXAMPLES})
-        if(TARGET ${EXAMPLE})
-            set_target_properties(${EXAMPLE} PROPERTIES EXCLUDE_FROM_ALL TRUE)
-        endif()
-    endforeach()
-endif()
 
 # Install example source files for reference
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/

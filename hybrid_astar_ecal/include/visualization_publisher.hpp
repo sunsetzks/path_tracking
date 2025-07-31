@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "common_types.hpp"
+#include "../../hybrid_astar_core/include/common_types.hpp"
 #include <memory>
 #include <string>
 #include <optional>

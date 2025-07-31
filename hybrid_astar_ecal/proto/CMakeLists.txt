@@ -45,7 +45,10 @@ endforeach()
 # Create library and configure
 add_library(hybrid_astar_proto STATIC ${PROTO_SRCS} ${PROTO_HDRS})
 
-target_include_directories(hybrid_astar_proto PUBLIC ${PROTO_GEN_DIR})
+target_include_directories(hybrid_astar_proto PUBLIC 
+    $<BUILD_INTERFACE:${PROTO_GEN_DIR}>
+    $<INSTALL_INTERFACE:include/hybrid_astar_ecal/proto>
+)
 target_link_libraries(hybrid_astar_proto PUBLIC protobuf::libprotobuf)
 set_target_properties(hybrid_astar_proto PROPERTIES
     CXX_STANDARD 17

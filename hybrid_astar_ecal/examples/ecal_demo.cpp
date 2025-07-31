@@ -3,10 +3,10 @@
  * @brief Demo with full eCAL integration
  */
 
-#include "hybrid_astar.hpp"
-#include "collision_detector.hpp"
-#include "obstacle_map.hpp"
-#include "visualization_publisher.hpp"
+#include "../../hybrid_astar_core/include/hybrid_astar.hpp"
+#include "../../hybrid_astar_core/include/collision_detector.hpp"
+#include "../../hybrid_astar_core/include/obstacle_map.hpp"
+#include "../include/visualization_publisher.hpp"
 #include <iostream>
 #include <vector>
 #include <chrono>

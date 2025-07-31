@@ -70,7 +70,6 @@ add_subdirectory(examples)
     
 # Install targets
 install(TARGETS hybrid_astar_visualization hybrid_astar_proto
-    EXPORT hybrid_astar_ecal_targets
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
