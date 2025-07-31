@@ -1,4 +1,8 @@
-import dubins
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+import pure_python_dubins as dubins
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy
@@ -175,6 +179,3 @@ if __name__ == "__main__":
     plot_dubins_table(3, 1.0)
     
     print("\nBackward motion extension test completed!")
-
-
-

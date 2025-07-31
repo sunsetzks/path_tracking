@@ -20,6 +20,7 @@
 cimport cython
 cimport core
 from libc.stdlib cimport malloc, free
+import numpy
 
 
 cdef inline int callback(double q[3], double t, void* f) noexcept:
@@ -240,4 +241,89 @@ def norm_path(alpha, beta, delta, word):
     q1 = [ delta, 0.0, beta ]
     return path(q0, q1, 1.0, word)
 
+
+def backward_path_sample(q0, q1, rho, step_size):
+    '''Generate points along a Dubin's path for backward motion sampled at a regular interval
+
+    Parameters
+    ----------
+    q0 : array-like
+        the initial configuration
+    q1 : array-like
+        the final configuration
+    rho : float
+        the turning radius of the vehicle
+    step_size : float
+        the distance along the path to sample
+
+    Raises
+    ------
+    RuntimeError
+        If the construction of the path fails
+
+    Returns
+    -------
+    result : tuple of two lists
+        The first element are sampled configurations, the second are distances
+    '''
+    # Swap start and end points
+    q0_swapped = q1
+    q1_swapped = q0
+    
+    # Plan path from swapped points
+    path = _DubinsPath.shortest_path(q0_swapped, q1_swapped, rho)
+    qs, ts = path.sample_many(step_size)
+    
+    # Reverse the path but keep original orientations
+    reversed_qs = []
+    reversed_ts = []
+    
+    # Process in reverse order
+    for i in range(len(qs)-1, -1, -1):
+        q = qs[i]
+        t = ts[i]
+        
+        # Keep the original orientation, only reverse direction
+        reversed_q = (q[0], q[1], q[2])
+        
+        # Adjust time to be increasing in backward direction
+        reversed_t = path.path_length() - t
+        
+        reversed_qs.append(reversed_q)
+        reversed_ts.append(reversed_t)
+    
+    return reversed_qs, reversed_ts
+
+
+def shortest_backward_path(q0, q1, rho):
+    '''Shortest path between dubins configurations for backward motion
+
+    Parameters
+    ----------
+    q0 : array-like
+        the initial configuration
+    q1 : array-like
+        the final configuration
+    rho : float
+        the turning radius of the vehicle
+
+    Raises
+    ------
+    RuntimeError
+        If the construction of the path fails
+
+    Returns
+    -------
+    path : DubinsPath
+        The shortest path for backward motion
+    '''
+    # Swap start and end points
+    q0_swapped = q1
+    q1_swapped = q0
+    
+    # Plan path from swapped points
+    path = _DubinsPath.shortest_path(q0_swapped, q1_swapped, rho)
+    
+    # Return the original path (the user can use backward_path_sample for backward motion)
+    return path
 
