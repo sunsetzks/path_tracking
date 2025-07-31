@@ -213,27 +213,28 @@ def demonstrate_dynamic_response():
     C_r = 80000.0  # Rear tire cornering stiffness
     
     # Initial conditions
-    v_x = 20.0
+    v_x = 50.0
     v_y = 0.0
     psi_dot = 0.0
     
     # Steering input (step input)
     delta = np.zeros_like(time)
     # Fast change in steering angle instead of step input
-    transition_time = 0.1  # 100ms transition time
+    transition_time = 1  # 100ms transition time
     transition_start = 1.0
     transition_end = transition_start + transition_time
+    max_steering_angle = 0.02  # Maximum steering angle in radians
     
     # Create smooth transition using sigmoid-like function
     for i, t in enumerate(time):
         if t >= transition_end:
-            delta[i] = 0.05
+            delta[i] = max_steering_angle
         elif t >= transition_start:
-            # Smooth transition from 0 to 0.05
+            # Smooth transition from 0 to max_steering_angle
             progress = (t - transition_start) / transition_time
             # Use sigmoid-like function for smooth transition
             smooth_progress = 0.5 * (1 + np.tanh(6 * (progress - 0.5)))
-            delta[i] = 0.05 * smooth_progress
+            delta[i] = max_steering_angle * smooth_progress
         else:
             delta[i] = 0.0
     
