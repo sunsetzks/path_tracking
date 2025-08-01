@@ -7,6 +7,7 @@ This script demonstrates the key concepts behind the lateral dynamics equations:
 2. I_z ψ̈ = l_f F_yf cos(δ) - l_r F_yr    (横摆力矩平衡)
 """
 
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -200,7 +201,7 @@ def demonstrate_dynamic_response():
     print("\n=== Dynamic Response Demonstration ===")
     
     # Time simulation
-    dt = 0.01
+    dt = 0.0001
     t_end = 5.0
     time = np.arange(0, t_end, dt)
     
@@ -213,17 +214,17 @@ def demonstrate_dynamic_response():
     C_r = 80000.0  # Rear tire cornering stiffness
     
     # Initial conditions
-    v_x = 50.0
+    v_x = 2.0
     v_y = 0.0
     psi_dot = 0.0
     
     # Steering input (step input)
     delta = np.zeros_like(time)
     # Fast change in steering angle instead of step input
-    transition_time = 1  # 100ms transition time
+    transition_time = 2  # 100ms transition time
     transition_start = 1.0
     transition_end = transition_start + transition_time
-    max_steering_angle = 0.02  # Maximum steering angle in radians
+    max_steering_angle = 0.5  # Maximum steering angle in radians
     
     # Create smooth transition using sigmoid-like function
     for i, t in enumerate(time):
