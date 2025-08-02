@@ -324,6 +324,13 @@ class SimpleVehicleDynamics:
         self.yaw = 0.0
         self.speed = 0.0
         
+    def set_state(self, state: SE2, speed: float = 0.0):
+        """Set vehicle state."""
+        self.x = state.x
+        self.y = state.y
+        self.yaw = state.theta
+        self.speed = speed
+        
     def update(self, dt: float, steering: float, acceleration: float):
         """
         Update vehicle state with simple bicycle model.
@@ -339,11 +346,10 @@ class SimpleVehicleDynamics:
         
         # Update position and heading
         if self.speed > 0:
-            # Bicycle model
-            beta = np.arctan(0.5 * np.tan(steering))  # Slip angle
-            dx = self.speed * np.cos(self.yaw + beta) * dt
-            dy = self.speed * np.sin(self.yaw + beta) * dt
-            dtheta = (self.speed / self.wheelbase) * np.sin(beta) * dt
+            # Standard bicycle model
+            dx = self.speed * np.cos(self.yaw) * dt
+            dy = self.speed * np.sin(self.yaw) * dt
+            dtheta = (self.speed / self.wheelbase) * np.tan(steering) * dt
             
             self.x += dx
             self.y += dy
@@ -361,3 +367,7 @@ class SimpleVehicleDynamics:
     def get_state(self) -> SE2:
         """Get current vehicle state as SE2 transformation."""
         return SE2(self.x, self.y, self.yaw)
+    
+    def get_speed(self) -> float:
+        """Get current vehicle speed [m/s]."""
+        return self.speed

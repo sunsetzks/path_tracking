@@ -94,7 +94,7 @@ class SimulationEnvironment:
     
     def simulate(self,
                 controller: StanleyController,
-                vehicle_dynamics: VehicleDynamics,
+                vehicle_dynamics,  # Can be VehicleDynamics or SimpleVehicleDynamics
                 initial_state: SE2,
                 path_points: np.ndarray,
                 path_yaw: np.ndarray,
@@ -121,6 +121,10 @@ class SimulationEnvironment:
         self.simulation_complete = False
         vehicle_dynamics.reset()
         
+        # Set initial vehicle state
+        if hasattr(vehicle_dynamics, 'set_state'):  # SimpleVehicleDynamics
+            vehicle_dynamics.set_state(initial_state, 0.0)
+        
         # Initialize state
         state = SE2(float(initial_state.x), float(initial_state.y), float(initial_state.theta))
         time = 0.0
@@ -135,19 +139,30 @@ class SimulationEnvironment:
             # Store current state
             self.trajectory_history.append(SE2(float(state.x), float(state.y), float(state.theta)))
             
+            # Get current speed from vehicle dynamics
+            current_speed = vehicle_dynamics.get_speed()
+            
             # Compute control
             steering, acceleration, target_idx = controller.compute_control(
-                state, path_points, path_yaw, target_speed)
+                state, path_points, path_yaw, target_speed, current_speed)
             
-            # Store control inputs
+            # Store control inputs and speed
             self.control_history.append({
                 'steering': float(steering),
                 'acceleration': float(acceleration),
+                'speed': float(current_speed),
                 'time': time
             })
             
             # Update vehicle dynamics
-            vehicle_dynamics.update(self.config.dt, steering, acceleration, 0.0)
+            # Check if it's a simple vehicle dynamics or complex one
+            if hasattr(vehicle_dynamics, 'params'):  # Complex VehicleDynamics
+                # Convert acceleration command to throttle/brake commands
+                throttle_command = max(0.0, acceleration / 3.0)  # Normalize by max acceleration
+                brake_command = max(0.0, -acceleration / 8.0)    # Normalize by max deceleration
+                vehicle_dynamics.update(self.config.dt, steering, throttle_command, brake_command)
+            else:  # SimpleVehicleDynamics
+                vehicle_dynamics.update(self.config.dt, steering, acceleration)
             state = vehicle_dynamics.get_state()
             
             # Calculate errors
@@ -215,9 +230,8 @@ class SimulationEnvironment:
             avg_heading_error = 0.0
             max_distance_error = 0.0
         
-        # Average speed
-        avg_speed = np.mean([self.control_history[i]['time'] - self.control_history[i-1]['time'] 
-                           for i in range(1, len(self.control_history))]) if len(self.control_history) > 1 else 0.0
+        # Average speed - calculate from stored speed values
+        avg_speed = np.mean([c['speed'] for c in self.control_history]) if self.control_history else 0.0
         
         # Control smoothness (steering rate)
         if len(self.control_history) > 1:

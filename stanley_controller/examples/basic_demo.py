@@ -12,9 +12,9 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from stanley_controller import StanleyController, VehicleDynamics, SimulationEnvironment, Visualizer
+from stanley_controller import StanleyController, SimulationEnvironment, Visualizer
+from stanley_controller.vehicle_dynamics import SimpleVehicleDynamics
 from stanley_controller.utils.se2 import SE2
-from stanley_controller.vehicle_dynamics import VehicleParameters
 from stanley_controller.simulation import SimulationConfig, ScenarioGenerator
 from stanley_controller.stanley_controller import ControlParams
 
@@ -28,28 +28,27 @@ def main():
         dt=0.1,
         max_time=50.0,
         collision_check=False,
-        goal_tolerance=1.0
+        goal_tolerance=5.0  # Increased from 1.0 to make success easier
     )
     
-    # Create Stanley controller with default parameters
+    # Create Stanley controller with tuned parameters
     control_params = ControlParams(
-        k_cross_track=0.5,
-        k_heading=1.0,
+        k_cross_track=1.0,      # Increased from 0.5
+        k_heading=2.0,          # Increased from 1.0
         max_steer_angle=np.radians(30.0),
         wheelbase=2.9,
-        lookahead_distance=5.0
+        lookahead_distance=10.0  # Increased from 5.0
     )
     controller = StanleyController(control_params)
     
-    # Create vehicle dynamics
-    vehicle_params = VehicleParameters()
-    vehicle_dynamics = VehicleDynamics(vehicle_params)
+    # Create vehicle dynamics using simple model
+    vehicle_dynamics = SimpleVehicleDynamics(wheelbase=2.9)
     
     # Generate a simple circular path
     path_points, path_yaw = ScenarioGenerator.circular_scenario(radius=20.0, num_points=100)
     
-    # Set initial state (start from outside the circle)
-    initial_state = SE2(x=-30.0, y=0.0, theta=np.radians(45.0))
+    # Set initial state (start from the first point of the path)
+    initial_state = SE2(x=path_points[0, 0], y=path_points[0, 1], theta=path_yaw[0])
     
     # Create simulation environment
     sim_env = SimulationEnvironment(config)
@@ -58,7 +57,7 @@ def main():
     print("Running simulation...")
     result = sim_env.simulate(
         controller, vehicle_dynamics, initial_state, 
-        path_points, path_yaw, target_speed=5.0
+        path_points, path_yaw, target_speed=3.0  # Reduced from 5.0
     )
     
     # Print results

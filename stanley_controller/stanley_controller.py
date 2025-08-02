@@ -54,7 +54,8 @@ class StanleyController:
                        state: SE2, 
                        path_points: np.ndarray, 
                        path_yaw: np.ndarray,
-                       target_speed: float) -> Tuple[float, float, int]:
+                       target_speed: float,
+                       current_speed: float = 0.0) -> Tuple[float, float, int]:
         """
         Compute steering and acceleration commands.
         
@@ -63,6 +64,7 @@ class StanleyController:
             path_points: Path points as numpy array of shape (N, 2)
             path_yaw: Path yaw angles as numpy array of shape (N,)
             target_speed: Target speed [m/s]
+            current_speed: Current vehicle speed [m/s]
             
         Returns:
             Tuple of (steering_angle, acceleration, target_index)
@@ -80,11 +82,11 @@ class StanleyController:
         cross_track_error = self._compute_cross_track_error(state, path_points, target_index)
         heading_error = self._compute_heading_error(state, path_yaw[target_index])
         
-        # Stanley control law
-        steering_angle = self._compute_steering_angle(cross_track_error, heading_error, state.x)
+        # Stanley control law - use current_speed instead of state.x
+        steering_angle = self._compute_steering_angle(cross_track_error, heading_error, current_speed)
         
-        # Simple speed control
-        acceleration = self._speed_control(target_speed, state.x)
+        # Simple speed control - use current_speed instead of state.x
+        acceleration = self._speed_control(target_speed, current_speed)
         
         # Clamp control inputs
         steering_angle = np.clip(steering_angle, 
@@ -191,7 +193,7 @@ class StanleyController:
             Acceleration command
         """
         speed_error = target_speed - current_speed
-        kp_speed = 1.0  # Speed control gain
+        kp_speed = 2.0  # Increased speed control gain from 1.0 to 2.0
         return kp_speed * speed_error
     
     def reset(self):
