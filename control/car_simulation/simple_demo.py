@@ -201,8 +201,8 @@ def demonstrate_dynamic_response():
     print("\n=== Dynamic Response Demonstration ===")
     
     # Time simulation
-    dt = 0.0001
-    t_end = 5.0
+    dt = 0.00001
+    t_end = 10.0
     time = np.arange(0, t_end, dt)
     
     # Vehicle parameters
@@ -214,17 +214,17 @@ def demonstrate_dynamic_response():
     C_r = 80000.0  # Rear tire cornering stiffness
     
     # Initial conditions
-    v_x = 2.0
+    v_x = 0.1
     v_y = 0.0
     psi_dot = 0.0
     
     # Steering input (step input)
     delta = np.zeros_like(time)
     # Fast change in steering angle instead of step input
-    transition_time = 2  # 100ms transition time
+    transition_time = 3  # 100ms transition time
     transition_start = 1.0
     transition_end = transition_start + transition_time
-    max_steering_angle = 0.5  # Maximum steering angle in radians
+    max_steering_angle = 0.05  # Maximum steering angle in radians
     
     # Create smooth transition using sigmoid-like function
     for i, t in enumerate(time):
@@ -246,19 +246,19 @@ def demonstrate_dynamic_response():
     F_yr_history = np.zeros_like(time)
     alpha_f_history = np.zeros_like(time)
     alpha_r_history = np.zeros_like(time)
-    slip_ratio_history = np.zeros_like(time)
+    slip_angle_history = np.zeros_like(time)
     
     # Simple integration (Euler method)
     for i, t in enumerate(time):
         # Calculate slip angles
-        if abs(v_x) > 0.1:
+        if abs(v_x) > 0.01:
             alpha_f = delta[i] - np.arctan2(v_y + l_f * psi_dot, v_x)
             alpha_r = -np.arctan2(v_y - l_r * psi_dot, v_x)
         else:
             alpha_f = alpha_r = 0.0
         
-        # Calculate slip ratio (simplified)
-        slip_ratio = abs(v_y) / (abs(v_x) + 0.1)  # Avoid division by zero
+        # Calculate slip angle (simplified)
+        slip_angle = np.degrees(np.arctan2(abs(v_y), abs(v_x) + 0.001))  # Convert to degrees
         
         # Calculate tire forces
         F_yf = C_f * alpha_f
@@ -271,7 +271,7 @@ def demonstrate_dynamic_response():
         F_yr_history[i] = F_yr
         alpha_f_history[i] = alpha_f
         alpha_r_history[i] = alpha_r
-        slip_ratio_history[i] = slip_ratio
+        slip_angle_history[i] = slip_angle
         
         # Calculate derivatives using the lateral dynamics equations
         v_y_dot = (F_yf * np.cos(delta[i]) + F_yr) / m - v_x * psi_dot
@@ -289,7 +289,7 @@ def demonstrate_dynamic_response():
     print(f"  Maximum yaw rate: {np.max(np.abs(psi_dot_history)):.3f} rad/s = {np.degrees(np.max(np.abs(psi_dot_history))):.1f}°/s")
     print(f"  Maximum front slip angle: {np.degrees(np.max(np.abs(alpha_f_history))):.2f}°")
     print(f"  Maximum rear slip angle: {np.degrees(np.max(np.abs(alpha_r_history))):.2f}°")
-    print(f"  Maximum slip ratio: {np.max(slip_ratio_history):.3f}")
+    print(f"  Maximum slip angle: {np.max(slip_angle_history):.3f}")
     print(f"  Maximum front tire force: {np.max(np.abs(F_yf_history))/1000:.1f} kN")
     print(f"  Maximum rear tire force: {np.max(np.abs(F_yr_history))/1000:.1f} kN")
     
@@ -365,7 +365,7 @@ def demonstrate_dynamic_response():
     
     # Slip ratio and vehicle dynamics
     ax_slip = axes[2, 1]
-    ax_slip.plot(time, slip_ratio_history, 'm-', linewidth=2, label='Slip Ratio')
+    ax_slip.plot(time, slip_angle_history, 'm-', linewidth=2, label='Slip Angle')
     ax_slip.set_xlabel('Time [s]')
     ax_slip.set_ylabel('Slip Ratio', color='m')
     ax_slip.tick_params(axis='y', labelcolor='m')
@@ -378,7 +378,7 @@ def demonstrate_dynamic_response():
     ax_yaw.set_ylabel('Yaw Angle [deg]', color='c')
     ax_yaw.tick_params(axis='y', labelcolor='c')
     
-    axes[2, 1].set_title('Slip Ratio and Vehicle Yaw')
+    axes[2, 1].set_title('Slip Angle [°] and Vehicle Yaw')
     axes[2, 1].legend(loc='upper left')
     ax_yaw.legend(loc='upper right')
     
