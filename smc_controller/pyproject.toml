@@ -1,0 +1,17 @@
+[project]
+name = "smc-controller"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "kszheng", email = "2436809937@qq.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+smc-controller = "smc_controller:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

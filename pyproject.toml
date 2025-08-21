@@ -65,4 +65,5 @@ members = [
     "test_ws/learn-3d",
     "test_ws/ex1",
     "test_ws",
+    "smc_controller",
 ]
