@@ -209,9 +209,26 @@ class Trajectory:
         new_traj.T = self.T
         new_traj.lambda_offset = lambda_offset
 
-        # For now, return self (simplified implementation)
+        # Copy all trajectory functions to the new trajectory
+        # For now, we copy the functions as-is (simplified implementation)
         # In full implementation, this would adjust all trajectory functions
         # by the offset distance lambda_offset
+        new_traj.X = self.X
+        new_traj.Y = self.Y
+        new_traj.dX = self.dX
+        new_traj.dY = self.dY
+        new_traj.ddX = self.ddX
+        new_traj.ddY = self.ddY
+        new_traj.theta = self.theta
+        new_traj.dtheta = self.dtheta
+        new_traj.ddtheta = self.ddtheta
+        new_traj.dddtheta = self.dddtheta
+        new_traj.s = self.s
+        new_traj.v = self.v
+        new_traj.a = self.a
+        new_traj.j = self.j
+        new_traj.kappa = self.kappa
+
         return new_traj
 
     def make_static(self, res):
