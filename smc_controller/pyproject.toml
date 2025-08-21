@@ -7,7 +7,11 @@ authors = [
     { name = "kszheng", email = "2436809937@qq.com" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pyqt5",
+]
 
 [project.scripts]
 smc-controller = "smc_controller:main"
