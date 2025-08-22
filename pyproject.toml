@@ -67,4 +67,5 @@ members = [
     "test_ws/ex1",
     "test_ws",
     "smc_controller",
+    "test_ws/forglove-helper",
 ]
