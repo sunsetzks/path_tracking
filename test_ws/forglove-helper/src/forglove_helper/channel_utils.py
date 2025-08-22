@@ -20,6 +20,15 @@ import time
 import numpy as np
 from typing import List, Tuple, Optional, Union, Any
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from foxglove.schemas import (
+        FrameTransform, Vector3, Vector2, Quaternion, Timestamp,
+        CubePrimitive, SpherePrimitive, LinePrimitive, ArrowPrimitive,
+        Color, Point3, Pose,
+        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType
+    )
 
 # Import Foxglove schemas
 try:
@@ -477,3 +486,335 @@ class LaserScanUtils:
             end_angle=math.pi,
             frame_id="laser"
         )
+
+
+class PlotUtils:
+    """
+    Matplotlib-like utilities for creating 2D plots and scatter plots in 3D space
+
+    This class provides functions similar to matplotlib's plot() and scatter() functions,
+    but creates Foxglove-compatible 3D primitives that can be visualized in Foxglove Studio.
+    """
+
+    @staticmethod
+    def plot(x: Union[List[float], np.ndarray],
+             y: Union[List[float], np.ndarray],
+             z: Optional[Union[List[float], np.ndarray]] = None,
+             color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
+             linewidth: float = 0.05,
+             marker: str = 'line',
+             markersize: float = 0.1,
+             label: str = '',
+             frame_id: str = 'plot') -> List[Union[LinePrimitive, SpherePrimitive]]:
+        """
+        Create a 2D/3D line plot similar to matplotlib's plot()
+
+        Args:
+            x: X coordinates (list or numpy array)
+            y: Y coordinates (list or numpy array)
+            z: Optional Z coordinates for 3D plots
+            color: RGBA color tuple (0-1 range)
+            linewidth: Thickness of the line
+            marker: Marker style ('line', 'circle', 'square', 'diamond')
+            markersize: Size of markers (if marker != 'line')
+            label: Label for the plot (not used in visualization, for identification)
+            frame_id: Frame ID for the plot
+
+        Returns:
+            List of Foxglove primitives representing the plot
+        """
+        if not FOXGLOVE_AVAILABLE:
+            raise ImportError("Foxglove SDK not available")
+
+        # Convert inputs to numpy arrays
+        x = np.asarray(x)
+        y = np.asarray(y)
+        if z is not None:
+            z = np.asarray(z)
+        else:
+            z = np.zeros_like(x)  # Default to 2D plot (z=0)
+
+        if len(x) != len(y) or len(x) != len(z):
+            raise ValueError("x, y, and z must have the same length")
+
+        primitives = []
+
+        if marker == 'line' or marker == '-':
+            # Create line plot
+            points = [(float(x[i]), float(y[i]), float(z[i])) for i in range(len(x))]
+            line_primitive = LinePrimitive(
+                pose=Pose(
+                    position=Vector3(x=0.0, y=0.0, z=0.0),
+                    orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                ),
+                thickness=linewidth,
+                scale_invariant=False,
+                points=[Point3(x=p[0], y=p[1], z=p[2]) for p in points],
+                color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+            )
+            primitives.append(line_primitive)
+
+        else:
+            # Create scatter plot with markers
+            for i in range(len(x)):
+                if marker == 'circle' or marker == 'o':
+                    sphere = SpherePrimitive(
+                        pose=Pose(
+                            position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                            orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                        ),
+                        size=Vector3(x=markersize, y=markersize, z=markersize),
+                        color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                    )
+                    primitives.append(sphere)
+
+                elif marker == 'square' or marker == 's':
+                    cube = CubePrimitive(
+                        pose=Pose(
+                            position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                            orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                        ),
+                        size=Vector3(x=markersize, y=markersize, z=markersize),
+                        color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                    )
+                    primitives.append(cube)
+
+                elif marker == 'diamond' or marker == 'D':
+                    # Create diamond using a rotated cube
+                    cube = CubePrimitive(
+                        pose=Pose(
+                            position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                            orientation=Quaternion(x=0.0, y=0.0, z=math.pi/4, w=math.sqrt(2)/2)  # 45 degree rotation
+                        ),
+                        size=Vector3(x=markersize, y=markersize, z=markersize*0.1),  # Flattened Z
+                        color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                    )
+                    primitives.append(cube)
+
+        return primitives
+
+    @staticmethod
+    def scatter(x: Union[List[float], np.ndarray],
+                y: Union[List[float], np.ndarray],
+                z: Optional[Union[List[float], np.ndarray]] = None,
+                s: Union[float, List[float], np.ndarray] = 50,
+                c: Union[str, Tuple[float, float, float, float],
+                        List[Tuple[float, float, float, float]]] = (1.0, 0.0, 0.0, 1.0),
+                marker: str = 'circle',
+                alpha: float = 1.0,
+                label: str = '',
+                frame_id: str = 'scatter') -> List[Union[SpherePrimitive, CubePrimitive]]:
+        """
+        Create a scatter plot similar to matplotlib's scatter()
+
+        Args:
+            x: X coordinates
+            y: Y coordinates
+            z: Optional Z coordinates for 3D scatter
+            s: Size of markers (can be single value or array)
+            c: Color(s) - can be single color tuple, color name, or array of colors
+            marker: Marker style ('circle', 'square', 'diamond')
+            alpha: Transparency (0-1)
+            label: Label for identification
+            frame_id: Frame ID for the plot
+
+        Returns:
+            List of Foxglove primitives representing the scatter plot
+        """
+        if not FOXGLOVE_AVAILABLE:
+            raise ImportError("Foxglove SDK not available")
+
+        # Convert inputs to numpy arrays
+        x = np.asarray(x)
+        y = np.asarray(y)
+        if z is not None:
+            z = np.asarray(z)
+        else:
+            z = np.zeros_like(x)
+
+        if len(x) != len(y) or len(x) != len(z):
+            raise ValueError("x, y, and z must have the same length")
+
+        # Handle size parameter
+        if np.isscalar(s):
+            sizes = np.full(len(x), s)
+        else:
+            sizes = np.asarray(s)
+            if len(sizes) != len(x):
+                raise ValueError("Size array must have same length as coordinate arrays")
+
+        # Handle color parameter
+        colors = PlotUtils._parse_colors(c, len(x))
+        if alpha < 1.0:
+            # Apply alpha to all colors
+            colors = [(r, g, b, a * alpha) for r, g, b, a in colors]
+
+        primitives = []
+
+        for i in range(len(x)):
+            size = float(sizes[i]) / 50.0  # Scale down from matplotlib default
+            color = colors[i]
+
+            if marker == 'circle' or marker == 'o':
+                sphere = SpherePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=size, y=size, z=size),
+                    color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                )
+                primitives.append(sphere)
+
+            elif marker == 'square' or marker == 's':
+                cube = CubePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                        orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
+                    ),
+                    size=Vector3(x=size, y=size, z=size),
+                    color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                )
+                primitives.append(cube)
+
+            elif marker == 'diamond' or marker == 'D':
+                cube = CubePrimitive(
+                    pose=Pose(
+                        position=Vector3(x=float(x[i]), y=float(y[i]), z=float(z[i])),
+                        orientation=Quaternion(x=0.0, y=0.0, z=math.pi/4, w=math.sqrt(2)/2)
+                    ),
+                    size=Vector3(x=size, y=size, z=size*0.1),
+                    color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+                )
+                primitives.append(cube)
+
+        return primitives
+
+    @staticmethod
+    def _parse_colors(c: Union[str, Tuple[float, ...],
+                              List[Tuple[float, ...]]],
+                     n_points: int) -> List[Tuple[float, float, float, float]]:
+        """
+        Parse color input into list of RGBA tuples
+
+        Args:
+            c: Color specification (string, tuple, or list of tuples)
+            n_points: Number of points to generate colors for
+
+        Returns:
+            List of RGBA color tuples
+        """
+        # Color name to RGBA mapping (basic colors)
+        color_map = {
+            'red': (1.0, 0.0, 0.0, 1.0),
+            'green': (0.0, 1.0, 0.0, 1.0),
+            'blue': (0.0, 0.0, 1.0, 1.0),
+            'yellow': (1.0, 1.0, 0.0, 1.0),
+            'cyan': (0.0, 1.0, 1.0, 1.0),
+            'magenta': (1.0, 0.0, 1.0, 1.0),
+            'black': (0.0, 0.0, 0.0, 1.0),
+            'white': (1.0, 1.0, 1.0, 1.0),
+            'gray': (0.5, 0.5, 0.5, 1.0),
+            'orange': (1.0, 0.5, 0.0, 1.0),
+            'purple': (0.5, 0.0, 0.5, 1.0),
+            'brown': (0.6, 0.3, 0.0, 1.0),
+        }
+
+        if isinstance(c, str):
+            # Color name
+            if c in color_map:
+                return [color_map[c]] * n_points
+            else:
+                raise ValueError(f"Unknown color name: {c}")
+
+        elif isinstance(c, tuple) and len(c) == 4:
+            # Single RGBA tuple
+            return [c] * n_points
+
+        elif isinstance(c, tuple) and len(c) == 3:
+            # Single RGB tuple, add alpha
+            color_with_alpha = (c[0], c[1], c[2], 1.0)
+            return [color_with_alpha] * n_points
+
+        elif isinstance(c, list):
+            # List of colors
+            if len(c) != n_points:
+                raise ValueError(f"Color list length ({len(c)}) must match number of points ({n_points})")
+            parsed_colors = []
+            for color in c:
+                if isinstance(color, tuple) and len(color) == 4:
+                    parsed_colors.append(color)
+                elif isinstance(color, tuple) and len(color) == 3:
+                    parsed_colors.append((color[0], color[1], color[2], 1.0))
+                else:
+                    raise ValueError(f"Invalid color format: {color}")
+            return parsed_colors
+
+        else:
+            raise ValueError(f"Invalid color format: {c}")
+
+    @staticmethod
+    def create_axes(xlim: Tuple[float, float] = (-10, 10),
+                   ylim: Tuple[float, float] = (-10, 10),
+                   zlim: Optional[Tuple[float, float]] = None,
+                   color: Tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
+                   linewidth: float = 0.02) -> List[LinePrimitive]:
+        """
+        Create coordinate axes for the plot
+
+        Args:
+            xlim: X-axis limits
+            ylim: Y-axis limits
+            zlim: Z-axis limits (if None, creates 2D axes)
+            color: Color for the axes
+            linewidth: Thickness of axis lines
+
+        Returns:
+            List of LinePrimitive objects representing the axes
+        """
+        if not FOXGLOVE_AVAILABLE:
+            raise ImportError("Foxglove SDK not available")
+
+        primitives = []
+
+        # X-axis
+        x_axis = LinePrimitive(
+            pose=Pose(position=Vector3(x=0.0, y=0.0, z=0.0), orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)),
+            thickness=linewidth,
+            scale_invariant=False,
+            points=[
+                Point3(x=xlim[0], y=0.0, z=0.0),
+                Point3(x=xlim[1], y=0.0, z=0.0)
+            ],
+            color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+        )
+        primitives.append(x_axis)
+
+        # Y-axis
+        y_axis = LinePrimitive(
+            pose=Pose(position=Vector3(x=0.0, y=0.0, z=0.0), orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)),
+            thickness=linewidth,
+            scale_invariant=False,
+            points=[
+                Point3(x=0.0, y=ylim[0], z=0.0),
+                Point3(x=0.0, y=ylim[1], z=0.0)
+            ],
+            color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+        )
+        primitives.append(y_axis)
+
+        # Z-axis (if 3D)
+        if zlim is not None:
+            z_axis = LinePrimitive(
+                pose=Pose(position=Vector3(x=0.0, y=0.0, z=0.0), orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)),
+                thickness=linewidth,
+                scale_invariant=False,
+                points=[
+                    Point3(x=0.0, y=0.0, z=zlim[0]),
+                    Point3(x=0.0, y=0.0, z=zlim[1])
+                ],
+                color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
+            )
+            primitives.append(z_axis)
+
+        return primitives

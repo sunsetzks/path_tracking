@@ -25,8 +25,8 @@ try:
         LogChannel, CustomChannel, create_channel
     )
     from .channel_utils import (
-        PrimitiveUtils, TransformUtils, GridUtils, 
-        PointCloudUtils, LaserScanUtils, GridType
+        PrimitiveUtils, TransformUtils, GridUtils,
+        PointCloudUtils, LaserScanUtils, GridType, PlotUtils
     )
     
     # Extended exports when channel system is available
@@ -46,8 +46,8 @@ try:
         'LogChannel', 'CustomChannel', 'create_channel',
         
         # Utilities
-        'PrimitiveUtils', 'TransformUtils', 'GridUtils', 
-        'PointCloudUtils', 'LaserScanUtils', 'GridType'
+        'PrimitiveUtils', 'TransformUtils', 'GridUtils',
+        'PointCloudUtils', 'LaserScanUtils', 'GridType', 'PlotUtils'
     ]
     
     CHANNEL_SYSTEM_AVAILABLE = True
