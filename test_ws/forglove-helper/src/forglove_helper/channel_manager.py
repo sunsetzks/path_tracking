@@ -179,34 +179,36 @@ class ChannelManager:
     
     # Channel Management Methods
     
-    def create_channel(self, channel_type: ChannelType, name: str, topic: str, 
+    def create_channel(self, channel_type: ChannelType, topic: str,
                       **kwargs) -> BaseChannel:
         """
         Create and register a new channel
-        
+
         Args:
             channel_type: Type of channel to create
-            name: Unique channel name
-            topic: Topic name for publishing
+            topic: Topic name for publishing (also used as channel name)
             **kwargs: Additional channel-specific parameters
-            
+
         Returns:
             Created channel instance
         """
+        # Use topic as the channel name
+        name = topic
+
         if name in self.channels:
             raise ValueError(f"Channel '{name}' already exists")
-        
+
         if topic in self.channel_aliases:
             existing_channel = self.channel_aliases[topic]
             raise ValueError(f"Topic '{topic}' is already used by channel '{existing_channel}'")
-        
+
         # Create the channel
         channel = create_channel(channel_type, name, topic, **kwargs)
-        
+
         # Register the channel
         self.channels[name] = channel
         self.channel_aliases[topic] = name
-        
+
         self.logger.info(f"✓ Created channel '{name}' on topic '{topic}' ({channel_type.value})")
         return channel
     
@@ -252,50 +254,45 @@ class ChannelManager:
     
     # Convenient channel creation methods
     
-    def create_scene_channel(self, name: str, topic: Optional[str] = None, **kwargs) -> SceneUpdateChannel:
+    def create_scene_channel(self, topic: str, **kwargs) -> SceneUpdateChannel:
         """Create a scene update channel"""
-        topic = topic or f"/visualization/{name}"
-        channel = self.create_channel(ChannelType.SCENE_UPDATE, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.SCENE_UPDATE, topic, **kwargs)
         return cast(SceneUpdateChannel, channel)
     
-    def create_data_channel(self, name: str, topic: Optional[str] = None, schema: Optional[Dict] = None, 
+    def create_data_channel(self, topic: str, schema: Optional[Dict] = None,
                            **kwargs) -> DataChannel:
         """Create a data channel"""
-        topic = topic or f"/data/{name}"
-        channel = self.create_channel(ChannelType.DATA, name, topic, schema=schema, **kwargs)
+        channel = self.create_channel(ChannelType.DATA, topic, schema=schema, **kwargs)
         return cast(DataChannel, channel)
     
-    def create_proto_channel(self, name: str, topic: str, proto_class, **kwargs) -> ProtoChannel:
+    def create_proto_channel(self, topic: str, proto_class, **kwargs) -> ProtoChannel:
         """Create a protobuf channel"""
-        channel = self.create_channel(ChannelType.PROTO, name, topic, proto_class=proto_class, **kwargs)
+        channel = self.create_channel(ChannelType.PROTO, topic, proto_class=proto_class, **kwargs)
         return cast(ProtoChannel, channel)
     
-    def create_tf_channel(self, name: str = "tf", topic: str = "/tf", **kwargs) -> TfChannel:
+    def create_tf_channel(self, topic: str = "/tf", **kwargs) -> TfChannel:
         """Create a transform channel"""
-        channel = self.create_channel(ChannelType.TRANSFORM, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.TRANSFORM, topic, **kwargs)
         return cast(TfChannel, channel)
     
-    def create_grid_channel(self, name: str, topic: Optional[str] = None, **kwargs) -> GridChannel:
+    def create_grid_channel(self, topic: str, **kwargs) -> GridChannel:
         """Create a grid channel"""
-        topic = topic or f"/grid/{name}"
-        channel = self.create_channel(ChannelType.GRID, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.GRID, topic, **kwargs)
         return cast(GridChannel, channel)
     
-    def create_pointcloud_channel(self, name: str, topic: Optional[str] = None, **kwargs) -> PointCloudChannel:
+    def create_pointcloud_channel(self, topic: str, **kwargs) -> PointCloudChannel:
         """Create a point cloud channel"""
-        topic = topic or f"/pointcloud/{name}"
-        channel = self.create_channel(ChannelType.POINT_CLOUD, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.POINT_CLOUD, topic, **kwargs)
         return cast(PointCloudChannel, channel)
     
-    def create_laser_channel(self, name: str, topic: Optional[str] = None, **kwargs) -> LaserScanChannel:
+    def create_laser_channel(self, topic: str, **kwargs) -> LaserScanChannel:
         """Create a laser scan channel"""
-        topic = topic or f"/scan/{name}"
-        channel = self.create_channel(ChannelType.LASER_SCAN, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.LASER_SCAN, topic, **kwargs)
         return cast(LaserScanChannel, channel)
     
-    def create_log_channel(self, name: str = "logs", topic: str = "/logs", **kwargs) -> LogChannel:
+    def create_log_channel(self, topic: str = "/logs", **kwargs) -> LogChannel:
         """Create a log channel"""
-        channel = self.create_channel(ChannelType.LOG, name, topic, **kwargs)
+        channel = self.create_channel(ChannelType.LOG, topic, **kwargs)
         return cast(LogChannel, channel)
     
     # Publishing methods

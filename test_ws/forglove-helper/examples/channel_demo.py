@@ -60,43 +60,43 @@ class ChannelDemo:
         
         # 1. Scene channel for 3D visualization
         self.scene_channel = self.manager.create_scene_channel(
-            "main_scene", "/demo/scene", 
+            "/demo/scene",
             description="Main 3D scene with animated objects"
         )
         
         # 2. Data channel for telemetry
         self.data_channel = self.manager.create_data_channel(
-            "telemetry", "/demo/telemetry",
+            "/demo/telemetry",
             description="Vehicle telemetry data"
         )
         
         # 3. Transform channel for coordinate frames
         self.tf_channel = self.manager.create_tf_channel(
-            "transforms", "/tf",
+            "/tf",
             description="Coordinate transformations"
         )
         
         # 4. Grid channel for occupancy map
         self.grid_channel = self.manager.create_grid_channel(
-            "occupancy_map", "/demo/grid",
+            "/demo/grid",
             description="Occupancy grid map"
         )
         
         # 5. Point cloud channel
         self.pointcloud_channel = self.manager.create_pointcloud_channel(
-            "lidar", "/demo/pointcloud",
+            "/demo/pointcloud",
             description="LiDAR point cloud data"
         )
         
         # 6. Laser scan channel
         self.laser_channel = self.manager.create_laser_channel(
-            "laser_scan", "/demo/scan",
+            "/demo/scan",
             description="2D laser scan data"
         )
         
         # 7. Log channel for messages
         self.log_channel = self.manager.create_log_channel(
-            "demo_logs", "/demo/logs",
+            "/demo/logs",
             description="Demo log messages"
         )
         
