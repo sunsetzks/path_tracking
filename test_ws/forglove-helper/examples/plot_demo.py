@@ -57,49 +57,60 @@ class PlotDemo:
         # Demo parameters
         self.running = True
 
-    def create_sine_wave_demo(self) -> List:
+    def create_sine_wave_demo(self) -> SceneEntity:
         """Create a simple sine wave plot"""
         x = np.linspace(-10, 10, 100)
         y = np.sin(x)
-        primitives = PlotUtils.plot(x, y, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.05)
-        return primitives
+        entity = PlotUtils.plot(x, y, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.05,
+                              entity_id='sine_wave_demo')
+        return entity
 
-    def create_scatter_demo(self) -> List:
-        """Create a scatter plot demo with different markers"""
+    def create_circle_scatter_demo(self) -> SceneEntity:
+        """Create a circle scatter plot demo"""
         # Create random data
         np.random.seed(42)  # For reproducible results
-        x = np.random.normal(0, 3, 50)
-        y = np.random.normal(0, 3, 50)
+        x = np.random.normal(0, 3, 25)
+        y = np.random.normal(0, 3, 25)
 
         # Create scatter plot with circles
-        circle_primitives = PlotUtils.scatter(
-            x[:25], y[:25],
+        entity = PlotUtils.scatter(
+            x, y,
             marker='circle',
             c=(1.0, 0.0, 0.0, 1.0),
-            s=30
+            s=30,
+            entity_id='circle_scatter'
         )
+        return entity
+
+    def create_square_scatter_demo(self) -> SceneEntity:
+        """Create a square scatter plot demo"""
+        # Create random data
+        np.random.seed(42)  # For reproducible results
+        x = np.random.normal(0, 3, 25)
+        y = np.random.normal(0, 3, 25)
 
         # Create scatter plot with squares
-        square_primitives = PlotUtils.scatter(
-            x[25:], y[25:],
+        entity = PlotUtils.scatter(
+            x, y,
             marker='square',
             c=(0.0, 0.0, 1.0, 1.0),
-            s=40
+            s=40,
+            entity_id='square_scatter'
         )
+        return entity
 
-        return circle_primitives + square_primitives
-
-    def create_3d_spiral_demo(self) -> List:
+    def create_3d_spiral_demo(self) -> SceneEntity:
         """Create a 3D spiral plot"""
         t = np.linspace(0, 4*np.pi, 200)
         x = np.cos(t) * t * 0.5
         y = np.sin(t) * t * 0.5
         z = t * 0.3
 
-        primitives = PlotUtils.plot(x, y, z, color=(1.0, 0.5, 0.0, 1.0), linewidth=0.08)
-        return primitives
+        entity = PlotUtils.plot(x, y, z, color=(1.0, 0.5, 0.0, 1.0), linewidth=0.08,
+                              entity_id='3d_spiral')
+        return entity
 
-    def create_3d_scatter_demo(self) -> List:
+    def create_3d_scatter_demo(self) -> SceneEntity:
         """Create a 3D scatter plot"""
         # Generate 3D random data
         np.random.seed(123)
@@ -115,40 +126,43 @@ class PlotDemo:
             t = (z[i] - z.min()) / (z.max() - z.min())
             colors.append((t, 0.5, 1.0-t, 1.0))
 
-        primitives = PlotUtils.scatter(
+        entity = PlotUtils.scatter(
             x, y, z,
             c=colors,
             marker='circle',
-            s=25
+            s=25,
+            entity_id='3d_scatter_demo'
         )
-        return primitives
+        return entity
 
-    def create_function_demo(self) -> List:
-        """Create multiple function plots"""
+    def create_sine_demo(self) -> SceneEntity:
+        """Create sine wave plot"""
         x = np.linspace(-5, 5, 100)
-
-        primitives = []
-
-        # Sine wave
         y1 = np.sin(x)
-        sine_plot = PlotUtils.plot(x, y1 + 3, color=(1.0, 0.0, 0.0, 1.0), linewidth=0.03)
-        primitives.extend(sine_plot)
+        entity = PlotUtils.plot(x, y1 + 3, color=(1.0, 0.0, 0.0, 1.0), linewidth=0.03,
+                              entity_id='sine_function')
+        return entity
 
-        # Cosine wave
+    def create_cosine_demo(self) -> SceneEntity:
+        """Create cosine wave plot"""
+        x = np.linspace(-5, 5, 100)
         y2 = np.cos(x)
-        cosine_plot = PlotUtils.plot(x, y2 + 1, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.03)
-        primitives.extend(cosine_plot)
+        entity = PlotUtils.plot(x, y2 + 1, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.03,
+                              entity_id='cosine_function')
+        return entity
 
-        # Exponential
+    def create_exp_demo(self) -> SceneEntity:
+        """Create exponential plot"""
+        x = np.linspace(-5, 5, 100)
         y3 = np.exp(-x**2 / 2) * 2 - 2
-        exp_plot = PlotUtils.plot(x, y3 - 1, color=(0.0, 0.0, 1.0, 1.0), linewidth=0.03)
-        primitives.extend(exp_plot)
+        entity = PlotUtils.plot(x, y3 - 1, color=(0.0, 0.0, 1.0, 1.0), linewidth=0.03,
+                              entity_id='exp_function')
+        return entity
 
-        return primitives
-
-    def create_coordinate_axes(self) -> List:
+    def create_coordinate_axes(self) -> SceneEntity:
         """Create coordinate axes for reference"""
-        return PlotUtils.create_axes(
+        # Note: create_axes still returns primitives list, so we need to wrap it
+        primitives = PlotUtils.create_axes(
             xlim=(-12, 12),
             ylim=(-12, 12),
             zlim=(-5, 8),
@@ -156,96 +170,56 @@ class PlotDemo:
             linewidth=0.02
         )
 
+        # Create SceneEntity from primitives
+        lines = [p for p in primitives if hasattr(p, 'points')]
+
+        return SceneEntity(
+            id="axes",
+            timestamp=Timestamp.now(),
+            frame_id="plot_demo",
+            lifetime=None,
+            frame_locked=False,
+            lines=lines,
+            cubes=[],
+            spheres=[]
+        )
+
     def create_demo_entities(self) -> List[SceneEntity]:
         """Create all demo scene entities"""
         entities = []
 
         # Create coordinate axes
-        axes_primitives = self.create_coordinate_axes()
-        if axes_primitives:
-                    entities.append(SceneEntity(
-            id="axes",
-            timestamp=Timestamp(sec=int(time.time()), nsec=0),
-            frame_id="plot_demo",
-            lifetime=None,
-            frame_locked=False,
-            lines=axes_primitives
-        ))
+        axes_entity = self.create_coordinate_axes()
+        entities.append(axes_entity)
 
         # Create sine wave
-        sine_primitives = self.create_sine_wave_demo()
-        if sine_primitives:
-            entities.append(SceneEntity(
-                id="sine_wave",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="plot_demo",
-                lifetime=None,
-                frame_locked=False,
-                lines=sine_primitives,
-                cubes=[],
-                spheres=[]
-            ))
+        sine_entity = self.create_sine_wave_demo()
+        entities.append(sine_entity)
 
-        # Create scatter plot
-        scatter_primitives = self.create_scatter_demo()
-        spheres = [p for p in scatter_primitives if hasattr(p, 'size') and hasattr(p, 'pose')]
-        cubes = [p for p in scatter_primitives if hasattr(p, 'size') and hasattr(p, 'pose') and 'CubePrimitive' in str(type(p))]
+        # Create scatter plots
+        circle_entity = self.create_circle_scatter_demo()
+        entities.append(circle_entity)
 
-        if spheres or cubes:
-            entities.append(SceneEntity(
-                id="scatter_plot",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="plot_demo",
-                lifetime=None,
-                frame_locked=False,
-                lines=[],
-                cubes=cubes,
-                spheres=spheres
-            ))
+        square_entity = self.create_square_scatter_demo()
+        entities.append(square_entity)
 
         # Create 3D spiral
-        spiral_primitives = self.create_3d_spiral_demo()
-        if spiral_primitives:
-            entities.append(SceneEntity(
-                id="3d_spiral",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="plot_demo",
-                lifetime=None,
-                frame_locked=False,
-                lines=spiral_primitives,
-                cubes=[],
-                spheres=[]
-            ))
+        spiral_entity = self.create_3d_spiral_demo()
+        entities.append(spiral_entity)
 
         # Create 3D scatter
-        scatter_3d_primitives = self.create_3d_scatter_demo()
-        spheres_3d = [p for p in scatter_3d_primitives if hasattr(p, 'size') and hasattr(p, 'pose')]
+        scatter_3d_entity = self.create_3d_scatter_demo()
+        entities.append(scatter_3d_entity)
 
-        if spheres_3d:
-            entities.append(SceneEntity(
-                id="3d_scatter",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="plot_demo",
-                lifetime=None,
-                frame_locked=False,
-                lines=[],
-                cubes=[],
-                spheres=spheres_3d
-            ))
+        # Create function plots
+        sine_func_entity = self.create_sine_demo()
+        entities.append(sine_func_entity)
 
-        # Create function comparison
-        function_primitives = self.create_function_demo()
-        if function_primitives:
-            entities.append(SceneEntity(
-                id="functions",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="plot_demo",
-                lifetime=None,
-                frame_locked=False,
-                lines=function_primitives if function_primitives and hasattr(function_primitives[0], 'points') else [],
-                cubes=[],
-                spheres=[]
-            ))
+        cosine_func_entity = self.create_cosine_demo()
+        entities.append(cosine_func_entity)
+
+        exp_func_entity = self.create_exp_demo()
+        entities.append(exp_func_entity)
 
         return entities
 

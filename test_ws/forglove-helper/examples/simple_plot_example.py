@@ -51,52 +51,31 @@ class SimplePlotExample:
         self.scene_channel = self.channel_manager.create_scene_channel("simple_plot")
         self.running = True
 
-    def create_demo_plot(self) -> List:
-        """Create a simple demonstration plot"""
+    def create_demo_entities(self) -> List[SceneEntity]:
+        """Create demo scene entities"""
+        entities = []
+
         # Create some sample data
         x = np.linspace(-5, 5, 100)
         y1 = np.sin(x)  # Sine wave
         y2 = np.cos(x)  # Cosine wave
 
-        primitives = []
-
         # Add sine wave plot
-        sine_plot = PlotUtils.plot(x, y1, color=(1.0, 0.0, 0.0, 1.0), linewidth=0.05)
-        primitives.extend(sine_plot)
+        sine_entity = PlotUtils.plot(x, y1, color=(1.0, 0.0, 0.0, 1.0), linewidth=0.05,
+                                   entity_id='sine_wave')
+        entities.append(sine_entity)
 
         # Add cosine wave plot
-        cosine_plot = PlotUtils.plot(x, y2, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.05)
-        primitives.extend(cosine_plot)
+        cosine_entity = PlotUtils.plot(x, y2, color=(0.0, 1.0, 0.0, 1.0), linewidth=0.05,
+                                     entity_id='cosine_wave')
+        entities.append(cosine_entity)
 
         # Add some scatter points
         scatter_x = np.random.uniform(-4, 4, 20)
         scatter_y = np.random.uniform(-1, 1, 20)
-        scatter_plot = PlotUtils.scatter(scatter_x, scatter_y, c='blue', marker='circle', s=50)
-        primitives.extend(scatter_plot)
-
-        return primitives
-
-    def create_demo_entities(self) -> List[SceneEntity]:
-        """Create demo scene entities"""
-        entities = []
-
-        # Create plot primitives
-        plot_primitives = self.create_demo_plot()
-        if plot_primitives:
-            # Separate different types of primitives
-            lines = [p for p in plot_primitives if hasattr(p, 'points')]
-            spheres = [p for p in plot_primitives if hasattr(p, 'size') and hasattr(p, 'pose')]
-
-            entities.append(SceneEntity(
-                id="demo_plot",
-                timestamp=Timestamp(sec=int(time.time()), nsec=0),
-                frame_id="simple_plot",
-                lifetime=None,
-                frame_locked=False,
-                lines=lines,
-                cubes=[],
-                spheres=spheres
-            ))
+        scatter_entity = PlotUtils.scatter(scatter_x, scatter_y, c='blue', marker='circle', s=50,
+                                         entity_id='scatter_points')
+        entities.append(scatter_entity)
 
         return entities
 

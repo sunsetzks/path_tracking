@@ -27,7 +27,8 @@ if TYPE_CHECKING:
         FrameTransform, Vector3, Vector2, Quaternion, Timestamp,
         CubePrimitive, SpherePrimitive, LinePrimitive, ArrowPrimitive,
         Color, Point3, Pose,
-        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType
+        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType,
+        SceneEntity
     )
 
 # Import Foxglove schemas
@@ -39,7 +40,9 @@ try:
         CubePrimitive, SpherePrimitive, LinePrimitive, ArrowPrimitive,
         Color, Point3, Pose,
         # Advanced types
-        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType
+        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType,
+        # Scene types
+        SceneEntity
     )
     FOXGLOVE_AVAILABLE = True
 except ImportError:
@@ -505,7 +508,8 @@ class PlotUtils:
              marker: str = 'line',
              markersize: float = 0.1,
              label: str = '',
-             frame_id: str = 'plot') -> List[Union[LinePrimitive, SpherePrimitive]]:
+             frame_id: str = 'plot',
+             entity_id: str = 'plot_entity') -> SceneEntity:
         """
         Create a 2D/3D line plot similar to matplotlib's plot()
 
@@ -519,9 +523,10 @@ class PlotUtils:
             markersize: Size of markers (if marker != 'line')
             label: Label for the plot (not used in visualization, for identification)
             frame_id: Frame ID for the plot
+            entity_id: ID for the scene entity
 
         Returns:
-            List of Foxglove primitives representing the plot
+            SceneEntity representing the plot
         """
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK not available")
@@ -537,7 +542,10 @@ class PlotUtils:
         if len(x) != len(y) or len(x) != len(z):
             raise ValueError("x, y, and z must have the same length")
 
-        primitives = []
+        # Initialize primitive collections
+        lines = []
+        cubes = []
+        spheres = []
 
         if marker == 'line' or marker == '-':
             # Create line plot
@@ -552,7 +560,7 @@ class PlotUtils:
                 points=[Point3(x=p[0], y=p[1], z=p[2]) for p in points],
                 color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
             )
-            primitives.append(line_primitive)
+            lines.append(line_primitive)
 
         else:
             # Create scatter plot with markers
@@ -566,7 +574,7 @@ class PlotUtils:
                         size=Vector3(x=markersize, y=markersize, z=markersize),
                         color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                     )
-                    primitives.append(sphere)
+                    spheres.append(sphere)
 
                 elif marker == 'square' or marker == 's':
                     cube = CubePrimitive(
@@ -577,7 +585,7 @@ class PlotUtils:
                         size=Vector3(x=markersize, y=markersize, z=markersize),
                         color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                     )
-                    primitives.append(cube)
+                    cubes.append(cube)
 
                 elif marker == 'diamond' or marker == 'D':
                     # Create diamond using a rotated cube
@@ -589,9 +597,21 @@ class PlotUtils:
                         size=Vector3(x=markersize, y=markersize, z=markersize*0.1),  # Flattened Z
                         color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                     )
-                    primitives.append(cube)
+                    cubes.append(cube)
 
-        return primitives
+        # Create SceneEntity
+        scene_entity = SceneEntity(
+            id=entity_id,
+            timestamp=Timestamp.now(),
+            frame_id=frame_id,
+            lifetime=None,
+            frame_locked=False,
+            lines=lines,
+            cubes=cubes,
+            spheres=spheres
+        )
+
+        return scene_entity
 
     @staticmethod
     def scatter(x: Union[List[float], np.ndarray],
@@ -603,7 +623,8 @@ class PlotUtils:
                 marker: str = 'circle',
                 alpha: float = 1.0,
                 label: str = '',
-                frame_id: str = 'scatter') -> List[Union[SpherePrimitive, CubePrimitive]]:
+                frame_id: str = 'scatter',
+                entity_id: str = 'scatter_entity') -> SceneEntity:
         """
         Create a scatter plot similar to matplotlib's scatter()
 
@@ -617,9 +638,10 @@ class PlotUtils:
             alpha: Transparency (0-1)
             label: Label for identification
             frame_id: Frame ID for the plot
+            entity_id: ID for the scene entity
 
         Returns:
-            List of Foxglove primitives representing the scatter plot
+            SceneEntity representing the scatter plot
         """
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK not available")
@@ -649,7 +671,10 @@ class PlotUtils:
             # Apply alpha to all colors
             colors = [(r, g, b, a * alpha) for r, g, b, a in colors]
 
-        primitives = []
+        # Initialize primitive collections
+        lines = []
+        cubes = []
+        spheres = []
 
         for i in range(len(x)):
             size = float(sizes[i]) / 50.0  # Scale down from matplotlib default
@@ -664,7 +689,7 @@ class PlotUtils:
                     size=Vector3(x=size, y=size, z=size),
                     color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                 )
-                primitives.append(sphere)
+                spheres.append(sphere)
 
             elif marker == 'square' or marker == 's':
                 cube = CubePrimitive(
@@ -675,7 +700,7 @@ class PlotUtils:
                     size=Vector3(x=size, y=size, z=size),
                     color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                 )
-                primitives.append(cube)
+                cubes.append(cube)
 
             elif marker == 'diamond' or marker == 'D':
                 cube = CubePrimitive(
@@ -686,9 +711,21 @@ class PlotUtils:
                     size=Vector3(x=size, y=size, z=size*0.1),
                     color=Color(r=color[0], g=color[1], b=color[2], a=color[3])
                 )
-                primitives.append(cube)
+                cubes.append(cube)
 
-        return primitives
+        # Create SceneEntity
+        scene_entity = SceneEntity(
+            id=entity_id,
+            timestamp=Timestamp.now(),
+            frame_id=frame_id,
+            lifetime=None,
+            frame_locked=False,
+            lines=lines,
+            cubes=cubes,
+            spheres=spheres
+        )
+
+        return scene_entity
 
     @staticmethod
     def _parse_colors(c: Union[str, Tuple[float, ...],
