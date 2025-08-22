@@ -30,7 +30,14 @@ try:
     import foxglove
     from foxglove import Channel, start_server, open_mcap
     from foxglove.mcap import MCAPWriter
-    from foxglove.channels import SceneUpdateChannel as FoxgloveSceneUpdateChannel
+    from foxglove.channels import (
+        SceneUpdateChannel as FoxgloveSceneUpdateChannel,
+        FrameTransformsChannel as FoxgloveFrameTransformsChannel,
+        GridChannel as FoxgloveGridChannel,
+        PointCloudChannel as FoxglovePointCloudChannel,
+        LaserScanChannel as FoxgloveLaserScanChannel,
+        LogChannel as FoxgloveLogChannel
+    )
     from foxglove.schemas import (
         SceneUpdate, SceneEntity, FrameTransform, FrameTransforms,
         Grid, PointCloud, LaserScan, Log, Color, Point3, Vector3, 
@@ -174,7 +181,11 @@ class DataChannel(BaseChannel):
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a data channel with optional JSON schema"""
         if self.schema:
-            return Channel(topic=self.topic, schema=self.schema)
+            # Check if it's a Foxglove schema object (has get_schema method) or JSON dict
+            if hasattr(self.schema, 'get_schema') or not isinstance(self.schema, dict):
+                return Channel(topic=self.topic, message_encoding="protobuf", schema=self.schema)
+            else:
+                return Channel(topic=self.topic, schema=self.schema)
         return Channel(topic=self.topic)
     
     def publish(self, data: Dict[str, Any], timestamp: Optional[float] = None) -> None:
@@ -239,7 +250,7 @@ class TfChannel(BaseChannel):
     
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a transforms channel"""
-        return Channel(topic=self.topic, schema=FrameTransforms.get_schema())
+        return FoxgloveFrameTransformsChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: Union[FrameTransform, FrameTransforms, List[FrameTransform]], 
                 timestamp: Optional[float] = None) -> None:
@@ -301,7 +312,7 @@ class GridChannel(BaseChannel):
     
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a grid channel"""
-        return Channel(topic=self.topic, schema=Grid.get_schema())
+        return FoxgloveGridChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: Grid, timestamp: Optional[float] = None) -> None:
         """
@@ -324,7 +335,7 @@ class PointCloudChannel(BaseChannel):
     
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a point cloud channel"""
-        return Channel(topic=self.topic, schema=PointCloud.get_schema())
+        return FoxglovePointCloudChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: PointCloud, timestamp: Optional[float] = None) -> None:
         """
@@ -347,7 +358,7 @@ class LaserScanChannel(BaseChannel):
     
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a laser scan channel"""
-        return Channel(topic=self.topic, schema=LaserScan.get_schema())
+        return FoxgloveLaserScanChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: LaserScan, timestamp: Optional[float] = None) -> None:
         """
@@ -370,7 +381,7 @@ class LogChannel(BaseChannel):
     
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a log channel"""
-        return Channel(topic=self.topic, schema=Log.get_schema())
+        return FoxgloveLogChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: Union[Log, str], timestamp: Optional[float] = None) -> None:
         """
@@ -407,7 +418,11 @@ class CustomChannel(BaseChannel):
     def _create_foxglove_channel(self, **kwargs) -> Channel:
         """Create a custom channel"""
         if self.schema:
-            return Channel(topic=self.topic, schema=self.schema)
+            # Check if it's a Foxglove schema object (has get_schema method) or JSON dict
+            if hasattr(self.schema, 'get_schema') or not isinstance(self.schema, dict):
+                return Channel(topic=self.topic, message_encoding="protobuf", schema=self.schema)
+            else:
+                return Channel(topic=self.topic, schema=self.schema)
         return Channel(topic=self.topic)
     
     def publish(self, data: Any, timestamp: Optional[float] = None) -> None:
