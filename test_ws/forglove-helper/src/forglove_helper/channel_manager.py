@@ -76,7 +76,6 @@ class ChannelManager:
         
         # Channel management
         self.channels: Dict[str, BaseChannel] = {}
-        self.channel_aliases: Dict[str, str] = {}  # topic -> channel_name mapping
         
         # Statistics and monitoring
         self.created_at = datetime.now()
@@ -198,16 +197,11 @@ class ChannelManager:
         if name in self.channels:
             raise ValueError(f"Channel '{name}' already exists")
 
-        if topic in self.channel_aliases:
-            existing_channel = self.channel_aliases[topic]
-            raise ValueError(f"Topic '{topic}' is already used by channel '{existing_channel}'")
-
         # Create the channel
         channel = create_channel(channel_type, name, topic, **kwargs)
 
         # Register the channel
         self.channels[name] = channel
-        self.channel_aliases[topic] = name
 
         self.logger.info(f"✓ Created channel '{name}' on topic '{topic}' ({channel_type.value})")
         return channel
@@ -216,10 +210,7 @@ class ChannelManager:
         """Get a channel by name"""
         return self.channels.get(name)
     
-    def get_channel_by_topic(self, topic: str) -> Optional[BaseChannel]:
-        """Get a channel by topic name"""
-        channel_name = self.channel_aliases.get(topic)
-        return self.channels.get(channel_name) if channel_name else None
+
     
     def remove_channel(self, name: str) -> bool:
         """
@@ -236,10 +227,8 @@ class ChannelManager:
         
         channel = self.channels[name]
         
-        # Remove from both mappings
+        # Remove from channels mapping
         del self.channels[name]
-        if channel.topic in self.channel_aliases:
-            del self.channel_aliases[channel.topic]
         
         self.logger.info(f"✓ Removed channel '{name}'")
         return True
@@ -313,21 +302,7 @@ class ChannelManager:
         channel.publish(data, timestamp)
         self.total_messages_published += 1
     
-    def publish_to_topic(self, topic: str, data: Any, timestamp: Optional[float] = None) -> None:
-        """
-        Publish data to a channel by topic name
-        
-        Args:
-            topic: Topic name
-            data: Data to publish
-            timestamp: Optional timestamp
-        """
-        channel = self.get_channel_by_topic(topic)
-        if not channel:
-            raise KeyError(f"No channel found for topic '{topic}'")
-        
-        channel.publish(data, timestamp)
-        self.total_messages_published += 1
+
     
     def broadcast(self, data: Dict[str, Any], channels: Optional[List[str]] = None) -> None:
         """
