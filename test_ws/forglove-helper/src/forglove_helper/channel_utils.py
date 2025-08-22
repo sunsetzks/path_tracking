@@ -60,12 +60,12 @@ class TransformUtils:
     
     @staticmethod
     def create_identity_transform(parent_frame: str, child_frame: str, 
-                                timestamp: Optional[float] = None) -> FrameTransform:
+                                timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """Create an identity transform between two frames"""
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK not available")
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         return FrameTransform(
             timestamp=ts,
             parent_frame_id=parent_frame,
@@ -77,12 +77,12 @@ class TransformUtils:
     @staticmethod
     def create_translation_transform(parent_frame: str, child_frame: str,
                                    x: float, y: float, z: float,
-                                   timestamp: Optional[float] = None) -> FrameTransform:
+                                   timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """Create a translation-only transform"""
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK not available")
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         return FrameTransform(
             timestamp=ts,
             parent_frame_id=parent_frame,
@@ -94,7 +94,7 @@ class TransformUtils:
     @staticmethod
     def create_rotation_transform(parent_frame: str, child_frame: str,
                                 roll: float, pitch: float, yaw: float,
-                                timestamp: Optional[float] = None) -> FrameTransform:
+                                timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """
         Create a rotation-only transform from Euler angles
         
@@ -112,7 +112,7 @@ class TransformUtils:
         # Convert Euler angles to quaternion
         qx, qy, qz, qw = TransformUtils.euler_to_quaternion(roll, pitch, yaw)
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         return FrameTransform(
             timestamp=ts,
             parent_frame_id=parent_frame,
@@ -241,7 +241,7 @@ class GridUtils:
                             origin_x: float = 0.0, origin_y: float = 0.0,
                             data: Optional[np.ndarray] = None,
                             frame_id: str = "map",
-                            timestamp: Optional[float] = None) -> Grid:
+                            timestamp: Optional[Timestamp] = None) -> Grid:
         """
         Create an occupancy grid
         
@@ -273,7 +273,7 @@ class GridUtils:
             type=PackedElementFieldNumericType.Uint8
         )
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         
         return Grid(
             timestamp=ts,
@@ -318,7 +318,7 @@ class PointCloudUtils:
                           colors: Optional[np.ndarray] = None,
                           intensities: Optional[np.ndarray] = None,
                           frame_id: str = "lidar",
-                          timestamp: Optional[float] = None) -> PointCloud:
+                          timestamp: Optional[Timestamp] = None) -> PointCloud:
         """
         Create a point cloud from numpy arrays
         
@@ -372,7 +372,7 @@ class PointCloudUtils:
             point_data = np.hstack([point_data, intensities_data])
             point_stride += 4
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         
         return PointCloud(
             timestamp=ts,
@@ -424,7 +424,7 @@ class LaserScanUtils:
                          end_angle: float = math.pi,
                          intensities: Optional[List[float]] = None,
                          frame_id: str = "laser",
-                         timestamp: Optional[float] = None) -> LaserScan:
+                         timestamp: Optional[Timestamp] = None) -> LaserScan:
         """
         Create a laser scan
         
@@ -439,7 +439,7 @@ class LaserScanUtils:
         if not FOXGLOVE_AVAILABLE:
             raise ImportError("Foxglove SDK not available")
         
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         
         return LaserScan(
             timestamp=ts,

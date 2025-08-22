@@ -114,7 +114,7 @@ class BaseChannel(ABC):
         pass
     
     @abstractmethod
-    def publish(self, data: Any, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Any, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish data to this channel
         
@@ -156,7 +156,7 @@ class SceneUpdateChannel(BaseChannel):
         """Create a SceneUpdate channel"""
         return FoxgloveSceneUpdateChannel(topic=self.topic)
     
-    def publish(self, data: Union[SceneUpdate, List[SceneEntity]], timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Union[SceneUpdate, List[SceneEntity]], timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish scene data
         
@@ -202,7 +202,7 @@ class DataChannel(BaseChannel):
                 return Channel(topic=self.topic, schema=self.schema)
         return Channel(topic=self.topic)
     
-    def publish(self, data: Dict[str, Any], timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Dict[str, Any], timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish JSON data
         
@@ -236,7 +236,7 @@ class ProtoChannel(BaseChannel):
             # Fallback to regular channel if proto_helper not available
             return Channel(topic=self.topic)
     
-    def publish(self, data: Any, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Any, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish protobuf message
         
@@ -246,7 +246,8 @@ class ProtoChannel(BaseChannel):
         """
         try:
             from .proto_helper import log_proto_message
-            timestamp_ns = int(timestamp * 1e9) if timestamp else int(time.time() * 1e9)
+            ts = timestamp if timestamp is not None else Timestamp.now()
+            timestamp_ns = int(ts.sec * 1e9 + ts.nsec)
             log_proto_message(self._foxglove_channel, data, timestamp_ns)
         except ImportError:
             # Fallback to regular logging
@@ -268,7 +269,7 @@ class TfChannel(BaseChannel):
         return FoxgloveFrameTransformsChannel(topic=self.topic, **kwargs)
     
     def publish(self, data: Union[FrameTransform, FrameTransforms, List[FrameTransform]], 
-                timestamp: Optional[float] = None) -> None:
+                timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish transform data
         
@@ -297,7 +298,7 @@ class TfChannel(BaseChannel):
     def publish_transform(self, parent_frame: str, child_frame: str,
                          translation: tuple[float, float, float],
                          rotation: tuple[float, float, float, float],
-                         timestamp: Optional[float] = None) -> None:
+                         timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish a single transform
         
@@ -308,7 +309,7 @@ class TfChannel(BaseChannel):
             rotation: (x, y, z, w) quaternion rotation
             timestamp: Optional timestamp
         """
-        ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+        ts = timestamp if timestamp is not None else Timestamp.now()
         
         transform = FrameTransform(
             timestamp=ts,
@@ -332,7 +333,7 @@ class GridChannel(BaseChannel):
         """Create a grid channel"""
         return FoxgloveGridChannel(topic=self.topic, **kwargs)
     
-    def publish(self, data: Grid, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Grid, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish grid data
         
@@ -356,7 +357,7 @@ class PointCloudChannel(BaseChannel):
         """Create a point cloud channel"""
         return FoxglovePointCloudChannel(topic=self.topic, **kwargs)
     
-    def publish(self, data: PointCloud, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: PointCloud, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish point cloud data
         
@@ -380,7 +381,7 @@ class LaserScanChannel(BaseChannel):
         """Create a laser scan channel"""
         return FoxgloveLaserScanChannel(topic=self.topic, **kwargs)
     
-    def publish(self, data: LaserScan, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: LaserScan, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish laser scan data
         
@@ -404,7 +405,7 @@ class LogChannel(BaseChannel):
         """Create a log channel"""
         return FoxgloveLogChannel(topic=self.topic, **kwargs)
     
-    def publish(self, data: Union[Log, str], timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Union[Log, str], timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish log message
         
@@ -414,7 +415,7 @@ class LogChannel(BaseChannel):
         """
         if isinstance(data, str):
             from foxglove.schemas import LogLevel
-            ts = Timestamp(sec=int(timestamp or time.time()), nsec=0)
+            ts = timestamp if timestamp is not None else Timestamp.now()
             log_msg = Log(
                 timestamp=ts,
                 level=LogLevel.Info,
@@ -446,7 +447,7 @@ class CustomChannel(BaseChannel):
                 return Channel(topic=self.topic, schema=self.schema)
         return Channel(topic=self.topic)
     
-    def publish(self, data: Any, timestamp: Optional[float] = None) -> None:
+    def publish(self, data: Any, timestamp: Optional[Timestamp] = None) -> None:
         """
         Publish custom data
         

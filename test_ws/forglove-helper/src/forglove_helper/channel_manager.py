@@ -20,7 +20,7 @@ import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Iterator, cast
+from typing import Optional, Dict, Any, List, Union, Iterator, cast, TYPE_CHECKING
 import logging
 
 # Import channel system
@@ -29,6 +29,13 @@ from .channels import (
     SceneUpdateChannel, DataChannel, ProtoChannel, TfChannel,
     GridChannel, PointCloudChannel, LaserScanChannel, LogChannel, CustomChannel
 )
+
+# Import Foxglove schemas for type annotations
+if TYPE_CHECKING:
+    try:
+        from foxglove.schemas import Timestamp
+    except ImportError:
+        Timestamp = None
 
 # Import Foxglove SDK components
 try:
@@ -286,7 +293,7 @@ class ChannelManager:
     
     # Publishing methods
     
-    def publish(self, channel_name: str, data: Any, timestamp: Optional[float] = None) -> None:
+    def publish(self, channel_name: str, data: Any, timestamp: Optional[Any] = None) -> None:
         """
         Publish data to a channel by name
         
