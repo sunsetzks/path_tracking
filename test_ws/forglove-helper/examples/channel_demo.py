@@ -142,7 +142,7 @@ class ChannelDemo:
             radius=0.3,
             color=(1.0, 0.5, 0.0, 1.0)
         )
-        entities.append(SceneEntity(id="moving_sphere", spheres=[sphere]))
+        entities.append(SceneEntity(id="moving_sphere", frame_id="root", spheres=[sphere]))
         
         # Rotating arrow
         arrow = PrimitiveUtils.create_arrow(
@@ -151,7 +151,7 @@ class ChannelDemo:
             length=1.5,
             color=(0.0, 1.0, 1.0, 1.0)
         )
-        entities.append(SceneEntity(id="rotating_arrow", arrows=[arrow]))
+        entities.append(SceneEntity(id="rotating_arrow", frame_id="root", arrows=[arrow]))
         
         # Oscillating cube
         cube = PrimitiveUtils.create_cube(
@@ -159,7 +159,7 @@ class ChannelDemo:
             size=(0.5, 0.5, 0.5),
             color=(0.0, 1.0, 0.0, 1.0)
         )
-        entities.append(SceneEntity(id="bouncing_cube", cubes=[cube]))
+        entities.append(SceneEntity(id="bouncing_cube", frame_id="root", cubes=[cube]))
         
         # Trajectory line
         points = []
@@ -172,7 +172,7 @@ class ChannelDemo:
             thickness=0.02,
             color=(1.0, 1.0, 0.0, 0.8)
         )
-        entities.append(SceneEntity(id="trajectory", lines=[line]))
+        entities.append(SceneEntity(id="trajectory", frame_id="root", lines=[line]))
         
         # Publish scene update
         self.scene_channel.publish(entities)

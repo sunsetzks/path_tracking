@@ -15,12 +15,9 @@ Components:
 - Utility Functions: Helpers for creating complex data structures
 """
 
-# Import original helper
-from .foxglove_helper import FoxgloveHelper
 
 # Try to import new channel system
 try:
-    from .foxglove_helper import EnhancedFoxgloveHelper
     from .channel_manager import ChannelManager, ChannelType
     from .channels import (
         BaseChannel, SceneUpdateChannel, DataChannel, ProtoChannel,
