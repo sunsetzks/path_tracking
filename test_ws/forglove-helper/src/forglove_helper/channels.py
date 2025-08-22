@@ -137,8 +137,9 @@ class SceneUpdateChannel(BaseChannel):
     
     def __init__(self, name: str, topic: str, description: str = "3D Scene Updates", **kwargs):
         super().__init__(name, topic, ChannelType.SCENE_UPDATE, description, **kwargs)
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
     
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+    def _create_foxglove_channel(self, **kwargs) -> FoxgloveSceneUpdateChannel:
         """Create a SceneUpdate channel"""
         return FoxgloveSceneUpdateChannel(topic=self.topic)
     
@@ -247,8 +248,9 @@ class TfChannel(BaseChannel):
     def __init__(self, name: str, topic: str = "/tf", 
                  description: str = "Coordinate Transformations", **kwargs):
         super().__init__(name, topic, ChannelType.TRANSFORM, description, **kwargs)
-    
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
+
+    def _create_foxglove_channel(self, **kwargs) -> FoxgloveFrameTransformsChannel:
         """Create a transforms channel"""
         return FoxgloveFrameTransformsChannel(topic=self.topic, **kwargs)
     
@@ -261,6 +263,8 @@ class TfChannel(BaseChannel):
             data: FrameTransform, FrameTransforms, or list of FrameTransform objects
             timestamp: Optional timestamp
         """
+        transforms: FrameTransforms
+        
         if isinstance(data, FrameTransform):
             transforms = FrameTransforms(transforms=[data])
         elif isinstance(data, list):
@@ -309,8 +313,9 @@ class GridChannel(BaseChannel):
     
     def __init__(self, name: str, topic: str, description: str = "Grid Data", **kwargs):
         super().__init__(name, topic, ChannelType.GRID, description, **kwargs)
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
     
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+    def _create_foxglove_channel(self, **kwargs) -> FoxgloveGridChannel:
         """Create a grid channel"""
         return FoxgloveGridChannel(topic=self.topic, **kwargs)
     
@@ -332,8 +337,9 @@ class PointCloudChannel(BaseChannel):
     
     def __init__(self, name: str, topic: str, description: str = "Point Cloud Data", **kwargs):
         super().__init__(name, topic, ChannelType.POINT_CLOUD, description, **kwargs)
-    
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
+
+    def _create_foxglove_channel(self, **kwargs) -> FoxglovePointCloudChannel:
         """Create a point cloud channel"""
         return FoxglovePointCloudChannel(topic=self.topic, **kwargs)
     
@@ -355,8 +361,9 @@ class LaserScanChannel(BaseChannel):
     
     def __init__(self, name: str, topic: str, description: str = "Laser Scan Data", **kwargs):
         super().__init__(name, topic, ChannelType.LASER_SCAN, description, **kwargs)
-    
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
+
+    def _create_foxglove_channel(self, **kwargs) -> FoxgloveLaserScanChannel:
         """Create a laser scan channel"""
         return FoxgloveLaserScanChannel(topic=self.topic, **kwargs)
     
@@ -378,8 +385,9 @@ class LogChannel(BaseChannel):
     
     def __init__(self, name: str, topic: str = "/logs", description: str = "Log Messages", **kwargs):
         super().__init__(name, topic, ChannelType.LOG, description, **kwargs)
+        self._foxglove_channel = self._create_foxglove_channel(**kwargs)
     
-    def _create_foxglove_channel(self, **kwargs) -> Channel:
+    def _create_foxglove_channel(self, **kwargs) -> FoxgloveLogChannel:
         """Create a log channel"""
         return FoxgloveLogChannel(topic=self.topic, **kwargs)
     
