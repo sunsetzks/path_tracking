@@ -142,7 +142,7 @@ class ChannelDemo:
             radius=0.3,
             color=(1.0, 0.5, 0.0, 1.0)
         )
-        entities.append(SceneEntity(id="moving_sphere", frame_id="root", spheres=[sphere]))
+        entities.append(SceneEntity(id="moving_sphere", frame_id="map", spheres=[sphere]))
         
         # Rotating arrow
         arrow = PrimitiveUtils.create_arrow(
@@ -151,7 +151,7 @@ class ChannelDemo:
             length=1.5,
             color=(0.0, 1.0, 1.0, 1.0)
         )
-        entities.append(SceneEntity(id="rotating_arrow", frame_id="root", arrows=[arrow]))
+        entities.append(SceneEntity(id="rotating_arrow", frame_id="map", arrows=[arrow]))
         
         # Oscillating cube
         cube = PrimitiveUtils.create_cube(
@@ -159,7 +159,7 @@ class ChannelDemo:
             size=(0.5, 0.5, 0.5),
             color=(0.0, 1.0, 0.0, 1.0)
         )
-        entities.append(SceneEntity(id="bouncing_cube", frame_id="root", cubes=[cube]))
+        entities.append(SceneEntity(id="bouncing_cube", frame_id="map", cubes=[cube]))
         
         # Trajectory line
         points = []
@@ -172,7 +172,7 @@ class ChannelDemo:
             thickness=0.02,
             color=(1.0, 1.0, 0.0, 0.8)
         )
-        entities.append(SceneEntity(id="trajectory", frame_id="root", lines=[line]))
+        entities.append(SceneEntity(id="trajectory", frame_id="map", lines=[line]))
         
         # Publish scene update
         self.scene_channel.publish(entities)
@@ -222,7 +222,7 @@ class ChannelDemo:
         if int(t) != int(t - 0.1):  # Once per second
             self.log_channel.publish(f"Demo running for {t:.1f} seconds")
     
-    async def run_demo(self, duration: float = 60.0):
+    async def run_demo(self, duration: float = 10.0):
         """
         Run the demonstration
         
@@ -292,7 +292,7 @@ def main():
     demo = ChannelDemo(port=8765)
     
     try:
-        asyncio.run(demo.run_demo(duration=60.0))
+        asyncio.run(demo.run_demo(duration=10.0))
     except KeyboardInterrupt:
         print("\nDemo interrupted")
     except Exception as e:

@@ -32,7 +32,7 @@ scene_channel = manager.create_scene_channel("main_scene", "/visualization/scene
 
 # Publish 3D content
 sphere = PrimitiveUtils.create_sphere((1, 2, 3), radius=0.5, color=(1, 0, 0, 1))
-entity = SceneEntity(id="my_sphere", frame_id="root", spheres=[sphere])
+entity = SceneEntity(id="my_sphere", frame_id="map", spheres=[sphere])
 scene_channel.publish([entity])
 ```
 
@@ -308,8 +308,8 @@ async def main():
             )
             
             entities = [
-                SceneEntity(id="sphere", frame_id="root", spheres=[sphere]),
-                SceneEntity(id="arrow", frame_id="root", arrows=[arrow])
+                SceneEntity(id="sphere", frame_id="map", spheres=[sphere]),
+                SceneEntity(id="arrow", frame_id="map", arrows=[arrow])
             ]
             scene_ch.publish(entities)
             
