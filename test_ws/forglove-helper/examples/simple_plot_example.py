@@ -62,7 +62,7 @@ class SimplePlotExample:
 
         # Add sine wave plot
         sine_entity = PlotUtils.plot(x, y1, color=(1.0, 0.0, 0.0, 1.0), linewidth=0.05,
-                                   entity_id='sine_wave')
+                                   entity_id='sine_wave') 
         entities.append(sine_entity)
 
         # Add cosine wave plot
@@ -73,7 +73,7 @@ class SimplePlotExample:
         # Add some scatter points
         scatter_x = np.random.uniform(-4, 4, 20)
         scatter_y = np.random.uniform(-1, 1, 20)
-        scatter_entity = PlotUtils.scatter(scatter_x, scatter_y, c='blue', marker='circle', s=50,
+        scatter_entity = PlotUtils.scatter(scatter_x, scatter_y, c='blue', marker='circle', s=5,
                                          entity_id='scatter_points')
         entities.append(scatter_entity)
 

@@ -508,7 +508,7 @@ class PlotUtils:
              marker: str = 'line',
              markersize: float = 0.1,
              label: str = '',
-             frame_id: str = 'plot',
+             frame_id: str = 'map',
              entity_id: str = 'plot_entity') -> SceneEntity:
         """
         Create a 2D/3D line plot similar to matplotlib's plot()
@@ -623,7 +623,7 @@ class PlotUtils:
                 marker: str = 'circle',
                 alpha: float = 1.0,
                 label: str = '',
-                frame_id: str = 'scatter',
+                frame_id: str = 'map',
                 entity_id: str = 'scatter_entity') -> SceneEntity:
         """
         Create a scatter plot similar to matplotlib's scatter()
@@ -795,7 +795,7 @@ class PlotUtils:
                    ylim: Tuple[float, float] = (-10, 10),
                    zlim: Optional[Tuple[float, float]] = None,
                    color: Tuple[float, float, float, float] = (0.5, 0.5, 0.5, 1.0),
-                   linewidth: float = 0.02) -> List[LinePrimitive]:
+                   linewidth: float = 0.1) -> List[LinePrimitive]:
         """
         Create coordinate axes for the plot
 
