@@ -22,8 +22,21 @@ import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Type, cast
+from typing import Optional, Dict, Any, List, Union, Type, cast, TYPE_CHECKING
 from enum import Enum
+
+# Type checking imports
+if TYPE_CHECKING:
+    from foxglove.schemas import FrameTransform, FrameTransforms, SceneUpdate, SceneEntity
+    from foxglove import Channel
+    from foxglove.channels import (
+        SceneUpdateChannel as FoxgloveSceneUpdateChannel,
+        FrameTransformsChannel as FoxgloveFrameTransformsChannel,
+        GridChannel as FoxgloveGridChannel,
+        PointCloudChannel as FoxglovePointCloudChannel,
+        LaserScanChannel as FoxgloveLaserScanChannel,
+        LogChannel as FoxgloveLogChannel
+    )
 
 # Import Foxglove SDK components
 try:
@@ -40,7 +53,7 @@ try:
     )
     from foxglove.schemas import (
         SceneUpdate, SceneEntity, FrameTransform, FrameTransforms,
-        Grid, PointCloud, LaserScan, Log, Color, Point3, Vector3, 
+        Grid, PointCloud, LaserScan, Log, Color, Point3, Vector3,
         Pose, Quaternion, Timestamp, PackedElementField
     )
     FOXGLOVE_AVAILABLE = True
