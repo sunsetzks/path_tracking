@@ -1,0 +1,133 @@
+
+# 流程图
+
+```plantuml
+@startuml 车辆路径规划与跟踪序列图
+
+title 车辆路径规划与跟踪序列图
+
+participant "感知模块" as sensor
+participant "定位模块" as localization
+participant "固件模块" as firmware
+participant "路径规划模块" as planner
+participant "跟踪模块" as tracker
+participant "伺服模块" as servo
+participant "车辆执行系统" as vehicle
+
+== 初始化阶段 ==
+note over sensor,localization : 信息收集与准备
+sensor -> planner : 车厢信息 (障碍物地图)
+localization -> planner : 当前车辆位置 (起点)
+sensor -> planner : 登车桥信息 (登车桥几何)
+firmware -> planner : 任务类型
+note right : 放货/取货
+firmware -> planner : 目标点信息
+note right : 出车厢:登车桥终点\n进车厢:库位中点
+
+== 进车厢路径规划阶段 ==
+note over planner : 综合所有输入信息规划进车厢的路径
+
+planner -> firmware : 进车厢路径规划结果
+firmware -> tracker : 传递进车厢路径信息
+
+== 进车厢跟踪执行阶段 ==
+note over tracker : 精确跟踪进车厢路径
+loop 进车厢路径跟踪循环
+    tracker -> vehicle : 路径跟踪控制指令
+    vehicle -> tracker : 车辆状态反馈
+    alt 到达伺服检测点
+        firmware -> servo : 下发伺服任务
+        servo -> servo : 执行伺服任务
+        servo -> firmware : 伺服任务完成
+        note over firmware : 伺服完成后触发
+        firmware -> planner : 下发出车厢任务
+    end
+end
+
+== 出车厢路径规划阶段 ==
+note over planner : 根据出车厢需求重新规划
+planner -> planner : 规划出车厢路径
+
+== 出车厢路径传递阶段 ==
+planner -> firmware : 出车厢路径规划结果
+firmware -> tracker : 传递出车厢路径信息
+
+== 出车厢跟踪执行阶段 ==
+note over tracker : 出车厢特殊起始处理
+tracker -> vehicle : 0度舵角指令（直线前进起始段）
+vehicle -> tracker : 行驶状态反馈
+note over tracker : 直线前进指定距离后
+tracker -> vehicle : 切换到规划路径跟踪
+vehicle -> tracker : 路径跟踪状态反馈
+
+== 持续路径跟踪与监控 ==
+loop 路径跟踪主循环
+    tracker -> vehicle : 路径跟踪控制指令
+    vehicle -> tracker : 车辆状态反馈
+    tracker -> firmware : 当前位置信息
+
+    alt 实时路径偏离监控
+        localization -> planner : 当前精确位置
+        planner -> planner : 评估与规划路径偏离距离
+        alt 偏离过大或目标变化
+            planner -> planner : 执行路径重规划
+            planner -> firmware : 新路径规划结果
+            firmware -> tracker : 更新路径信息
+            note over tracker : 无缝切换到新路径
+        end
+    end
+end
+
+@enduml
+```
+
+<!-- 有两种路径规划，进车厢和出车厢，
+
+感知 提供车厢信息
+固件提供目标点，出车厢时目标点是登车桥的终点，进车厢时目标点是库位中点
+定位 提供当前车辆位置，
+固件提供登车桥信息，
+固件入车厢任务，
+固件提供任务类型，放货还是取货
+
+路径规划模块，接收车厢信息，登车车桥信息，起点和目标，规划进车厢的路径，
+
+固件接收到规划的路径，然后传递给跟踪模块
+
+跟踪模块，跟踪入车厢路径，固件判断是否到达伺服检测点，如果到达，下发伺服任务，
+伺服模块执行完成，
+
+固件模块下发出车厢任务给路径规划模块，
+
+路径规划模块规划出车厢任务，然后传给固件，
+固件再下发给跟踪模块
+
+跟踪模块开始跟踪出车厢的任务，
+跟踪出车厢的路径时，起始段需要0度舵，直线前进一段距离，然后再沿着规划的路径进行跟踪，
+
+规划模块可以重规划，如果定位偏离规划的路径太远，或者目标点发生变化时，重规划路径 -->
+
+
+# 车厢内部路径规划
+
+# 消息接口
+
+
+# 场景信息
+
+## 车厢信息
+
+- **数据传输格式**: 采用Obstacle Map proto格式进行数据传输
+- **传输方式**: 使用Ecal进行数据传输
+- **坐标系**: 在全局坐标系下进行定位
+
+## 登车桥信息
+
+- **信息来源**: 登车桥信息从感知模块传递过来
+- **数据传输格式**: 采用Obstacle Map proto格式进行数据传输
+- **传输方式**: 使用ECal进行数据传输
+- **坐标系**: 在全局坐标系下进行定位
+
+## 控制模块
+
+# TODO
