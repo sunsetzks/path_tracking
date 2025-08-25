@@ -7,7 +7,8 @@ It shows how to use different channel types and the channel manager.
 
 Features demonstrated:
 - ChannelManager usage
-- Different channel types (Scene, Data, TF, Grid, PointCloud, Laser)
+- Different channel types (Scene, Data, TF, Grid, PointCloud, Laser, Proto)
+- Custom protobuf message channels (Person messages)
 - Utility functions for creating complex data
 - Real-time updates and management
 
@@ -42,6 +43,14 @@ except ImportError:
     print("Error: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
     FOXGLOVE_AVAILABLE = False
     sys.exit(1)
+
+# Import protobuf messages
+try:
+    from forglove_helper.protos.custom_person_pb2 import Person
+    PROTOBUF_AVAILABLE = True
+except ImportError:
+    print("Warning: Custom protobuf messages not available")
+    PROTOBUF_AVAILABLE = False
 
 
 class ChannelDemo:
@@ -99,7 +108,18 @@ class ChannelDemo:
             "/demo/logs",
             description="Demo log messages"
         )
-        
+
+        # 8. Proto channel for custom protobuf messages (Person)
+        if PROTOBUF_AVAILABLE:
+            self.proto_channel = self.manager.create_proto_channel(
+                "/demo/person",
+                proto_class=Person,
+                description="Custom Person protobuf messages"
+            )
+        else:
+            print("⚠ Proto channel not created - protobuf messages not available")
+            self.proto_channel = None
+
         print(f"✓ Created {len(self.manager)} channels")
         
     def publish_static_data(self):
@@ -199,8 +219,7 @@ class ChannelDemo:
         # 3. Update robot position transform
         robot_transform = TransformUtils.create_translation_transform(
             "map", "base_link",
-            3 * math.cos(t), 3 * math.sin(t), 0.0,
-            timestamp=time.time()
+            3 * math.cos(t), 3 * math.sin(t), 0.0
         )
         self.tf_channel.publish(robot_transform)
         
@@ -221,6 +240,18 @@ class ChannelDemo:
         # 6. Log status occasionally
         if int(t) != int(t - 0.1):  # Once per second
             self.log_channel.publish(f"Demo running for {t:.1f} seconds")
+
+        # 7. Update proto Person data (every 0.5 seconds)
+        if int(t * 2) % 1 == 0 and (t * 2) - int(t * 2) < 0.05:
+            if self.proto_channel is not None:
+                # Create a dynamic Person message
+                person_id = int(t) % 10 + 1  # Cycle through IDs 1-10
+                person = Person()
+                person.name = f"Demo Person {person_id}"  # type: ignore
+                person.id = person_id  # type: ignore
+                person.email = f"person{person_id}@demo.example.com"  # type: ignore
+
+                self.proto_channel.publish(person)
     
     async def run_demo(self, duration: float = 10.0):
         """
@@ -251,6 +282,8 @@ class ChannelDemo:
         print("  - 3D: Subscribe to /demo/pointcloud")
         print("  - Plot: Subscribe to /demo/scan")
         print("  - Log: Subscribe to /demo/logs")
+        if self.proto_channel is not None:
+            print("  - Raw Messages: Subscribe to /demo/person (Person protobuf messages)")
         print("\nPress Ctrl+C to stop the demo\n")
         
         # Main loop
