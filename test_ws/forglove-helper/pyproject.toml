@@ -1,17 +1,25 @@
 [project]
 name = "forglove-helper"
 version = "0.1.0"
-description = "Add your description here"
+description = "Foxglove helper utilities with automatic proto compilation"
 readme = "README.md"
 authors = [
     { name = "kszheng", email = "2436809937@qq.com" }
 ]
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "protobuf>=3.20.0,<4.21.0",
+    "foxglove-websocket>=0.0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "protobuf>=3.20.0",
+]
 
 [project.scripts]
 forglove-helper = "forglove_helper:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
