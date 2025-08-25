@@ -10,7 +10,7 @@ from typing import List, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from astar_project.hybrid_astar import State, DirectionMode, VehicleModel, HybridAStar, Node
-from astar_project.foxglove_visualizer import FoxgloveHybridAStarVisualizer, FOXGLOVE_AVAILABLE
+from astar_project.foxglove_visualizer import FoxgloveHybridAStarVisualizer
 
 
 def create_obstacle_map_scenario1() -> np.ndarray:
@@ -36,25 +36,6 @@ def visualize_planning_result(planner: HybridAStar, path: Optional[List[Node]], 
     """Helper function to visualize planning results using Foxglove"""
     if not path:
         print("No path to visualize")
-        return
-    
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Using matplotlib fallback.")
-        from astar_project.foxglove_visualizer import matplotlib_fallback_visualization
-        
-        path_states = [node.state for node in path]
-        viz_data = planner.get_visualization_data()
-        
-        matplotlib_fallback_visualization(
-            path=path_states,
-            start=start,
-            goal=goal,
-            explored_nodes=viz_data['explored_nodes'],
-            obstacle_map=viz_data['obstacle_map'],
-            map_origin_x=viz_data['map_origin_x'],
-            map_origin_y=viz_data['map_origin_y'],
-            grid_resolution=viz_data['grid_resolution']
-        )
         return
     
     # Use Foxglove visualizer
@@ -144,11 +125,6 @@ def demo_basic_navigation() -> bool:
 
 async def test_updated_visualizer():
     """Test the updated visualizer with exploration nodes as spheres and trajectories as lines"""
-    
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Using matplotlib fallback.")
-        test_matplotlib_fallback()
-        return
     
     print("Testing updated Foxglove Hybrid A* Visualizer...")
     print("New features:")
@@ -271,10 +247,6 @@ def test_matplotlib_fallback():
 
 def test_foxglove_fallback():
     """Test foxglove visualization with same environment as matplotlib fallback"""
-    
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Cannot run foxglove test.")
-        return
     
     print("Testing Foxglove visualization with same environment as matplotlib fallback...")
     

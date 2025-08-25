@@ -32,22 +32,17 @@ if TYPE_CHECKING:
     )
 
 # Import Foxglove schemas
-try:
-    from foxglove.schemas import (
-        # Transforms
-        FrameTransform, Vector3, Vector2, Quaternion, Timestamp,
-        # Primitives
-        CubePrimitive, SpherePrimitive, LinePrimitive, ArrowPrimitive,
-        Color, Point3, Pose,
-        # Advanced types
-        Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType,
-        # Scene types
-        SceneEntity
-    )
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Warning: Foxglove SDK not available")
-    FOXGLOVE_AVAILABLE = False
+from foxglove.schemas import (
+    # Transforms
+    FrameTransform, Vector3, Vector2, Quaternion, Timestamp,
+    # Primitives
+    CubePrimitive, SpherePrimitive, LinePrimitive, ArrowPrimitive,
+    Color, Point3, Pose,
+    # Advanced types
+    Grid, PointCloud, LaserScan, PackedElementField, PackedElementFieldNumericType,
+    # Scene types
+    SceneEntity
+)
 
 
 class GridType(Enum):
@@ -62,12 +57,9 @@ class TransformUtils:
     """Utilities for working with coordinate transformations"""
     
     @staticmethod
-    def create_identity_transform(parent_frame: str, child_frame: str, 
+    def create_identity_transform(parent_frame: str, child_frame: str,
                                 timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """Create an identity transform between two frames"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
-        
         ts = timestamp if timestamp is not None else Timestamp.now()
         return FrameTransform(
             timestamp=ts,
@@ -82,9 +74,6 @@ class TransformUtils:
                                    x: float, y: float, z: float,
                                    timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """Create a translation-only transform"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
-        
         ts = timestamp if timestamp is not None else Timestamp.now()
         return FrameTransform(
             timestamp=ts,
@@ -100,7 +89,7 @@ class TransformUtils:
                                 timestamp: Optional[Timestamp] = None) -> FrameTransform:
         """
         Create a rotation-only transform from Euler angles
-        
+
         Args:
             parent_frame: Parent frame ID
             child_frame: Child frame ID
@@ -109,9 +98,6 @@ class TransformUtils:
             yaw: Yaw angle in radians
             timestamp: Optional timestamp
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
-        
         # Convert Euler angles to quaternion
         qx, qy, qz, qw = TransformUtils.euler_to_quaternion(roll, pitch, yaw)
         
@@ -161,8 +147,7 @@ class PrimitiveUtils:
                    color: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0),
                    orientation: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)) -> CubePrimitive:
         """Create a cube primitive with given parameters"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         return CubePrimitive(
             pose=Pose(
@@ -178,8 +163,7 @@ class PrimitiveUtils:
                      radius: float = 0.5,
                      color: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0)) -> SpherePrimitive:
         """Create a sphere primitive"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         return SpherePrimitive(
             pose=Pose(
@@ -195,8 +179,7 @@ class PrimitiveUtils:
                    thickness: float = 0.05,
                    color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)) -> LinePrimitive:
         """Create a line primitive through given points"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         point3_list = [Point3(x=p[0], y=p[1], z=p[2]) for p in points]
         return LinePrimitive(
@@ -217,8 +200,7 @@ class PrimitiveUtils:
                     thickness: float = 0.1,
                     color: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0)) -> ArrowPrimitive:
         """Create an arrow primitive pointing in a given direction"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         quat_z = math.sin(direction / 2.0)
         quat_w = math.cos(direction / 2.0)
@@ -258,8 +240,7 @@ class GridUtils:
             frame_id: Frame ID for the grid
             timestamp: Optional timestamp
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         # Create default data if not provided
         if data is None:
@@ -296,8 +277,7 @@ class GridUtils:
     @staticmethod
     def create_simple_test_grid(size: int = 100, resolution: float = 0.1) -> Grid:
         """Create a simple test grid with some obstacles"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         # Create a grid with some obstacles
         data = np.zeros((size, size), dtype=np.uint8)
@@ -332,8 +312,7 @@ class PointCloudUtils:
             frame_id: Frame ID for the point cloud
             timestamp: Optional timestamp
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         if points.shape[1] != 3:
             raise ValueError("Points array must be Nx3")
@@ -392,8 +371,7 @@ class PointCloudUtils:
     @staticmethod
     def create_test_point_cloud(n_points: int = 1000, radius: float = 5.0) -> PointCloud:
         """Create a test point cloud with random points in a sphere"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         # Generate random points in a sphere
         phi = np.random.uniform(0, 2*np.pi, n_points)
@@ -439,8 +417,7 @@ class LaserScanUtils:
             frame_id: Frame ID for the scan
             timestamp: Optional timestamp
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         ts = timestamp if timestamp is not None else Timestamp.now()
         
@@ -460,8 +437,7 @@ class LaserScanUtils:
     @staticmethod
     def create_test_laser_scan(n_rays: int = 360, max_range: float = 10.0) -> LaserScan:
         """Create a test laser scan with simulated data"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
         
         # Create simulated ranges (simple room with some obstacles)
         angles = np.linspace(-math.pi, math.pi, n_rays)
@@ -528,8 +504,7 @@ class PlotUtils:
         Returns:
             SceneEntity representing the plot
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
 
         # Convert inputs to numpy arrays
         x = np.asarray(x)
@@ -643,8 +618,7 @@ class PlotUtils:
         Returns:
             SceneEntity representing the scatter plot
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
 
         # Convert inputs to numpy arrays
         x = np.asarray(x)
@@ -809,8 +783,7 @@ class PlotUtils:
         Returns:
             List of LinePrimitive objects representing the axes
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK not available")
+
 
         primitives = []
 

@@ -31,13 +31,7 @@ from forglove_helper.channel_manager import ChannelManager
 from forglove_helper.channel_utils import PlotUtils
 
 # Import Foxglove schemas
-try:
-    from foxglove.schemas import SceneEntity, SceneUpdate, Timestamp
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Error: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
-    sys.exit(1)
+from foxglove.schemas import SceneEntity, SceneUpdate, Timestamp
 
 
 class SimplePlotExample:

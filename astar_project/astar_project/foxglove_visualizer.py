@@ -36,35 +36,29 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 import numpy as np
 
-try:
-    import foxglove
-    from foxglove import Channel, Schema, open_mcap
-    from foxglove.mcap import MCAPWriter
-    from foxglove.schemas import (
-        Color,
-        Point3,
-        Vector3,
-        Quaternion,
-        Pose,
-        LinePrimitive,
-        ArrowPrimitive,
-        TriangleListPrimitive,
-        SceneUpdate,
-        SceneEntity,
-        Timestamp,
-    )
-    from foxglove.websocket import (
-        Capability,
-        WebSocketServer,
-        ServerListener,
-        Client,
-        ChannelView,
-    )
-    
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Warning: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
+import foxglove
+from foxglove import Channel, Schema, open_mcap
+from foxglove.mcap import MCAPWriter
+from foxglove.schemas import (
+    Color,
+    Point3,
+    Vector3,
+    Quaternion,
+    Pose,
+    LinePrimitive,
+    ArrowPrimitive,
+    TriangleListPrimitive,
+    SceneUpdate,
+    SceneEntity,
+    Timestamp,
+)
+from foxglove.websocket import (
+    Capability,
+    WebSocketServer,
+    ServerListener,
+    Client,
+    ChannelView,
+)
 
 # Import from our hybrid A* implementation
 try:
@@ -96,8 +90,7 @@ class FoxgloveHybridAStarVisualizer:
             port: WebSocket server port
             mcap_output_path: Optional path to save MCAP file. If None, defaults to log/hybrid_astar_<timestamp>.mcap
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK is not available. Please install it first.")
+
             
         self.port: int = port
         
@@ -140,8 +133,7 @@ class FoxgloveHybridAStarVisualizer:
     
     def start_server(self) -> Any:
         """Start the Foxglove WebSocket server with channels"""
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK is not available")
+
             
         print(f"Starting Foxglove server on ws://localhost:{self.port}")
         
@@ -884,9 +876,7 @@ class FoxgloveHybridAStarVisualizer:
 
 async def run_mcap_only_example() -> None:
     """Example of MCAP-only recording using default log directory"""
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Please install it first.")
-        return
+
     
     print("Creating MCAP-only recording example...")
     
@@ -956,9 +946,7 @@ async def run_mcap_only_example() -> None:
 
 async def run_with_default_mcap() -> None:
     """Example usage with default MCAP recording to log directory"""
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Please install it first.")
-        return
+
     
     print("Creating Foxglove Hybrid A* Visualizer with default MCAP recording...")
     
@@ -1016,9 +1004,7 @@ async def run_with_default_mcap() -> None:
 
 async def run_example() -> None:
     """Example usage of the Foxglove visualizer"""
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Please install it first.")
-        return
+
     
     print("Creating Foxglove Hybrid A* Visualizer example...")
     
@@ -1171,9 +1157,7 @@ def matplotlib_fallback_visualization(path: List[State],
 
 async def run_foxglove_example() -> None:
     """Example usage of the Foxglove visualizer"""
-    if not FOXGLOVE_AVAILABLE:
-        print("Foxglove SDK not available. Please install it first.")
-        return
+
     
     print("Creating Foxglove Hybrid A* Visualizer example...")
     

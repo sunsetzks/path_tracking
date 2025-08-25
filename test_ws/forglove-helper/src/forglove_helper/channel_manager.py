@@ -38,14 +38,9 @@ if TYPE_CHECKING:
         Timestamp = None
 
 # Import Foxglove SDK components
-try:
-    import foxglove
-    from foxglove import start_server, open_mcap
-    from foxglove.mcap import MCAPWriter
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Warning: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
+import foxglove
+from foxglove import start_server, open_mcap
+from foxglove.mcap import MCAPWriter
 
 
 class ChannelManager:
@@ -66,8 +61,7 @@ class ChannelManager:
             mcap_output_path: Optional path to save MCAP file
             auto_start_server: Whether to start server automatically
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK is not available. Please install it first.")
+
         
         self.port = port
         self.mcap_output_path = mcap_output_path or self._generate_timestamped_filename()

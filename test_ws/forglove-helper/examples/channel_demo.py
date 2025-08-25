@@ -36,13 +36,7 @@ from forglove_helper.channel_utils import (
 from forglove_helper.channels import SceneUpdateChannel
 
 # Import Foxglove schemas
-try:
-    from foxglove.schemas import SceneEntity, SceneUpdate
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Error: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
-    sys.exit(1)
+from foxglove.schemas import SceneEntity, SceneUpdate
 
 # Import protobuf messages
 try:
@@ -317,9 +311,7 @@ def main():
     """Main function to run the demo"""
     print("=== Foxglove Channel System Demo ===\n")
     
-    if not FOXGLOVE_AVAILABLE:
-        print("Error: Foxglove SDK not available")
-        return
+
     
     # Create and run demo
     demo = ChannelDemo(port=8765)

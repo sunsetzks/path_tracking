@@ -39,27 +39,22 @@ if TYPE_CHECKING:
     )
 
 # Import Foxglove SDK components
-try:
-    import foxglove
-    from foxglove import Channel, start_server, open_mcap
-    from foxglove.mcap import MCAPWriter
-    from foxglove.channels import (
-        SceneUpdateChannel as FoxgloveSceneUpdateChannel,
-        FrameTransformsChannel as FoxgloveFrameTransformsChannel,
-        GridChannel as FoxgloveGridChannel,
-        PointCloudChannel as FoxglovePointCloudChannel,
-        LaserScanChannel as FoxgloveLaserScanChannel,
-        LogChannel as FoxgloveLogChannel
-    )
-    from foxglove.schemas import (
-        SceneUpdate, SceneEntity, FrameTransform, FrameTransforms,
-        Grid, PointCloud, LaserScan, Log, Color, Point3, Vector3,
-        Pose, Quaternion, Timestamp, PackedElementField
-    )
-    FOXGLOVE_AVAILABLE = True
-except ImportError:
-    print("Warning: Foxglove SDK not available. Please install with: pip install foxglove-sdk")
-    FOXGLOVE_AVAILABLE = False
+import foxglove
+from foxglove import Channel, start_server, open_mcap
+from foxglove.mcap import MCAPWriter
+from foxglove.channels import (
+    SceneUpdateChannel as FoxgloveSceneUpdateChannel,
+    FrameTransformsChannel as FoxgloveFrameTransformsChannel,
+    GridChannel as FoxgloveGridChannel,
+    PointCloudChannel as FoxglovePointCloudChannel,
+    LaserScanChannel as FoxgloveLaserScanChannel,
+    LogChannel as FoxgloveLogChannel
+)
+from foxglove.schemas import (
+    SceneUpdate, SceneEntity, FrameTransform, FrameTransforms,
+    Grid, PointCloud, LaserScan, Log, Color, Point3, Vector3,
+    Pose, Quaternion, Timestamp, PackedElementField
+)
 
 
 class ChannelType(Enum):
@@ -95,8 +90,7 @@ class BaseChannel(ABC):
             description: Optional description of the channel
             **kwargs: Additional channel-specific parameters
         """
-        if not FOXGLOVE_AVAILABLE:
-            raise ImportError("Foxglove SDK is not available")
+
             
         self.name = name
         self.topic = topic
