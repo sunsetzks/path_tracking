@@ -5,3 +5,4 @@ alwaysApply: true
 ---
 if you want to install a python package, use uv pip install package-name
 if you want to run a python script, first source .venv
+if you want to create a package, use uv init --package package-name
