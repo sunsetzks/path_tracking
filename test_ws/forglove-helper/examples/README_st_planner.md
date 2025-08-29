@@ -243,10 +243,10 @@ message PathMetadata {
 }
 ```
 
-## TaskInfo
+## 车厢内取放货物的任务请求信息
 ```protobuf
-// Task information for warehouse logistics operations
-message TaskInfo {
+// 车厢内取放货物的任务请求信息 - Task request information for loading/unloading goods in carriage
+message CarriageGoodsTaskRequestInfo {
   // Timestamp for when this task was created/updated
   google.protobuf.Timestamp timestamp = 1;
 
@@ -268,6 +268,8 @@ message TaskInfo {
   // 出叉预留直线距离 - Reserved straight line distance for fork exit (meters)
   // This distance ensures safe clearance when the fork extends/retracts
   double fork_exit_reserved_distance = 4;
+
+  Path reference_path
 
   // Optional: Target position for the task (e.g., storage location or exit point)
   foxglove.Pose target_position = 5;
