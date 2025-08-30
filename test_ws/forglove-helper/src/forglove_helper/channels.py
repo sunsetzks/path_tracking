@@ -312,7 +312,8 @@ class TfChannel(BaseChannel):
             translation=Vector3(x=translation[0], y=translation[1], z=translation[2]),
             rotation=Quaternion(x=rotation[0], y=rotation[1], z=rotation[2], w=rotation[3])
         )
-        
+        # import foxglove
+        # foxglove.log(self.topic, transform)
         self.publish(transform, timestamp)
 
 
