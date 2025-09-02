@@ -1,18 +1,18 @@
 
-# 模块说明：Model Predictive Speed and Steer Control
+# 1. 模块说明：Model Predictive Speed and Steer Control
 
 本文档概述 `model_predictive_speed_and_steer_control.py` 的设计、关键函数与数据流，并用 UML 图（mermaid 语法）说明模块结构与运行流程，便于快速理解和维护。
 
-## 目标（概览）
+## 1.1. 目标（概览）
 - 实现对车辆的速度与转向的迭代线性化 MPC（Model Predictive Control）。
 - 在有限预测步长内同时优化加速度和前轮转角，使车辆跟踪参考轨迹。
 
-## 文件位置
+## 1.2. 文件位置
 - 源文件：`experiments/model_predictive_speed_and_steer_control/model_predictive_speed_and_steer_control.py`
 
 ---
 
-## 关键类与结构
+## 1.3. 关键类与结构
 
 - VehicleState：表示当前车辆状态（x, y, yaw, velocity, previous_steering_angle）。
 - 常量定义：状态维度、控制维度、预测步长、代价矩阵、约束、仿真参数等。
@@ -26,14 +26,14 @@
   - `run_mpc_simulation(...)`
   - 工具函数：`find_nearest_trajectory_index`, `calculate_speed_profile`, `smooth_trajectory_yaw`, `plot_vehicle` 等。
 
-## 数据契约（简短）
+## 1.4. 数据契约（简短）
 - 状态向量 $x \in \mathbb{R}^4$： $[x, y, v, \psi]$
 - 控制向量 $u \in \mathbb{R}^2$： $[a, \delta]$
 - 参考轨迹：数组形状 $(4, \text{PREDICTION\_HORIZON}+1)$
 - 预测步数：PREDICTION_HORIZON（常量）
 - 返回值/成功判定：`solve_linear_mpc` 在求解成功时返回数值序列，否则返回 None 并打印错误。
 
-## 主要误差/边界情况（工程注意）
+## 1.5. 主要误差/边界情况（工程注意）
 - 非凸或不可行的 QP 可能导致求解失败（已打印错误）。
 - 线性化点偏差过大时需要更多迭代或更好的初始化。
 - 轨迹末端速度为 0，若车辆未能准确停止可能出现摆动。
@@ -41,7 +41,7 @@
 
 ---
 
-## UML 类图（mermaid）
+## 1.6. UML 类图（mermaid）
 
 以下 mermaid 类图描述模块中主要的类与函数间关系：
 
@@ -81,7 +81,7 @@ classDiagram
 
 ---
 
-## UML 时序图（主要运行流程）
+## 1.7. UML 时序图（主要运行流程）
 
 展示从 `main()` 启动到求解并应用控制输入的典型调用顺序：
 
@@ -109,7 +109,7 @@ sequenceDiagram
 
 ---
 
-## 模块核心算法说明（要点）
+## 1.8. 模块核心算法说明（要点）
 
 1. 线性化模型：
     - 使用函数 `get_linearized_model_matrices` 在当前速度、偏航与转角处构造离散时间线性系统 $x_{k+1} = A x_k + B u_k + C$。
@@ -127,7 +127,7 @@ sequenceDiagram
 
 ---
 
-## 重点公式与线性化推导（数学细节）
+## 1.9. 重点公式与线性化推导（数学细节）
 
 下面给出脚本中用到的关键动力学、线性化过程与 MPC 目标函数的数学表达，便于工程复现与推理验证。
 
@@ -206,7 +206,7 @@ $$
 
 ---
 
-## 轨迹计算方法与参考轨迹生成
+## 1.10. 轨迹计算方法与参考轨迹生成
 
 脚本中参考轨迹由两部分生成与处理：
 
@@ -230,7 +230,7 @@ $$
 
 ---
 
-## 数值注意事项与工程建议
+## 1.11. 数值注意事项与工程建议
 
 - 当使用 cvxpy 求解二次问题时，若 CLARABEL 不可用或遇到数值问题，可切换到 OSQP、OSQP + warm start 或 ECOS，用于稀疏 QP 的场景。可通过 optimization_problem.solve(solver=...) 修改。
 - 在构建 B、C 矩阵时要确保 steering_angle 的 cos 不为 0（代码里通过角度限幅与合适的初值避免分母接近 0）。
@@ -239,7 +239,7 @@ $$
 
 ---
 
-## 从线性化到 QP 的具体步骤（逐步构造）
+## 1.12. 从线性化到 QP 的具体步骤（逐步构造）
 
 下面给出把脚本中每步线性化得到的局部线性动力学和二次代价组合成标准二次规划（QP）问题的详细步骤。目标是把问题写成：
 
@@ -347,7 +347,7 @@ $$
 
 ---
 
-## 数值注意事项与工程建议
+## 1.13. 数值注意事项与工程建议
 
 - 当使用 cvxpy 求解二次问题时，若 CLARABEL 不可用或遇到数值问题，可切换到 OSQP、OSQP + warm start 或 ECOS，用于稀疏 QP 的场景。可通过 optimization_problem.solve(solver=...) 修改。
 - 在构建 B、C 矩阵时要确保 steering_angle 的 cos 不为 0（代码里通过角度限幅与合适的初值避免分母接近 0）。
@@ -355,13 +355,13 @@ $$
 - 添加简单的正则化（例如对 Q、R 的最小对角项）能提升求解稳定性。
 
 
-## 如何渲染 UML
+## 1.14. 如何渲染 UML
 - VS Code 的 Markdown 预览默认不渲染 mermaid。可安装 `Markdown Preview Enhanced` 或在支持 mermaid 的渲染器中打开（GitHub 在仓库 README 中会渲染 mermaid）。
 - 也可以把 mermaid 内容粘到 https://mermaid.live/ 即时渲染。
 
 ---
 
-## 如何运行（快速）
+## 1.15. 如何运行（快速）
 1. 创建并激活 Python 虚拟环境，安装依赖（见仓库根目录的 `pyproject.toml` / `requirements.txt`）。
 2. 在仓库根目录运行：
 
@@ -373,17 +373,17 @@ python experiments/model_predictive_speed_and_steer_control/model_predictive_spe
 
 ---
 
-## 进一步改进建议（小建议）
+## 1.16. 进一步改进建议（小建议）
 - 将模块化为类（例如 `MPCController`）以便于单元测试和依赖注入。
 - 增加单元测试覆盖 `solve_linear_mpc` 在不可行/边界情况下的行为。
 - 将 cvxpy 求解器抽象为可插拔策略，便于在没有 CLARABEL 时回退到 OSQP 等。
 
 ---
 
-## 变更记录
+## 1.17. 变更记录
 - 初始文档，描述该脚本的结构、UML 图以及运行/渲染方法。
 
 ---
 
-## 许可证
+## 1.18. 许可证
 与仓库相同的许可证（如有）。
