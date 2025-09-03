@@ -373,17 +373,86 @@ python experiments/model_predictive_speed_and_steer_control/model_predictive_spe
 
 ---
 
-## 1.16. 进一步改进建议（小建议）
+## 1.16. 参考轨迹跟踪改进建议（重要）
+
+### 1.16.1. 当前实现的问题
+当前的MPC控制器使用固定的参考轨迹点进行跟踪，存在以下问题：
+- **参考点固定**：强制车辆跟踪预定义的固定点，无法处理路径偏离
+- **预测轨迹受限**：预测轨迹只能沿着预定义路径"滑动"，不能自由伸展
+- **误差混合**：横向误差和纵向误差混合在一起，无法分别优化
+
+### 1.16.2. 基于横向误差的改进方案
+
+#### 核心思想
+使用**预测轨迹到参考轨迹的横向误差**作为主要跟踪目标，而不是固定的参考轨迹点。
+
+#### 具体改进
+1. **分离横向和纵向误差**：
+   ```python
+   def calculate_lateral_error(predicted_state, reference_path):
+       # 计算横向误差（垂直于路径方向的距离）
+       lateral_error = np.cross(path_tangent, position_vector)
+       # 计算纵向误差（沿路径方向的距离）
+       longitudinal_error = np.dot(position_vector, path_tangent)
+       return lateral_error, longitudinal_error
+   ```
+
+2. **修改MPC目标函数**：
+   ```python
+   # 主要惩罚横向误差（路径跟踪精度）
+   total_cost += LATERAL_COST_WEIGHT * cvxpy.square(lateral_error)
+   # 次要惩罚纵向误差（速度跟踪）
+   total_cost += LONGITUDINAL_COST_WEIGHT * cvxpy.square(longitudinal_error)
+   ```
+
+3. **动态参考点选择**：
+   - 根据预测轨迹动态选择参考点
+   - 考虑预测轨迹的"意图"，选择前瞻参考点
+   - 允许参考轨迹根据当前状态和预测动态调整
+
+#### 优势分析
+- **更好的路径跟踪**：专注于横向误差，这是路径跟踪的关键
+- **更强的鲁棒性**：当车辆偏离路径时，能更好地引导回到路径
+- **更自然的控制**：符合人类驾驶习惯，减少不必要的控制动作
+- **更好的收敛性**：横向误差通常比位置误差更容易收敛
+
+#### 建议的权重设置
+```python
+LATERAL_COST_WEIGHT = 10.0      # 横向误差最重要
+YAW_COST_WEIGHT = 5.0           # 偏航角次重要
+VELOCITY_COST_WEIGHT = 2.0      # 速度跟踪
+LONGITUDINAL_COST_WEIGHT = 1.0  # 纵向位置最不重要
+```
+
+### 1.16.3. 实现建议
+1. **渐进式改进**：
+   - 首先实现横向误差计算函数
+   - 然后修改MPC目标函数
+   - 最后添加动态参考点选择
+
+2. **安全约束**：
+   - 始终保证预测轨迹在安全范围内
+   - 添加碰撞检测和避障约束
+   - 保持与参考路径的合理距离
+
+3. **参数调优**：
+   - 根据实际测试调整权重矩阵
+   - 平衡跟踪精度和控制平滑性
+   - 考虑不同场景下的性能表现
+
+---
+
+## 1.17. 进一步改进建议（小建议）
 - 将模块化为类（例如 `MPCController`）以便于单元测试和依赖注入。
 - 增加单元测试覆盖 `solve_linear_mpc` 在不可行/边界情况下的行为。
 - 将 cvxpy 求解器抽象为可插拔策略，便于在没有 CLARABEL 时回退到 OSQP 等。
 
 ---
 
-## 1.17. 变更记录
+## 1.18. 变更记录
 - 初始文档，描述该脚本的结构、UML 图以及运行/渲染方法。
 
 ---
 
-## 1.18. 许可证
+## 1.19. 许可证
 与仓库相同的许可证（如有）。
