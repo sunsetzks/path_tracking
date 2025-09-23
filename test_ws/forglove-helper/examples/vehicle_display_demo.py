@@ -430,7 +430,7 @@ async def main():
     print("Choose demo (1 or 2): ", end="")
 
     # Default to trajectory demo if no input
-    choice = "1"
+    choice = "2"
 
     if choice == "1":
         demo = SimpleVehicleDemo()
