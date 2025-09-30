@@ -781,8 +781,19 @@ def run_mpc_simulation(
             plt.pause(0.0001)
 
         # Store control sequences for next iteration
-        previous_acceleration_sequence = acceleration_sequence
-        previous_steering_sequence = steering_sequence
+        # Shift sequences by one step since first control was applied
+        if acceleration_sequence is not None and len(acceleration_sequence) > 1:
+            # Shift by one step and pad with last value for numpy arrays
+            previous_acceleration_sequence = np.concatenate([acceleration_sequence[1:], [acceleration_sequence[-1]]])
+            previous_steering_sequence = np.concatenate([steering_sequence[1:], [steering_sequence[-1]]])
+        elif acceleration_sequence is not None:
+            # If only one control, keep it as is
+            previous_acceleration_sequence = acceleration_sequence
+            previous_steering_sequence = steering_sequence
+        else:
+            # Handle None case
+            previous_acceleration_sequence = None
+            previous_steering_sequence = None
 
     return (
         time_history,
