@@ -380,13 +380,34 @@ class MPCSolver:
 
         Args:
             reference_trajectory (np.array): Reference state trajectory to track
+                - Shape: (4, prediction_horizon + 1)
+                - Order: rows are [x, y, velocity, yaw], columns are time steps 0..N
+                - Units: x/y in meters, velocity in m/s, yaw in radians
+                - Used in: state tracking cost at steps 1..N-1 and terminal cost at step N
+            
             linearization_trajectory (np.array): Trajectory around which to linearize
+                - Shape: (4, prediction_horizon)
+                - Order: rows [x, y, velocity, yaw], columns 0..N-1
+                - Used in: computing A, B, C matrices via get_linearized_model_matrices()
+                - Provide reasonable nominal trajectory (e.g., last solve's prediction)
+            
             initial_state (list): Initial state constraint
-            reference_steering (np.array): Reference steering sequence
+                - Length: 4 -> [x0, y0, v0, yaw0]
+                - Used in: state_variables[:, 0] == initial_state
+                - Units: meters, m/s, radians
+            
+            reference_steering (np.array): Reference steering sequence for linearization
+                - Shape: (1, prediction_horizon)
+                - Used in: steering_angle = reference_steering[0, t] for linearization
+                - Note: This is not a hard constraint, only affects linearization point
 
         Returns:
             tuple: (acceleration_sequence, steering_sequence, predicted_x, predicted_y,
                     predicted_yaw, predicted_velocity)
+                - acceleration_sequence: shape (prediction_horizon,), units m/s²
+                - steering_sequence: shape (prediction_horizon,), units radians
+                - predicted_x, predicted_y, predicted_yaw, predicted_velocity: 
+                  each shape (prediction_horizon + 1,)
         """
         import time
         start_time = time.time()
