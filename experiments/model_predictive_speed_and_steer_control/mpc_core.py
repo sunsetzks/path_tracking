@@ -242,7 +242,7 @@ class MPCSolver:
                 None
             )
     
-    def compare_predictions(self, linearized_prediction, kinematic_prediction, title="Prediction Comparison", acceleration_sequence=None, steering_sequence=None):
+    def compare_predictions(self, linearized_prediction, kinematic_prediction, title="Prediction Comparison", acceleration_sequence=None, steering_sequence=None, reference_trajectory=None):
         """
         Compare linearized and kinematic predictions and visualize the differences.
         
@@ -252,6 +252,7 @@ class MPCSolver:
             title (str): Title for the comparison plot
             acceleration_sequence (array): MPC acceleration sequence
             steering_sequence (array): MPC steering sequence
+            reference_trajectory (np.array): Reference trajectory to show on the first subplot
         """
         import matplotlib.pyplot as plt
         
@@ -278,6 +279,11 @@ class MPCSolver:
         ax1 = axes[0, 0]
         ax1.plot(lin_x, lin_y, 'b-o', label='Linearized Model', markersize=4, linewidth=2, alpha=0.3)
         ax1.plot(kin_x, kin_y, 'r-s', label='Kinematic Model', markersize=4, linewidth=2, alpha=0.3)
+        # Add reference trajectory if provided
+        if reference_trajectory is not None:
+            ref_x = reference_trajectory[0, :]
+            ref_y = reference_trajectory[1, :]
+            ax1.plot(ref_x, ref_y, 'g--', label='Reference Trajectory', linewidth=2, alpha=0.7)
         ax1.plot(lin_x[0], lin_y[0], 'go', label='Start', markersize=8, alpha=0.3)
         ax1.plot(lin_x[-1], lin_y[-1], 'ro', label='End', markersize=8, alpha=0.3)
         ax1.set_xlabel('X position [m]')

@@ -1,9 +1,28 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(cat:*)"
+    "allow": ["*"],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(dd:*)",
+      "Bash(mkfs:*)",
+      "Bash(format:*)",
+      "Bash(fdisk:*)",
+      "Bash(sfdisk:*)",
+      "Bsh(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(sudo:*)",
+      "Bash(su:*)",
+      "Bash(shred:*)",
+      "Bash(wipe:*)",
+      "Bash(sync:*)",
+      "Bash(reboot:*)",
+      "Bash(shutdown:*)",
+      "Bash(halt:*)",
+      "Bash(poweroff:*)"
     ],
-    "deny": [],
     "ask": []
   }
 }

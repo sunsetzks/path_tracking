@@ -207,7 +207,10 @@ def main():
             mpc_solver.compare_predictions(
                 linearized_prediction,
                 kinematic_prediction,
-                "Linearized vs Kinematic Model Comparison"
+                "Linearized vs Kinematic Model Comparison",
+                None,  # acceleration_sequence
+                None,  # steering_sequence
+                reference_trajectory
             )
         
     else:

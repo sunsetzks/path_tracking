@@ -209,7 +209,8 @@ def demonstrate_kinematic_comparison():
                 kinematic_prediction,
                 f"Model Comparison - {test_case['name']}",
                 acceleration_sequence,
-                steering_sequence
+                steering_sequence,
+                reference_trajectory
             )
             
             # Print additional analysis
