@@ -48,10 +48,9 @@ def create_test_reference_trajectory(prediction_horizon=5, time_step=0.2):
 
 
 def create_linearization_trajectory(initial_state, reference_trajectory):
-    """Create linearization trajectory."""
+    """Create linearization trajectory by interpolating between initial state and reference."""
     prediction_horizon = reference_trajectory.shape[1] - 1
     linearization_trajectory = np.zeros((4, prediction_horizon + 1))
-    return linearization_trajectory
     initial_state_array = np.array(initial_state)
     
     # Start with initial state
@@ -186,8 +185,8 @@ def demonstrate_kinematic_comparison():
             reference_trajectory,
             test_case['initial_state'],
             reference_steering,
-            max_iterations=5,
-            convergence_threshold=0.1
+            max_iterations=6,
+            convergence_threshold=0.05
         )
         
         if not iteration_results['iterations']:
@@ -197,6 +196,12 @@ def demonstrate_kinematic_comparison():
         print(f"   ✓ Iterative MPC solved with {len(iteration_results['iterations'])} iterations!")
         print(f"   Converged: {iteration_results['converged']}")
         print(f"   Total solve time: {iteration_results['total_solve_time']:.4f} seconds")
+        
+        # Show iteration details
+        for i, iteration in enumerate(iteration_results['iterations']):
+            cost_str = f"cost = {iteration['total_cost']:.4f}" if iteration['total_cost'] != float('inf') else "cost = inf"
+            print(f"     Iteration {i}: control change = {iteration['control_change']:.6f}, "
+                  f"solve time = {iteration['solve_time']:.4f}s, {cost_str}")
         
         # Get the final iteration result for kinematic comparison
         final_iteration = iteration_results['iterations'][-1]

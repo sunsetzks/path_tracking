@@ -283,7 +283,16 @@ class MPCSolver:
         if reference_trajectory is not None:
             ref_x = reference_trajectory[0, :]
             ref_y = reference_trajectory[1, :]
-            ax1.plot(ref_x, ref_y, 'g--', label='Reference Trajectory', linewidth=2, alpha=0.7)
+            ax1.plot(ref_x, ref_y, 'g-o', label='Reference Trajectory', markersize=6, linewidth=2, alpha=0.3)
+            
+            # Add lines connecting predicted points to reference points
+            min_len = min(len(lin_x), len(ref_x))
+            for i in range(min_len):
+                # Connect linearized prediction to reference
+                ax1.plot([lin_x[i], ref_x[i]], [lin_y[i], ref_y[i]], 'b-', alpha=0.3, linewidth=1)
+                # Connect kinematic prediction to reference
+                ax1.plot([kin_x[i], ref_x[i]], [kin_y[i], ref_y[i]], 'r-', alpha=0.3, linewidth=1)
+        
         ax1.plot(lin_x[0], lin_y[0], 'go', label='Start', markersize=8, alpha=0.3)
         ax1.plot(lin_x[-1], lin_y[-1], 'ro', label='End', markersize=8, alpha=0.3)
         ax1.set_xlabel('X position [m]')
@@ -507,6 +516,67 @@ class MPCSolver:
             'time_step': self.time_step
         }
     
+    def _calculate_iteration_cost(self, acceleration_sequence, steering_sequence,
+                                predicted_x, predicted_y, predicted_yaw, predicted_velocity,
+                                reference_trajectory):
+        """
+        Calculate the total cost for an iteration.
+        
+        Args:
+            acceleration_sequence: Acceleration control sequence
+            steering_sequence: Steering control sequence
+            predicted_x: Predicted x positions
+            predicted_y: Predicted y positions
+            predicted_yaw: Predicted yaw angles
+            predicted_velocity: Predicted velocities
+            reference_trajectory: Reference trajectory to track
+            
+        Returns:
+            float: Total cost for this iteration
+        """
+        if (acceleration_sequence is None or steering_sequence is None or
+            predicted_x is None or predicted_y is None or
+            predicted_yaw is None or predicted_velocity is None):
+            return float('inf')
+        
+        total_cost = 0.0
+        
+        # Control input cost
+        for i in range(len(acceleration_sequence)):
+            control_vector = np.array([acceleration_sequence[i], steering_sequence[i]])
+            total_cost += float(control_vector.T @ self.input_cost_matrix @ control_vector)
+        
+        # Control rate cost
+        for i in range(len(acceleration_sequence) - 1):
+            control_rate = np.array([
+                acceleration_sequence[i+1] - acceleration_sequence[i],
+                steering_sequence[i+1] - steering_sequence[i]
+            ])
+            total_cost += float(control_rate.T @ self.input_rate_cost_matrix @ control_rate)
+        
+        # State tracking cost
+        for i in range(1, len(predicted_x)):  # Skip first step (no tracking cost)
+            if i < len(reference_trajectory[0, :]):
+                predicted_state = np.array([
+                    predicted_x[i], predicted_y[i],
+                    predicted_velocity[i], predicted_yaw[i]
+                ])
+                reference_state = reference_trajectory[:, i]
+                state_error = predicted_state - reference_state
+                total_cost += float(state_error.T @ self.state_cost_matrix @ state_error)
+        
+        # Terminal cost
+        if len(predicted_x) > 0 and len(reference_trajectory[0, :]) > len(predicted_x) - 1:
+            final_state = np.array([
+                predicted_x[-1], predicted_y[-1],
+                predicted_velocity[-1], predicted_yaw[-1]
+            ])
+            terminal_reference = reference_trajectory[:, len(predicted_x) - 1]
+            terminal_error = final_state - terminal_reference
+            total_cost += float(terminal_error.T @ self.terminal_cost_matrix @ terminal_error)
+        
+        return total_cost
+
     def solve_iterative(self, reference_trajectory, initial_state, reference_steering,
                        max_iterations=3, convergence_threshold=0.1):
         """
@@ -574,6 +644,12 @@ class MPCSolver:
             
             acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity = result
             
+            # Calculate total cost for this iteration
+            total_cost = self._calculate_iteration_cost(
+                acceleration_sequence, steering_sequence, predicted_x, predicted_y,
+                predicted_yaw, predicted_velocity, reference_trajectory
+            ) if acceleration_sequence is not None else float('inf')
+            
             # Calculate control change for convergence check
             if iteration > 0 and old_acceleration is not None and old_steering is not None:
                 control_change = (
@@ -594,6 +670,7 @@ class MPCSolver:
                 'predicted_velocity': predicted_velocity,
                 'solve_time': time.time() - iteration_start_time,
                 'control_change': control_change,
+                'total_cost': total_cost,
                 'converged': control_change <= convergence_threshold
             })
             
@@ -676,8 +753,18 @@ class MPCSolver:
         
         # Add reference trajectory if provided
         if reference_trajectory is not None:
-            ax1.plot(reference_trajectory[0, :], reference_trajectory[1, :],
-                    'r--', label='Reference', linewidth=2, alpha=0.7)
+            ref_x = reference_trajectory[0, :]
+            ref_y = reference_trajectory[1, :]
+            ax1.plot(ref_x, ref_y, 'r-o', label='Reference', markersize=6, linewidth=2, alpha=0.3)
+            
+            # Add lines connecting predicted points to reference points for final iteration
+            if iterations and iterations[-1]['predicted_x'] is not None:
+                final_pred_x = iterations[-1]['predicted_x']
+                final_pred_y = iterations[-1]['predicted_y']
+                min_len = min(len(final_pred_x), len(ref_x))
+                for j in range(min_len):
+                    ax1.plot([final_pred_x[j], ref_x[j]], [final_pred_y[j], ref_y[j]],
+                            'k-', alpha=0.3, linewidth=1)
         
         # Mark start and end points
         if iterations[0]['predicted_x'] is not None:
@@ -706,7 +793,7 @@ class MPCSolver:
         if reference_trajectory is not None:
             ref_time_steps = np.arange(len(reference_trajectory[2, :])) * self.time_step
             ax2.plot(ref_time_steps, reference_trajectory[2, :],
-                    'r--', label='Reference', linewidth=2, alpha=0.7)
+                    'r-o', label='Reference', markersize=6, linewidth=2, alpha=0.3)
         
         ax2.set_xlabel('Time [s]')
         ax2.set_ylabel('Velocity [m/s]')
@@ -765,17 +852,23 @@ class MPCSolver:
                         transform=ax5.transAxes)
                 ax5.set_title('Convergence Progress')
         
-        # Plot 6: Solve times (if enabled)
+        # Plot 6: Cost evolution (if enabled)
         if show_convergence and len(axes.flat) > 5:
             ax6 = axes[1, 2]
-            solve_times = [iter['solve_time'] for iter in iterations]
-            iteration_numbers = [iter['iteration'] for iter in iterations]
+            costs = [iter['total_cost'] for iter in iterations if iter['total_cost'] != float('inf')]
+            iteration_numbers = [iter['iteration'] for iter in iterations if iter['total_cost'] != float('inf')]
             
-            ax6.bar(iteration_numbers, solve_times, color=colors, alpha=0.7)
-            ax6.set_xlabel('Iteration Number')
-            ax6.set_ylabel('Solve Time [s]')
-            ax6.grid(True, alpha=0.3)
-            ax6.set_title('Iteration Solve Times')
+            if costs:
+                ax6.plot(iteration_numbers, costs, 'go-', markersize=8, linewidth=2, label='Total Cost')
+                ax6.set_xlabel('Iteration Number')
+                ax6.set_ylabel('Total Cost')
+                ax6.legend()
+                ax6.grid(True, alpha=0.3)
+                ax6.set_title('Cost Evolution')
+            else:
+                ax6.text(0.5, 0.5, 'No cost data', ha='center', va='center',
+                        transform=ax6.transAxes)
+                ax6.set_title('Cost Evolution')
         
         plt.tight_layout()
         plt.show()
@@ -793,8 +886,9 @@ class MPCSolver:
         # Print iteration details
         print(f"\n=== Iteration Details ===")
         for i, iteration in enumerate(iterations):
+            cost_str = f"Cost = {iteration['total_cost']:.4f}" if iteration['total_cost'] != float('inf') else "Cost = inf"
             print(f"Iteration {i}: Solve time = {iteration['solve_time']:.4f}s, "
-                  f"Control change = {iteration['control_change']:.4f}")
+                  f"Control change = {iteration['control_change']:.4f}, {cost_str}")
 
     def update_parameters(self, **kwargs):
         """Update MPC parameters dynamically."""
