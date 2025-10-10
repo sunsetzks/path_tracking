@@ -507,6 +507,295 @@ class MPCSolver:
             'time_step': self.time_step
         }
     
+    def solve_iterative(self, reference_trajectory, initial_state, reference_steering,
+                       max_iterations=3, convergence_threshold=0.1):
+        """
+        Solve MPC with multiple iterations and store all iteration results.
+        
+        This method performs iterative linearization similar to the original implementation,
+        but stores results from all iterations for comparison and analysis.
+        
+        Args:
+            reference_trajectory (np.array): Reference state trajectory to track
+            initial_state (list): Initial state constraint
+            reference_steering (np.array): Reference steering sequence for linearization
+            max_iterations (int): Maximum number of iterations
+            convergence_threshold (float): Threshold for convergence check
+            
+        Returns:
+            dict: Dictionary containing all iteration results and convergence info
+                {
+                    'iterations': [
+                        {
+                            'iteration': 0,
+                            'acceleration_sequence': array,
+                            'steering_sequence': array,
+                            'predicted_x': array,
+                            'predicted_y': array,
+                            'predicted_yaw': array,
+                            'predicted_velocity': array,
+                            'solve_time': float,
+                            'control_change': float
+                        }, ...
+                    ],
+                    'converged': bool,
+                    'final_iteration': int,
+                    'total_solve_time': float
+                }
+        """
+        import time
+        total_start_time = time.time()
+        
+        # Initialize control sequences
+        previous_acceleration = [0.0] * self.prediction_horizon
+        previous_steering = [0.0] * self.prediction_horizon
+        
+        # Initialize linearization trajectory (start with reference)
+        linearization_trajectory = reference_trajectory.copy()
+        
+        # Store all iteration results
+        iteration_results = []
+        
+        # Iterative linearization
+        for iteration in range(max_iterations):
+            iteration_start_time = time.time()
+            
+            # Store previous control for convergence check
+            old_acceleration = previous_acceleration[:] if iteration > 0 else None
+            old_steering = previous_steering[:] if iteration > 0 else None
+            
+            # Solve MPC with current linearization point
+            result = self.solve(
+                reference_trajectory,
+                linearization_trajectory,
+                initial_state,
+                reference_steering
+            )
+            
+            acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity = result
+            
+            # Calculate control change for convergence check
+            if iteration > 0 and old_acceleration is not None and old_steering is not None:
+                control_change = (
+                    sum(abs(np.array(acceleration_sequence) - np.array(old_acceleration))) +
+                    sum(abs(np.array(steering_sequence) - np.array(old_steering)))
+                )
+            else:
+                control_change = float('inf')
+            
+            # Store iteration result
+            iteration_results.append({
+                'iteration': iteration,
+                'acceleration_sequence': acceleration_sequence,
+                'steering_sequence': steering_sequence,
+                'predicted_x': predicted_x,
+                'predicted_y': predicted_y,
+                'predicted_yaw': predicted_yaw,
+                'predicted_velocity': predicted_velocity,
+                'solve_time': time.time() - iteration_start_time,
+                'control_change': control_change,
+                'converged': control_change <= convergence_threshold
+            })
+            
+            # Update control sequences for next iteration
+            if acceleration_sequence is not None and steering_sequence is not None:
+                previous_acceleration = acceleration_sequence.tolist() if hasattr(acceleration_sequence, 'tolist') else list(acceleration_sequence)
+                previous_steering = steering_sequence.tolist() if hasattr(steering_sequence, 'tolist') else list(steering_sequence)
+                
+                # Create new linearization trajectory using kinematic prediction
+                control_sequence = list(zip(previous_acceleration, previous_steering))
+                linearization_trajectory = self.predict_kinematic_motion(initial_state, control_sequence)
+            
+            # Check convergence
+            if control_change <= convergence_threshold:
+                break
+        
+        total_solve_time = time.time() - total_start_time
+        
+        return {
+            'iterations': iteration_results,
+            'converged': iteration_results[-1]['converged'] if iteration_results else False,
+            'final_iteration': len(iteration_results) - 1,
+            'total_solve_time': total_solve_time
+        }
+    
+    def plot_iteration_comparison(self, iteration_results, reference_trajectory=None,
+                                 title="MPC Iteration Comparison", show_convergence=True):
+        """
+        Plot comparison of all MPC iterations to show convergence.
+        
+        Args:
+            iteration_results (dict): Results from solve_iterative method
+            reference_trajectory (np.array): Reference trajectory for comparison
+            title (str): Title for the plots
+            show_convergence (bool): Whether to show convergence plot
+        """
+        import matplotlib.pyplot as plt
+        
+        if not iteration_results or 'iterations' not in iteration_results:
+            print("No iteration results to plot!")
+            return
+        
+        iterations = iteration_results['iterations']
+        n_iterations = len(iterations)
+        
+        if n_iterations == 0:
+            print("No iterations to plot!")
+            return
+        
+        # Create figure with subplots
+        if show_convergence:
+            fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        
+        fig.suptitle(title, fontsize=16)
+        
+        # Color map for iterations
+        try:
+            cmap = plt.cm.get_cmap('viridis')
+            colors = cmap(np.linspace(0, 1, n_iterations))
+        except (AttributeError, ValueError):
+            # Fallback for older matplotlib versions or if viridis not available
+            try:
+                cmap = plt.cm.get_cmap('jet')
+                colors = cmap(np.linspace(0, 1, n_iterations))
+            except:
+                # Ultimate fallback - use simple color list
+                colors = ['blue', 'green', 'red', 'orange', 'purple', 'brown', 'pink', 'gray']
+                colors = colors[:n_iterations]
+        
+        # Plot 1: Trajectory comparison
+        ax1 = axes[0, 0]
+        for i, iteration in enumerate(iterations):
+            if iteration['predicted_x'] is not None and iteration['predicted_y'] is not None:
+                alpha = 0.3 + 0.7 * (i / max(1, n_iterations - 1))  # Increase alpha for later iterations
+                ax1.plot(iteration['predicted_x'], iteration['predicted_y'],
+                        'o-', color=colors[i], alpha=alpha,
+                        label=f'Iteration {i}', markersize=4, linewidth=2)
+        
+        # Add reference trajectory if provided
+        if reference_trajectory is not None:
+            ax1.plot(reference_trajectory[0, :], reference_trajectory[1, :],
+                    'r--', label='Reference', linewidth=2, alpha=0.7)
+        
+        # Mark start and end points
+        if iterations[0]['predicted_x'] is not None:
+            ax1.plot(iterations[0]['predicted_x'][0], iterations[0]['predicted_y'][0],
+                    'go', markersize=10, label='Start')
+            ax1.plot(iterations[-1]['predicted_x'][-1], iterations[-1]['predicted_y'][-1],
+                    'ro', markersize=10, label='Final')
+        
+        ax1.set_xlabel('X position [m]')
+        ax1.set_ylabel('Y position [m]')
+        ax1.legend()
+        ax1.grid(True)
+        ax1.axis('equal')
+        ax1.set_title('Trajectory Evolution')
+        
+        # Plot 2: Velocity comparison
+        ax2 = axes[0, 1]
+        for i, iteration in enumerate(iterations):
+            if iteration['predicted_velocity'] is not None:
+                alpha = 0.3 + 0.7 * (i / max(1, n_iterations - 1))
+                time_steps = np.arange(len(iteration['predicted_velocity'])) * self.time_step
+                ax2.plot(time_steps, iteration['predicted_velocity'],
+                        'o-', color=colors[i], alpha=alpha,
+                        label=f'Iteration {i}', markersize=4, linewidth=2)
+        
+        if reference_trajectory is not None:
+            ref_time_steps = np.arange(len(reference_trajectory[2, :])) * self.time_step
+            ax2.plot(ref_time_steps, reference_trajectory[2, :],
+                    'r--', label='Reference', linewidth=2, alpha=0.7)
+        
+        ax2.set_xlabel('Time [s]')
+        ax2.set_ylabel('Velocity [m/s]')
+        ax2.legend()
+        ax2.grid(True)
+        ax2.set_title('Velocity Evolution')
+        
+        # Plot 3: Control inputs (acceleration)
+        ax3 = axes[1, 0]
+        for i, iteration in enumerate(iterations):
+            if iteration['acceleration_sequence'] is not None:
+                alpha = 0.3 + 0.7 * (i / max(1, n_iterations - 1))
+                time_steps = np.arange(len(iteration['acceleration_sequence'])) * self.time_step
+                ax3.plot(time_steps, iteration['acceleration_sequence'],
+                        'o-', color=colors[i], alpha=alpha,
+                        label=f'Iteration {i}', markersize=4, linewidth=2)
+        
+        ax3.set_xlabel('Time [s]')
+        ax3.set_ylabel('Acceleration [m/s²]')
+        ax3.legend()
+        ax3.grid(True)
+        ax3.set_title('Acceleration Control Evolution')
+        
+        # Plot 4: Control inputs (steering)
+        ax4 = axes[1, 1]
+        for i, iteration in enumerate(iterations):
+            if iteration['steering_sequence'] is not None:
+                alpha = 0.3 + 0.7 * (i / max(1, n_iterations - 1))
+                time_steps = np.arange(len(iteration['steering_sequence'])) * self.time_step
+                ax4.plot(time_steps, [math.degrees(s) for s in iteration['steering_sequence']],
+                        'o-', color=colors[i], alpha=alpha,
+                        label=f'Iteration {i}', markersize=4, linewidth=2)
+        
+        ax4.set_xlabel('Time [s]')
+        ax4.set_ylabel('Steering Angle [deg]')
+        ax4.legend()
+        ax4.grid(True)
+        ax4.set_title('Steering Control Evolution')
+        
+        # Plot 5: Convergence (if enabled)
+        if show_convergence and len(axes.flat) > 4:
+            ax5 = axes[0, 2]
+            control_changes = [iter['control_change'] for iter in iterations if iter['control_change'] != float('inf')]
+            iteration_numbers = [iter['iteration'] for iter in iterations if iter['control_change'] != float('inf')]
+            
+            if control_changes:
+                ax5.semilogy(iteration_numbers, control_changes, 'bo-', markersize=8, linewidth=2)
+                ax5.axhline(y=0.1, color='r', linestyle='--', label='Convergence Threshold')
+                ax5.set_xlabel('Iteration Number')
+                ax5.set_ylabel('Control Change (log scale)')
+                ax5.legend()
+                ax5.grid(True)
+                ax5.set_title('Convergence Progress')
+            else:
+                ax5.text(0.5, 0.5, 'No convergence data', ha='center', va='center',
+                        transform=ax5.transAxes)
+                ax5.set_title('Convergence Progress')
+        
+        # Plot 6: Solve times (if enabled)
+        if show_convergence and len(axes.flat) > 5:
+            ax6 = axes[1, 2]
+            solve_times = [iter['solve_time'] for iter in iterations]
+            iteration_numbers = [iter['iteration'] for iter in iterations]
+            
+            ax6.bar(iteration_numbers, solve_times, color=colors, alpha=0.7)
+            ax6.set_xlabel('Iteration Number')
+            ax6.set_ylabel('Solve Time [s]')
+            ax6.grid(True, alpha=0.3)
+            ax6.set_title('Iteration Solve Times')
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Print summary statistics
+        print(f"\n=== Iteration Summary ===")
+        print(f"Total iterations: {n_iterations}")
+        print(f"Converged: {iteration_results['converged']}")
+        print(f"Final iteration: {iteration_results['final_iteration']}")
+        print(f"Total solve time: {iteration_results['total_solve_time']:.4f} seconds")
+        
+        if iteration_results['converged']:
+            print(f"Convergence achieved at iteration {iteration_results['final_iteration']}")
+        
+        # Print iteration details
+        print(f"\n=== Iteration Details ===")
+        for i, iteration in enumerate(iterations):
+            print(f"Iteration {i}: Solve time = {iteration['solve_time']:.4f}s, "
+                  f"Control change = {iteration['control_change']:.4f}")
+
     def update_parameters(self, **kwargs):
         """Update MPC parameters dynamically."""
         for key, value in kwargs.items():

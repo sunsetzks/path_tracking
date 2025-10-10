@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Example demonstrating the comparison between linearized and kinematic model predictions.
+Example demonstrating the comparison between iterative linearized and kinematic model predictions.
 
 This script shows how to:
-1. Solve MPC using linearized model
+1. Solve MPC using iterative linearized model with multiple iterations
 2. Predict using true kinematic model
 3. Compare the differences between both predictions
-4. Visualize the results
+4. Visualize the results including iteration convergence
+5. Analyze how iterative linearization improves solution quality
 
 Usage:
     python kinematic_comparison_example.py                    # Auto-detect mode
@@ -50,6 +51,7 @@ def create_linearization_trajectory(initial_state, reference_trajectory):
     """Create linearization trajectory."""
     prediction_horizon = reference_trajectory.shape[1] - 1
     linearization_trajectory = np.zeros((4, prediction_horizon + 1))
+    return linearization_trajectory
     initial_state_array = np.array(initial_state)
     
     # Start with initial state
@@ -129,7 +131,7 @@ def demonstrate_kinematic_comparison():
     # 1. Create MPC solver
     print("1. Creating MPC solver...")
     mpc_solver = MPCSolver(
-        prediction_horizon=8,  # Longer horizon to see more differences
+        prediction_horizon=20,  # Longer horizon to see more differences
         time_step=0.1,         # Smaller time step for better accuracy
         max_velocity=8.0,      # Moderate max velocity
         max_acceleration=1.0   # Moderate acceleration
@@ -150,21 +152,21 @@ def demonstrate_kinematic_comparison():
             'initial_state': [0.0, 0.0, 0.0, 0.0],
             'description': 'Vehicle starts from rest'
         },
-        {
-            'name': 'Moving Start',
-            'initial_state': [0.0, 0.0, 2.0, 0.0],
-            'description': 'Vehicle starts with initial velocity'
-        },
-        {
-            'name': 'Offset Start',
-            'initial_state': [1.0, 0.5, 1.0, 0.2],
-            'description': 'Vehicle starts with position and angle offset'
-        },
-        {
-            'name': 'High Speed Start',
-            'initial_state': [0.0, 0.0, 5.0, 0.0],
-            'description': 'Vehicle starts with high velocity'
-        }
+        # {
+        #     'name': 'Moving Start',
+        #     'initial_state': [0.0, 0.0, 2.0, 0.0],
+        #     'description': 'Vehicle starts with initial velocity'
+        # },
+        # {
+        #     'name': 'Offset Start',
+        #     'initial_state': [1.0, 0.5, 1.0, 0.2],
+        #     'description': 'Vehicle starts with position and angle offset'
+        # },
+        # {
+        #     'name': 'High Speed Start',
+        #     'initial_state': [0.0, 0.0, 5.0, 0.0],
+        #     'description': 'Vehicle starts with high velocity'
+        # }
     ]
     
     # Run comparison for each test case
@@ -178,22 +180,45 @@ def demonstrate_kinematic_comparison():
             test_case['initial_state'], reference_trajectory
         )
         
-        # Solve MPC with kinematic comparison
-        result = mpc_solver.solve_with_kinematic_comparison(
+        # Solve MPC iteratively with kinematic comparison
+        print("   Solving with iterative MPC...")
+        iteration_results = mpc_solver.solve_iterative(
             reference_trajectory,
-            linearization_trajectory,
             test_case['initial_state'],
-            reference_steering
+            reference_steering,
+            max_iterations=5,
+            convergence_threshold=0.1
         )
         
-        if result is None:
+        if not iteration_results['iterations']:
             print("   ✗ Failed to solve")
             continue
-            
-        acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity, kinematic_prediction = result
         
-        if acceleration_sequence is not None and kinematic_prediction is not None:
-            print("   ✓ Both models solved successfully!")
+        print(f"   ✓ Iterative MPC solved with {len(iteration_results['iterations'])} iterations!")
+        print(f"   Converged: {iteration_results['converged']}")
+        print(f"   Total solve time: {iteration_results['total_solve_time']:.4f} seconds")
+        
+        # Get the final iteration result for kinematic comparison
+        final_iteration = iteration_results['iterations'][-1]
+        acceleration_sequence = final_iteration['acceleration_sequence']
+        steering_sequence = final_iteration['steering_sequence']
+        predicted_x = final_iteration['predicted_x']
+        predicted_y = final_iteration['predicted_y']
+        predicted_yaw = final_iteration['predicted_yaw']
+        predicted_velocity = final_iteration['predicted_velocity']
+        
+        # Create kinematic prediction using final control sequence
+        if acceleration_sequence is not None and steering_sequence is not None:
+            control_sequence = list(zip(acceleration_sequence, steering_sequence))
+            kinematic_states = mpc_solver.predict_kinematic_motion(test_case['initial_state'], control_sequence)
+            
+            kinematic_prediction = {
+                'x': kinematic_states[0, :],
+                'y': kinematic_states[1, :],
+                'velocity': kinematic_states[2, :],
+                'yaw': kinematic_states[3, :],
+                'states': kinematic_states
+            }
             
             # Prepare data for comparison
             linearized_prediction = {
@@ -207,7 +232,7 @@ def demonstrate_kinematic_comparison():
             comparison_stats = mpc_solver.compare_predictions(
                 linearized_prediction,
                 kinematic_prediction,
-                f"Model Comparison - {test_case['name']}",
+                f"Model Comparison - {test_case['name']} (Iterative MPC)",
                 acceleration_sequence,
                 steering_sequence,
                 reference_trajectory
@@ -218,8 +243,15 @@ def demonstrate_kinematic_comparison():
                 print(f"   Final position difference: {np.sqrt((predicted_x[-1] - kinematic_prediction['x'][-1])**2 + (predicted_y[-1] - kinematic_prediction['y'][-1])**2):.4f} m")
                 print(f"   Final velocity difference: {abs(predicted_velocity[-1] - kinematic_prediction['velocity'][-1]):.4f} m/s")
             
+            # Show iteration comparison
+            print("   Showing iteration convergence...")
+            mpc_solver.plot_iteration_comparison(
+                iteration_results,
+                reference_trajectory,
+                f"Iterative MPC Convergence - {test_case['name']}"
+            )
         else:
-            print("   ✗ Failed to solve or compare models")
+            print("   ✗ Failed to get valid control sequences")
     
     return mpc_solver
 
@@ -265,24 +297,40 @@ def analyze_model_differences():
         initial_state = [0.0, 0.0, 1.0, 0.0]  # Moderate initial conditions
         linearization_trajectory = create_linearization_trajectory(initial_state, reference_trajectory)
         
-        result = solver.solve_with_kinematic_comparison(
+        # Solve iteratively
+        iteration_results = solver.solve_iterative(
             reference_trajectory,
-            linearization_trajectory,
             initial_state,
-            reference_steering
+            reference_steering,
+            max_iterations=4,
+            convergence_threshold=0.1
         )
         
-        if result is None:
+        if not iteration_results['iterations']:
             print("   ✗ Failed to solve")
             continue
-            
-        acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity, kinematic_prediction = result
         
-        if acceleration_sequence is not None and kinematic_prediction is not None:
+        print(f"   Iterations used: {len(iteration_results['iterations'])}")
+        print(f"   Converged: {iteration_results['converged']}")
+        
+        # Get final iteration result
+        final_iteration = iteration_results['iterations'][-1]
+        acceleration_sequence = final_iteration['acceleration_sequence']
+        steering_sequence = final_iteration['steering_sequence']
+        predicted_x = final_iteration['predicted_x']
+        predicted_y = final_iteration['predicted_y']
+        predicted_yaw = final_iteration['predicted_yaw']
+        predicted_velocity = final_iteration['predicted_velocity']
+        
+        if acceleration_sequence is not None and steering_sequence is not None:
+            # Create kinematic prediction
+            control_sequence = list(zip(acceleration_sequence, steering_sequence))
+            kinematic_states = solver.predict_kinematic_motion(initial_state, control_sequence)
+            
             # Calculate differences
-            position_errors = np.sqrt((predicted_x - kinematic_prediction['x'])**2 + (predicted_y - kinematic_prediction['y'])**2)
-            velocity_errors = np.abs(predicted_velocity - kinematic_prediction['velocity'])
-            yaw_errors = np.abs(predicted_yaw - kinematic_prediction['yaw'])
+            position_errors = np.sqrt((predicted_x - kinematic_states[0, :])**2 + (predicted_y - kinematic_states[1, :])**2)
+            velocity_errors = np.abs(predicted_velocity - kinematic_states[2, :])
+            yaw_errors = np.abs(predicted_yaw - kinematic_states[3, :])
             
             print(f"   Max position error: {np.max(position_errors):.4f} m")
             print(f"   Mean position error: {np.mean(position_errors):.4f} m")
@@ -290,7 +338,7 @@ def analyze_model_differences():
             print(f"   Max yaw error: {math.degrees(np.max(yaw_errors)):.4f} deg")
             print(f"   Final position error: {position_errors[-1]:.4f} m")
         else:
-            print("   ✗ Failed to solve")
+            print("   ✗ Failed to get valid control sequences")
 
 
 def demonstrate_iterative_linearization_effect():
@@ -315,22 +363,38 @@ def demonstrate_iterative_linearization_effect():
         # Create different linearization trajectories
         linearization_trajectory = create_linearization_trajectory(initial_state, reference_trajectory)
         
-        result = solver.solve_with_kinematic_comparison(
+        # Solve iteratively
+        iteration_results = solver.solve_iterative(
             reference_trajectory,
-            linearization_trajectory,
             initial_state,
-            reference_steering
+            reference_steering,
+            max_iterations=5,
+            convergence_threshold=0.05
         )
         
-        if result is None:
+        if not iteration_results['iterations']:
             print("   ✗ Failed to solve")
             continue
-            
-        acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity, kinematic_prediction = result
         
-        if acceleration_sequence is not None and kinematic_prediction is not None:
+        print(f"   Iterations used: {len(iteration_results['iterations'])}")
+        print(f"   Converged: {iteration_results['converged']}")
+        
+        # Get final iteration result
+        final_iteration = iteration_results['iterations'][-1]
+        acceleration_sequence = final_iteration['acceleration_sequence']
+        steering_sequence = final_iteration['steering_sequence']
+        predicted_x = final_iteration['predicted_x']
+        predicted_y = final_iteration['predicted_y']
+        predicted_yaw = final_iteration['predicted_yaw']
+        predicted_velocity = final_iteration['predicted_velocity']
+        
+        if acceleration_sequence is not None and steering_sequence is not None:
+            # Create kinematic prediction
+            control_sequence = list(zip(acceleration_sequence, steering_sequence))
+            kinematic_states = solver.predict_kinematic_motion(initial_state, control_sequence)
+            
             # Calculate cumulative error
-            position_errors = np.sqrt((predicted_x - kinematic_prediction['x'])**2 + (predicted_y - kinematic_prediction['y'])**2)
+            position_errors = np.sqrt((predicted_x - kinematic_states[0, :])**2 + (predicted_y - kinematic_states[1, :])**2)
             cumulative_error = np.sum(position_errors)
             
             print(f"   Cumulative position error: {cumulative_error:.4f} m")
@@ -346,8 +410,16 @@ def demonstrate_iterative_linearization_effect():
             plt.title(f'Position Error Evolution - Initial State {i+1}')
             plt.grid(True)
             plt.show()
+            
+            # Show iteration convergence
+            print("   Showing iteration convergence...")
+            solver.plot_iteration_comparison(
+                iteration_results,
+                reference_trajectory,
+                f"Iterative Linearization Effect - Initial State {i+1}"
+            )
         else:
-            print("   ✗ Failed to solve")
+            print("   ✗ Failed to get valid control sequences")
 
 
 def main():
