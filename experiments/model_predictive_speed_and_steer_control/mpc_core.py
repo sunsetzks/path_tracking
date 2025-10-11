@@ -245,9 +245,9 @@ class MPCSolver:
     def compare_predictions(self, linearized_prediction, kinematic_prediction, title="Prediction Comparison", acceleration_sequence=None, steering_sequence=None, reference_trajectory=None):
         """
         Compare linearized and kinematic predictions and visualize the differences.
-        
+
         Args:
-            linearized_prediction (dict): Linearized model prediction results
+            linearized_prediction (dict): Linearized model prediction results (from last iteration)
             kinematic_prediction (dict): Kinematic model prediction results
             title (str): Title for the comparison plot
             acceleration_sequence (array): MPC acceleration sequence
@@ -255,21 +255,25 @@ class MPCSolver:
             reference_trajectory (np.array): Reference trajectory to show on the first subplot
         """
         import matplotlib.pyplot as plt
-        
+
         if kinematic_prediction is None:
             print("No kinematic prediction available for comparison")
             return
-        
+
         # Extract data
         lin_x = linearized_prediction['x']
         lin_y = linearized_prediction['y']
         lin_velocity = linearized_prediction['velocity']
         lin_yaw = linearized_prediction['yaw']
-        
+
         kin_x = kinematic_prediction['x']
         kin_y = kinematic_prediction['y']
         kin_velocity = kinematic_prediction['velocity']
         kin_yaw = kinematic_prediction['yaw']
+
+        # Print debugging info to confirm we're using last iteration data
+        print(f"Debug: Showing linearized prediction from last iteration ({len(lin_x)} points)")
+        print(f"Debug: Showing kinematic prediction ({len(kin_x)} points)")
         
         # Create comparison plots - 2x3 layout to include control sequences
         fig, axes = plt.subplots(2, 3, figsize=(18, 10))
@@ -277,7 +281,7 @@ class MPCSolver:
         
         # Plot 1: Trajectory comparison
         ax1 = axes[0, 0]
-        ax1.plot(lin_x, lin_y, 'b-o', label='Linearized Model', markersize=4, linewidth=2, alpha=0.3)
+        ax1.plot(lin_x, lin_y, 'b-o', label='Linearized Model (Last Iteration)', markersize=4, linewidth=2, alpha=0.3)
         ax1.plot(kin_x, kin_y, 'r-s', label='Kinematic Model', markersize=4, linewidth=2, alpha=0.3)
         # Add reference trajectory if provided
         if reference_trajectory is not None:
@@ -305,7 +309,7 @@ class MPCSolver:
         # Plot 2: Velocity comparison
         ax2 = axes[0, 1]
         time_steps = np.arange(len(lin_velocity)) * self.time_step
-        ax2.plot(time_steps, lin_velocity, 'b-o', label='Linearized Model', markersize=4, linewidth=2, alpha=0.3)
+        ax2.plot(time_steps, lin_velocity, 'b-o', label='Linearized Model (Last Iteration)', markersize=4, linewidth=2, alpha=0.3)
         ax2.plot(time_steps, kin_velocity, 'r-s', label='Kinematic Model', markersize=4, linewidth=2, alpha=0.3)
         ax2.set_xlabel('Time [s]')
         ax2.set_ylabel('Velocity [m/s]')
@@ -315,9 +319,9 @@ class MPCSolver:
         
         # Plot 3: Yaw angle comparison
         ax3 = axes[0, 2]
-        ax3.plot(time_steps, [math.degrees(y) for y in lin_yaw], 'b-o', 
-                label='Linearized Model', markersize=4, linewidth=2, alpha=0.3)
-        ax3.plot(time_steps, [math.degrees(y) for y in kin_yaw], 'r-s', 
+        ax3.plot(time_steps, [math.degrees(y) for y in lin_yaw], 'b-o',
+                label='Linearized Model (Last Iteration)', markersize=4, linewidth=2, alpha=0.3)
+        ax3.plot(time_steps, [math.degrees(y) for y in kin_yaw], 'r-s',
                 label='Kinematic Model', markersize=4, linewidth=2, alpha=0.3)
         ax3.set_xlabel('Time [s]')
         ax3.set_ylabel('Yaw angle [deg]')
@@ -576,6 +580,179 @@ class MPCSolver:
             total_cost += float(terminal_error.T @ self.terminal_cost_matrix @ terminal_error)
         
         return total_cost
+
+    def calculate_kinematic_cost(self, acceleration_sequence, steering_sequence, initial_state, reference_trajectory):
+        """
+        Calculate cost based on the true kinematic model trajectory.
+
+        This method simulates the vehicle motion using the true kinematic model
+        and calculates the cost based on the deviation from the reference trajectory.
+
+        Args:
+            acceleration_sequence: Acceleration control sequence
+            steering_sequence: Steering control sequence
+            initial_state: Initial state [x, y, velocity, yaw]
+            reference_trajectory: Reference trajectory to track
+
+        Returns:
+            float: Total cost based on kinematic model trajectory
+        """
+        if (acceleration_sequence is None or steering_sequence is None or
+            initial_state is None or reference_trajectory is None):
+            return float('inf')
+
+        # Simulate using true kinematic model
+        control_sequence = list(zip(acceleration_sequence, steering_sequence))
+        kinematic_states = self.predict_kinematic_motion(initial_state, control_sequence)
+
+        kinematic_x = kinematic_states[0, :]
+        kinematic_y = kinematic_states[1, :]
+        kinematic_velocity = kinematic_states[2, :]
+        kinematic_yaw = kinematic_states[3, :]
+
+        total_cost = 0.0
+
+        # Control input cost
+        for i in range(len(acceleration_sequence)):
+            control_vector = np.array([acceleration_sequence[i], steering_sequence[i]])
+            total_cost += float(control_vector.T @ self.input_cost_matrix @ control_vector)
+
+        # Control rate cost
+        for i in range(len(acceleration_sequence) - 1):
+            control_rate = np.array([
+                acceleration_sequence[i+1] - acceleration_sequence[i],
+                steering_sequence[i+1] - steering_sequence[i]
+            ])
+            total_cost += float(control_rate.T @ self.input_rate_cost_matrix @ control_rate)
+
+        # State tracking cost based on kinematic model prediction
+        for i in range(1, len(kinematic_x)):  # Skip first step (no tracking cost)
+            if i < len(reference_trajectory[0, :]):
+                predicted_state = np.array([
+                    kinematic_x[i], kinematic_y[i],
+                    kinematic_velocity[i], kinematic_yaw[i]
+                ])
+                reference_state = reference_trajectory[:, i]
+                state_error = predicted_state - reference_state
+                total_cost += float(state_error.T @ self.state_cost_matrix @ state_error)
+
+        # Terminal cost based on kinematic model
+        if len(kinematic_x) > 0 and len(reference_trajectory[0, :]) > len(kinematic_x) - 1:
+            final_state = np.array([
+                kinematic_x[-1], kinematic_y[-1],
+                kinematic_velocity[-1], kinematic_yaw[-1]
+            ])
+            terminal_reference = reference_trajectory[:, len(kinematic_x) - 1]
+            terminal_error = final_state - terminal_reference
+            total_cost += float(terminal_error.T @ self.terminal_cost_matrix @ terminal_error)
+
+        return total_cost
+
+    def select_optimal_iteration(self, iteration_results, initial_state, reference_trajectory,
+                                selection_criteria='kinematic_cost'):
+        """
+        Select the optimal iteration from multiple MPC iterations.
+
+        Args:
+            iteration_results (dict): Results from solve_iterative method
+            initial_state: Initial state [x, y, velocity, yaw]
+            reference_trajectory: Reference trajectory to track
+            selection_criteria (str): Criteria for selecting optimal iteration
+                - 'kinematic_cost': Select iteration with minimum kinematic model cost
+                - 'linearized_cost': Select iteration with minimum linearized cost
+                - 'last': Select the last iteration (default behavior)
+
+        Returns:
+            dict: Optimal iteration result with additional kinematic cost information
+        """
+        if not iteration_results or 'iterations' not in iteration_results:
+            print("No iteration results available!")
+            return None
+
+        iterations = iteration_results['iterations']
+        if not iterations:
+            print("No iterations to select from!")
+            return None
+
+        if selection_criteria == 'last':
+            optimal_iteration = iterations[-1]
+            optimal_iteration['selection_criteria'] = 'last_iteration'
+
+        elif selection_criteria == 'kinematic_cost':
+            # Calculate kinematic cost for each iteration
+            min_cost = float('inf')
+            optimal_iteration = None
+
+            for iteration in iterations:
+                if (iteration['acceleration_sequence'] is not None and
+                    iteration['steering_sequence'] is not None):
+
+                    kinematic_cost = self.calculate_kinematic_cost(
+                        iteration['acceleration_sequence'],
+                        iteration['steering_sequence'],
+                        initial_state,
+                        reference_trajectory
+                    )
+
+                    # Add kinematic cost to iteration data
+                    iteration['kinematic_cost'] = kinematic_cost
+
+                    if kinematic_cost < min_cost:
+                        min_cost = kinematic_cost
+                        optimal_iteration = iteration
+                else:
+                    iteration['kinematic_cost'] = float('inf')
+
+            if optimal_iteration:
+                optimal_iteration['selection_criteria'] = 'minimum_kinematic_cost'
+                print(f"Selected iteration {optimal_iteration['iteration']} with kinematic cost: {min_cost:.4f}")
+
+        elif selection_criteria == 'linearized_cost':
+            # Use existing linearized cost from iteration results
+            min_cost = float('inf')
+            optimal_iteration = None
+
+            for iteration in iterations:
+                cost = iteration.get('total_cost', float('inf'))
+                if cost < min_cost:
+                    min_cost = cost
+                    optimal_iteration = iteration
+
+            if optimal_iteration:
+                optimal_iteration['selection_criteria'] = 'minimum_linearized_cost'
+                print(f"Selected iteration {optimal_iteration['iteration']} with linearized cost: {min_cost:.4f}")
+
+        else:
+            print(f"Unknown selection criteria: {selection_criteria}. Using last iteration.")
+            optimal_iteration = iterations[-1]
+            optimal_iteration['selection_criteria'] = 'fallback_to_last'
+
+        # Add kinematic prediction to optimal iteration if not already present
+        if optimal_iteration and selection_criteria != 'kinematic_cost':
+            if (optimal_iteration['acceleration_sequence'] is not None and
+                optimal_iteration['steering_sequence'] is not None):
+
+                control_sequence = list(zip(optimal_iteration['acceleration_sequence'],
+                                          optimal_iteration['steering_sequence']))
+                kinematic_states = self.predict_kinematic_motion(initial_state, control_sequence)
+
+                optimal_iteration['kinematic_prediction'] = {
+                    'x': kinematic_states[0, :],
+                    'y': kinematic_states[1, :],
+                    'velocity': kinematic_states[2, :],
+                    'yaw': kinematic_states[3, :],
+                    'states': kinematic_states
+                }
+
+                # Calculate kinematic cost for reference
+                optimal_iteration['kinematic_cost'] = self.calculate_kinematic_cost(
+                    optimal_iteration['acceleration_sequence'],
+                    optimal_iteration['steering_sequence'],
+                    initial_state,
+                    reference_trajectory
+                )
+
+        return optimal_iteration
 
     def solve_iterative(self, reference_trajectory, initial_state, reference_steering,
                        max_iterations=3, convergence_threshold=0.1):
