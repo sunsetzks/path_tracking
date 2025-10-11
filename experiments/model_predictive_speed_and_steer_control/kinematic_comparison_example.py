@@ -203,8 +203,22 @@ def demonstrate_kinematic_comparison():
             print(f"     Iteration {i}: control change = {iteration['control_change']:.6f}, "
                   f"solve time = {iteration['solve_time']:.4f}s, {cost_str}")
         
-        # Get the final iteration result for kinematic comparison
-        final_iteration = iteration_results['iterations'][-1]
+        # Select the optimal iteration based on kinematic cost
+        optimal_iteration = mpc_solver.select_optimal_iteration(
+            iteration_results,
+            test_case['initial_state'],
+            reference_trajectory,
+            selection_criteria='kinematic_cost'
+        )
+
+        if optimal_iteration is None:
+            print("   ✗ Failed to select optimal iteration")
+            continue
+
+        print(f"   ✓ Selected optimal iteration {optimal_iteration['iteration']} with criteria: {optimal_iteration['selection_criteria']}")
+
+        # Get the optimal iteration result for kinematic comparison
+        final_iteration = optimal_iteration
         acceleration_sequence = final_iteration['acceleration_sequence']
         steering_sequence = final_iteration['steering_sequence']
         predicted_x = final_iteration['predicted_x']
@@ -237,7 +251,7 @@ def demonstrate_kinematic_comparison():
             comparison_stats = mpc_solver.compare_predictions(
                 linearized_prediction,
                 kinematic_prediction,
-                f"Model Comparison - {test_case['name']} (Iterative MPC)",
+                f"Cost-Optimal Trajectory - {test_case['name']} (Optimal Iteration: {optimal_iteration['iteration']})",
                 acceleration_sequence,
                 steering_sequence,
                 reference_trajectory
@@ -248,12 +262,12 @@ def demonstrate_kinematic_comparison():
                 print(f"   Final position difference: {np.sqrt((predicted_x[-1] - kinematic_prediction['x'][-1])**2 + (predicted_y[-1] - kinematic_prediction['y'][-1])**2):.4f} m")
                 print(f"   Final velocity difference: {abs(predicted_velocity[-1] - kinematic_prediction['velocity'][-1]):.4f} m/s")
             
-            # Show iteration comparison
-            print("   Showing iteration convergence...")
+            # Show iteration comparison with optimal iteration marked
+            print("   Showing iteration convergence with optimal iteration marked...")
             mpc_solver.plot_iteration_comparison(
                 iteration_results,
                 reference_trajectory,
-                f"Iterative MPC Convergence - {test_case['name']}"
+                f"Iterative MPC Convergence - {test_case['name']} (Optimal: Iter {optimal_iteration['iteration']})"
             )
         else:
             print("   ✗ Failed to get valid control sequences")
