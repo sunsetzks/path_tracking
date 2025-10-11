@@ -148,7 +148,7 @@ def demonstrate_kinematic_comparison():
     test_cases = [
         {
             'name': 'Stationary Start',
-            'initial_state': [0.0, 0.0, 0.0, 0.0],
+            'initial_state': [0.5, 0.5, 0.0, 0.0],
             'description': 'Vehicle starts from rest'
         },
         # {
@@ -185,7 +185,7 @@ def demonstrate_kinematic_comparison():
             reference_trajectory,
             test_case['initial_state'],
             reference_steering,
-            max_iterations=6,
+            max_iterations=5,
             convergence_threshold=0.05
         )
         

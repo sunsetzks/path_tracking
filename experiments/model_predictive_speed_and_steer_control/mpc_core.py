@@ -29,7 +29,7 @@ class MPCSolver:
                  max_steering_rate=np.deg2rad(30.0),
                  input_cost_weights=[0.01, 0.01],
                  input_rate_cost_weights=[0.01, 1.0],
-                 state_cost_weights=[1.0, 1.0, 0.5, 0.5],
+                 state_cost_weights=[1.0, 1.0, 0.0, 0.0],
                  terminal_cost_weights=None):
         """
         Initialize MPC solver with configuration parameters.
@@ -623,6 +623,9 @@ class MPCSolver:
         # Initialize linearization trajectory (start with reference)
         linearization_trajectory = reference_trajectory.copy()
         
+        # Initialize reference steering for iteration updates
+        current_reference_steering = reference_steering.copy()
+        
         # Store all iteration results
         iteration_results = []
         
@@ -639,7 +642,7 @@ class MPCSolver:
                 reference_trajectory,
                 linearization_trajectory,
                 initial_state,
-                reference_steering
+                current_reference_steering
             )
             
             acceleration_sequence, steering_sequence, predicted_x, predicted_y, predicted_yaw, predicted_velocity = result
@@ -652,11 +655,12 @@ class MPCSolver:
             
             # Calculate control change for convergence check
             if iteration > 0 and old_acceleration is not None and old_steering is not None:
-                control_change = (
-                    sum(abs(np.array(acceleration_sequence) - np.array(old_acceleration))) +
-                    sum(abs(np.array(steering_sequence) - np.array(old_steering)))
-                )
+                acceleration_change = sum(abs(np.array(acceleration_sequence) - np.array(old_acceleration)))
+                steering_change = sum(abs(np.array(steering_sequence) - np.array(old_steering)))
+                control_change = acceleration_change + steering_change
             else:
+                acceleration_change = float('inf')
+                steering_change = float('inf')
                 control_change = float('inf')
             
             # Store iteration result
@@ -670,14 +674,19 @@ class MPCSolver:
                 'predicted_velocity': predicted_velocity,
                 'solve_time': time.time() - iteration_start_time,
                 'control_change': control_change,
+                'acceleration_change': acceleration_change,
+                'steering_change': steering_change,
                 'total_cost': total_cost,
                 'converged': control_change <= convergence_threshold
             })
             
-            # Update control sequences for next iteration
+            # Update control sequences and reference steering for next iteration
             if acceleration_sequence is not None and steering_sequence is not None:
                 previous_acceleration = acceleration_sequence.tolist() if hasattr(acceleration_sequence, 'tolist') else list(acceleration_sequence)
                 previous_steering = steering_sequence.tolist() if hasattr(steering_sequence, 'tolist') else list(steering_sequence)
+                
+                # Update reference steering with the steering sequence from current iteration
+                current_reference_steering = np.array([previous_steering])
                 
                 # Create new linearization trajectory using kinematic prediction
                 control_sequence = list(zip(previous_acceleration, previous_steering))
