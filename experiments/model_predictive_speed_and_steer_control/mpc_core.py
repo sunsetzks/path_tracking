@@ -300,6 +300,22 @@ class MPCSolver:
         
         ax1.plot(lin_x[0], lin_y[0], 'go', label='Start', markersize=8, alpha=0.3)
         ax1.plot(lin_x[-1], lin_y[-1], 'ro', label='End', markersize=8, alpha=0.3)
+        
+        # Add arrows to show start and goal poses with alpha 0.2
+        arrow_length = 0.5  # Length of the arrow
+        # Start pose arrow
+        dx_start = arrow_length * np.cos(lin_yaw[0])
+        dy_start = arrow_length * np.sin(lin_yaw[0])
+        ax1.arrow(lin_x[0], lin_y[0], dx_start, dy_start, 
+                 head_width=0.2, head_length=0.15, fc='green', ec='green', 
+                 alpha=0.2, linewidth=2)
+        # Goal pose arrow
+        dx_goal = arrow_length * np.cos(lin_yaw[-1])
+        dy_goal = arrow_length * np.sin(lin_yaw[-1])
+        ax1.arrow(lin_x[-1], lin_y[-1], dx_goal, dy_goal, 
+                 head_width=0.2, head_length=0.15, fc='red', ec='red', 
+                 alpha=0.2, linewidth=2)
+        
         ax1.set_xlabel('X position [m]')
         ax1.set_ylabel('Y position [m]')
         ax1.legend()
