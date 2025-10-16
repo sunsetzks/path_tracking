@@ -254,7 +254,8 @@ def demonstrate_kinematic_comparison():
                 f"Cost-Optimal Trajectory - {test_case['name']} (Optimal Iteration: {optimal_iteration['iteration']})",
                 acceleration_sequence,
                 steering_sequence,
-                reference_trajectory
+                reference_trajectory,
+                show=False  # Don't show yet
             )
             
             # Print additional analysis
@@ -267,8 +268,13 @@ def demonstrate_kinematic_comparison():
             mpc_solver.plot_iteration_comparison(
                 iteration_results,
                 reference_trajectory,
-                f"Iterative MPC Convergence - {test_case['name']} (Optimal: Iter {optimal_iteration['iteration']})"
+                f"Iterative MPC Convergence - {test_case['name']} (Optimal: Iter {optimal_iteration['iteration']})",
+                show=False  # Don't show yet
             )
+            
+            # Now show both figures at once
+            print("   Displaying both figures...")
+            plt.show()
         else:
             print("   ✗ Failed to get valid control sequences")
     

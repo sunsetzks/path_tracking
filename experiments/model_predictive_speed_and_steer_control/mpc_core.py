@@ -242,7 +242,7 @@ class MPCSolver:
                 None
             )
     
-    def compare_predictions(self, linearized_prediction, kinematic_prediction, title="Prediction Comparison", acceleration_sequence=None, steering_sequence=None, reference_trajectory=None):
+    def compare_predictions(self, linearized_prediction, kinematic_prediction, title="Prediction Comparison", acceleration_sequence=None, steering_sequence=None, reference_trajectory=None, show=True):
         """
         Compare linearized and kinematic predictions and visualize the differences.
 
@@ -253,6 +253,7 @@ class MPCSolver:
             acceleration_sequence (array): MPC acceleration sequence
             steering_sequence (array): MPC steering sequence
             reference_trajectory (np.array): Reference trajectory to show on the first subplot
+            show (bool): Whether to call plt.show() immediately (default: True)
         """
         import matplotlib.pyplot as plt
 
@@ -371,7 +372,8 @@ class MPCSolver:
             ax6.set_title('MPC Steering Control')
         
         plt.tight_layout()
-        plt.show()
+        if show:
+            plt.show()
         
         # Print statistics
         max_position_error = np.max(position_error)
@@ -883,7 +885,7 @@ class MPCSolver:
         }
     
     def plot_iteration_comparison(self, iteration_results, reference_trajectory=None,
-                                 title="MPC Iteration Comparison", show_convergence=True):
+                                 title="MPC Iteration Comparison", show_convergence=True, show=True):
         """
         Plot comparison of all MPC iterations to show convergence.
         
@@ -892,6 +894,7 @@ class MPCSolver:
             reference_trajectory (np.array): Reference trajectory for comparison
             title (str): Title for the plots
             show_convergence (bool): Whether to show convergence plot
+            show (bool): Whether to call plt.show() immediately (default: True)
         """
         import matplotlib.pyplot as plt
         
@@ -1057,7 +1060,8 @@ class MPCSolver:
                 ax6.set_title('Cost Evolution')
         
         plt.tight_layout()
-        plt.show()
+        if show:
+            plt.show()
         
         # Print summary statistics
         print(f"\n=== Iteration Summary ===")
