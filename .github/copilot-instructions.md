@@ -92,7 +92,7 @@ config = load_config()
 
 # Component imports
 from PathTracking.vehicle_model import VehicleModel, VehicleState
-from astar_project.hybrid_astar import HybridAStar, State, DirectionMode
+from hybrid_astar.python.astar_project.hybrid_astar import HybridAStar, State, DirectionMode
 ```
 
 ### Error Handling
@@ -126,8 +126,8 @@ from astar_project.hybrid_astar import HybridAStar, State, DirectionMode
 ## Critical Files for Context
 - `PathTracking/config.yaml` - Central configuration
 - `PathTracking/vehicle_model.py` - Core kinematic model  
-- `astar_project/hybrid_astar.py` - Path planning algorithm
-- `astar_project/foxglove_visualizer.py` - Real-time visualization
+- `hybrid_astar/python/astar_project/hybrid_astar.py` - Path planning algorithm
+- `hybrid_astar/python/astar_project/foxglove_visualizer.py` - Real-time visualization
 - `PathTracking/examples/pure_pursuit_examples.py` - Reference implementation patterns
 
 ## Debug & Development Tips

@@ -11,8 +11,8 @@ from typing import List, Optional, Tuple
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
-# Add the astar_project to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'astar_project'))
+# Add the hybrid_astar/python to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'hybrid_astar', 'python'))
 
 from astar_project.hybrid_astar import HybridAStar, VehicleModel, State, DirectionMode, Node
 
