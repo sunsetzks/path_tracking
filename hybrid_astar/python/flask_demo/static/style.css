@@ -1,0 +1,181 @@
+/* Hybrid A* Web Demo — minimal vanilla CSS */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  color: #1d2129;
+  background: #f5f6f8;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: #1d2129;
+  color: #f5f6f8;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.topbar h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+.topbar .subtitle { color: #9aa3b2; font-size: 0.85rem; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 0;
+  height: calc(100vh - 96px); /* topbar + statusbar */
+}
+
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e3e6eb;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.panel {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #eef0f3;
+}
+.panel:last-child { border-bottom: none; }
+.panel h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6a7180;
+}
+.panel label {
+  display: block;
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: #2c313a;
+}
+.panel input[type="number"],
+.panel select {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 4px;
+  font: inherit;
+  margin-top: 0.15rem;
+}
+.panel .row { display: flex; gap: 0.4rem; }
+.panel button {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #c8ccd2;
+  border-radius: 4px;
+  background: #f0f2f5;
+  cursor: pointer;
+  font: inherit;
+}
+.panel button:hover { background: #e6e9ed; }
+.panel button.primary {
+  background: #2b6cb0;
+  color: white;
+  border-color: #2b6cb0;
+  margin-bottom: 0.4rem;
+}
+.panel button.primary:hover { background: #234e83; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+.tool-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0;
+}
+.hint { color: #6a7180; font-size: 0.8rem; margin: 0.3rem 0 0; }
+
+.canvas-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  overflow: auto;
+}
+.canvas-wrap {
+  background: white;
+  border: 1px solid #e3e6eb;
+  border-radius: 6px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#map {
+  display: block;
+  background: #fafbfc;
+  border: 1px solid #e3e6eb;
+  cursor: crosshair;
+  max-width: 100%;
+  height: auto;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #4a4f57;
+}
+.lg { display: inline-block; width: 14px; height: 10px; margin-right: 4px; vertical-align: middle; border: 1px solid #999; }
+.lg-obstacle { background: #333; }
+.lg-free     { background: #fff; }
+.lg-start    { background: #28a745; border-color: #1d6f30; }
+.lg-goal     { background: #dc3545; border-color: #8b1a25; }
+.lg-path     { background: linear-gradient(90deg, #2b6cb0, #b83280); border-color: #555; }
+
+.image-area {
+  background: white;
+  border: 1px solid #e3e6eb;
+  border-radius: 6px;
+  padding: 0.6rem;
+  overflow: auto;
+}
+.image-area figure { margin: 0; }
+.image-area figcaption {
+  font-size: 0.8rem;
+  color: #6a7180;
+  margin-bottom: 0.4rem;
+}
+.image-area img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #eef0f3;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.stats dt { color: #6a7180; }
+.stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.35rem 1rem;
+  background: #1d2129;
+  color: #f5f6f8;
+  font-size: 0.8rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  border-top: 1px solid #000;
+}
+.statusbar.error { background: #b03030; }
+.statusbar.success { background: #1f6f3f; }

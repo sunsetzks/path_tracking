@@ -9,6 +9,7 @@ hybrid_astar/
 ├── python/              # Pure Python implementation with Foxglove visualization
 ├── cpp/                 # Complete C++ core algorithm (modular design)
 ├── cpp_bindings/        # C++ with Python bindings (pybind11)
+├── rust/                # Rust implementation with egui GUI demo
 ├── ecal/                # eCAL middleware integration
 ├── docs/                # Documentation
 ├── pyproject.toml       # Python package configuration
@@ -109,6 +110,42 @@ Middleware integration for distributed systems.
 - eCAL middleware
 - Foxglove Studio
 
+### 5. Rust Implementation (`rust/`)
+
+High-performance Rust implementation with interactive GUI demo.
+
+**Features:**
+- Complete Hybrid A* algorithm in safe Rust
+- Interactive GUI with egui
+- Real-time parameter tuning
+- Multiple scenarios (Basic, Parking, U-Turn, Custom)
+- Pan and zoom visualization
+
+**Build & Run:**
+```bash
+cd rust
+cargo run --release
+```
+
+**Usage:**
+```rust
+use hybrid_astar_rust::{HybridAStar, VehicleModel, State, Direction};
+
+let vehicle = VehicleModel::new(2.5, std::f64::consts::FRAC_PI_4);
+let mut planner = HybridAStar::with_defaults();
+planner.set_obstacle_map(obstacle_map, 0.0, 0.0);
+
+let start = State::start(0.0, 0.0, 0.0);
+let goal = State::goal(10.0, 10.0, std::f64::consts::FRAC_PI_4);
+let result = planner.plan(start, goal, 5000);
+```
+
+**GUI Controls:**
+- Left-click: Set start position
+- Shift+click: Set goal position
+- Drag: Pan view
+- Scroll: Zoom in/out
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -137,6 +174,10 @@ cmake .. && make
 # C++ bindings demo
 cd cpp_bindings
 python python_demo.py
+
+# Rust GUI demo
+cd rust
+cargo run --release
 ```
 
 ## 🧪 Testing
@@ -154,6 +195,10 @@ ctest
 # C++ bindings tests
 cd cpp_bindings
 pytest tests/
+
+# Rust tests
+cd rust
+cargo test
 ```
 
 ## 📊 Visualization

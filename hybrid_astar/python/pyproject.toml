@@ -8,3 +8,10 @@ dependencies = [
     "foxglove-schemas-protobuf>=0.3.0",
     "foxglove-sdk>=0.10.1",
 ]
+
+[project.optional-dependencies]
+demo = [
+    "flask>=3.0",
+    "pillow>=10.0",
+]
+

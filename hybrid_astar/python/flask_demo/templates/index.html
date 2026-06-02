@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hybrid A* Web Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Hybrid A* Web Demo</h1>
+    <span class="subtitle">interactive path planning for non-holonomic vehicles</span>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>Scenario</h2>
+        <label for="scenario-select">Map</label>
+        <select id="scenario-select"></select>
+        <p id="scenario-desc" class="hint"></p>
+        <div class="row">
+          <button id="btn-reset" type="button" title="Reset to scenario defaults">Reset Map</button>
+          <button id="btn-clear-path" type="button" title="Clear planned path">Clear Path</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Tool</h2>
+        <div class="tool-group" role="radiogroup">
+          <label><input type="radio" name="tool" value="select" checked /> Select / Inspect</label>
+          <label><input type="radio" name="tool" value="start" /> Set Start</label>
+          <label><input type="radio" name="tool" value="goal" /> Set Goal</label>
+          <label><input type="radio" name="tool" value="paint-obstacle" /> Paint Obstacle</label>
+          <label><input type="radio" name="tool" value="erase-obstacle" /> Erase Obstacle</label>
+        </div>
+        <p class="hint">
+          Left-click applies the tool. Right-click on the canvas sets the yaw of the
+          start or goal to the direction from the click to the marker.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Planner Parameters</h2>
+        <div class="grid-2">
+          <label>Grid res (m)<input type="number" id="param-grid-resolution" step="0.1" min="0.1" /></label>
+          <label>Max iter<input type="number" id="param-max-iterations" step="500" min="100" /></label>
+          <label>Velocity (m/s)<input type="number" id="param-velocity" step="0.1" min="0.1" /></label>
+          <label>Sim time (s)<input type="number" id="param-simulation-time" step="0.1" min="0.1" /></label>
+          <label>Angle res (rad)<input type="number" id="param-angle-resolution" step="0.1" min="0.1" /></label>
+          <label>Steer res (rad)<input type="number" id="param-steer-resolution" step="0.1" min="0.1" /></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Cost Weights</h2>
+        <div class="grid-2">
+          <label>w_steer<input type="number" id="w-steer" step="0.5" /></label>
+          <label>w_turn<input type="number" id="w-turn" step="0.5" /></label>
+          <label>w_cusp<input type="number" id="w-cusp" step="1" /></label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <button id="btn-plan" class="primary" type="button">Plan Path</button>
+        <button id="btn-render" type="button">Render Path PNG</button>
+      </section>
+
+      <section class="panel">
+        <h2>Statistics</h2>
+        <dl id="stats" class="stats">
+          <dt>Status</dt><dd id="stat-status">—</dd>
+          <dt>Path nodes</dt><dd id="stat-path-nodes">—</dd>
+          <dt>Waypoints</dt><dd id="stat-waypoints">—</dd>
+          <dt>Distance (m)</dt><dd id="stat-distance">—</dd>
+          <dt>Search time (s)</dt><dd id="stat-time">—</dd>
+          <dt>Nodes explored</dt><dd id="stat-explored">—</dd>
+        </dl>
+      </section>
+    </aside>
+
+    <section class="canvas-area">
+      <div class="canvas-wrap">
+        <canvas id="map" width="600" height="600"></canvas>
+        <div class="legend">
+          <span class="lg lg-obstacle"></span> obstacle
+          <span class="lg lg-free"></span> free
+          <span class="lg lg-start"></span> start
+          <span class="lg lg-goal"></span> goal
+          <span class="lg lg-path"></span> planned path
+        </div>
+      </div>
+      <div class="image-area">
+        <figure>
+          <figcaption>Search tree (server-rendered)</figcaption>
+          <img id="search-png" alt="search tree will appear here after planning" />
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <footer id="status" class="statusbar">Ready.</footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[package]
+name = "hybrid-astar-rust"
+version = "0.1.0"
+edition = "2021"
+description = "Hybrid A* Path Planning Algorithm - Rust implementation with GUI demo"
+authors = ["Path Tracking Team"]
+
+[dependencies]
+# GUI framework
+eframe = "0.28"
+egui = "0.28"
+egui_plot = "0.28"
+
+# Math and utilities
+libm = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = false
